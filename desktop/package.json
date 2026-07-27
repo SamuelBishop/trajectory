@@ -11,11 +11,16 @@
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "package": "npm run build && electron-builder --dir"
+    "package": "npm run build && electron-builder --dir",
+    "smoke": "node scripts/smoke-packaged.mjs"
   },
   "dependencies": {
+    "@github/copilot-sdk": "^1.0.7",
+    "openai": "^6.48.0",
     "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react-dom": "19.2.7",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "24.10.1",
@@ -38,6 +43,16 @@
     "files": [
       "out/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../examples/demo/user",
+        "to": "trajectory-data/user"
+      },
+      {
+        "from": "../resources/mentors",
+        "to": "trajectory-data/mentors"
+      }
     ],
     "mac": {
       "category": "public.app-category.productivity"

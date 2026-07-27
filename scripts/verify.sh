@@ -18,14 +18,11 @@
 
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../desktop"
 
-PYTHON=".venv/bin/python"
-
-if [[ ! -x "$PYTHON" ]]; then
-  echo "error: $PYTHON not found." >&2
-  echo "The system Python is 3.9 and this project requires 3.12+." >&2
-  echo "Create the environment first: python3.12 -m venv .venv" >&2
+if [[ ! -d node_modules ]]; then
+  echo "error: desktop/node_modules is missing." >&2
+  echo "Run 'cd desktop && npm install', then rerun." >&2
   exit 1
 fi
 
@@ -34,35 +31,14 @@ step() {
   echo "==> $1"
 }
 
-step "Python tests"
-"$PYTHON" -m pytest
+step "Typecheck"
+npm run --silent typecheck
 
-step "Ruff lint"
-"$PYTHON" -m ruff check .
+step "Tests"
+npm run --silent test
 
-step "Ruff format check"
-"$PYTHON" -m ruff format --check .
-
-step "mypy (strict)"
-"$PYTHON" -m mypy
-
-if [[ -d desktop/node_modules ]]; then
-  step "Desktop typecheck"
-  (cd desktop && npm run --silent typecheck)
-
-  step "Desktop tests"
-  (cd desktop && npm run --silent test)
-
-  step "Desktop build"
-  (cd desktop && npm run --silent build)
-else
-  echo
-  echo "==> Desktop checks SKIPPED — desktop/node_modules missing"
-  echo "    Run 'cd desktop && npm install', then rerun."
-  echo
-  echo "Python checks passed, but this was a PARTIAL run. Not green." >&2
-  exit 1
-fi
+step "Build"
+npm run --silent build
 
 echo
 echo "All checks passed."

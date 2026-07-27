@@ -46,14 +46,3 @@ export interface DesktopApi {
   deleteConversation(id: string): Promise<void>;
   sendMessage(input: SendMessageInput): Promise<Conversation>;
 }
-
-export interface SidecarChatResponse {
-  answer: string;
-  goal_ids: string[];
-  principle_ids: string[];
-  source_ids: string[];
-  observations: string[];
-  inferences: string[];
-  confidence: number;
-  uncertainties: string[];
-}

@@ -1,16 +1,14 @@
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
 import { app, ipcMain, safeStorage } from "electron";
 
+import { providerNameSchema } from "../engine/domain";
+import { chatWithMentor, type EngineDirectories } from "../engine/mentorship";
+import { ensureLocalConfig, resolveBundledData } from "../engine/paths";
+import { createProvider } from "../engine/providers/factory";
 import type { ProviderName, SendMessageInput } from "../shared/types";
-import { runTrajectoryChat } from "./sidecar";
 import { EncryptedChatStore } from "./store";
-
-const PROVIDERS = new Set<ProviderName>([
-  "deterministic",
-  "copilot",
-  "openai",
-]);
 
 function requireId(value: unknown): string {
   if (typeof value !== "string" || !/^[0-9a-f-]{36}$/i.test(value)) {
@@ -31,10 +29,11 @@ function requireMessage(value: unknown): string {
 }
 
 function requireProvider(value: unknown): ProviderName {
-  if (typeof value !== "string" || !PROVIDERS.has(value as ProviderName)) {
+  const result = providerNameSchema.safeParse(value);
+  if (!result.success) {
     throw new Error("Invalid model provider.");
   }
-  return value as ProviderName;
+  return result.data;
 }
 
 export function registerIpcHandlers(): void {
@@ -52,6 +51,30 @@ export function registerIpcHandlers(): void {
     },
   );
 
+  let seeded: Promise<EngineDirectories> | undefined;
+  const localConfig = async (): Promise<EngineDirectories> => {
+    seeded ??= ensureLocalConfig(
+      resolveBundledData({
+        isPackaged: app.isPackaged,
+        resourcesPath: process.resourcesPath,
+        appPath: app.getAppPath(),
+      }),
+      app.getPath("userData"),
+    );
+    return await seeded;
+  };
+
+  // Where the Copilot runtime keeps its state and, crucially, what it treats as
+  // its working directory. The main process picks it so the runtime never runs
+  // in — and never scans — whatever directory the app happened to launch from.
+  const runtimeDirectory = path.join(app.getPath("userData"), "runtime");
+  let runtimeReady: Promise<unknown> | undefined;
+  const ensureRuntimeDirectory = async (): Promise<string> => {
+    runtimeReady ??= mkdir(runtimeDirectory, { recursive: true });
+    await runtimeReady;
+    return runtimeDirectory;
+  };
+
   ipcMain.handle("chat:list", () => store.list());
   ipcMain.handle("chat:get", (_event, id: unknown) => store.get(requireId(id)));
   ipcMain.handle("chat:create", () => store.create());
@@ -68,11 +91,19 @@ export function registerIpcHandlers(): void {
     const provider = requireProvider(input.provider);
     const conversation = await store.get(conversationId);
     await store.append(conversationId, "user", content);
-    const response = await runTrajectoryChat(
-      provider,
+
+    const { response } = await chatWithMentor(
       content,
-      conversation.messages,
+      conversation.messages.map((item) => ({
+        role: item.role,
+        content: item.content,
+      })),
+      createProvider(provider, {
+        runtimeDirectory: await ensureRuntimeDirectory(),
+      }),
+      await localConfig(),
     );
+
     return await store.append(conversationId, "assistant", response.answer, {
       goalIds: response.goal_ids,
       principleIds: response.principle_ids,

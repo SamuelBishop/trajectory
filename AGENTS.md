@@ -16,22 +16,23 @@ Keep it under 60 lines (`[HC-ROUTE-DONT-ROOT]`).
 
 | Touching | Read |
 | --- | --- |
-| `src/trajectory/providers/**` | `.github/instructions/providers.instructions.md` |
-| `src/trajectory/**`, `tests/**` | `.github/instructions/python-engine.instructions.md` |
+| `desktop/src/engine/providers/**` | `.github/instructions/providers.instructions.md` |
+| `desktop/src/engine/**`, `desktop/tests/engine/**` | `.github/instructions/engine.instructions.md` |
 | `desktop/src/main/**`, `desktop/src/preload/**`, `desktop/electron.vite.config.ts` | `.github/instructions/desktop-main.instructions.md` |
 | `desktop/src/renderer/**` | `.github/instructions/desktop-renderer.instructions.md` |
-| `docs/**`, `README.md`, `resources/mentors/**` | `.github/instructions/docs-and-mentors.instructions.md` |
+| `docs/**`, `README.md`, `resources/mentors/**`, `examples/**`, `*.md` | `.github/instructions/docs-and-mentors.instructions.md` |
 
 ## Commands
 
 ```bash
-./scripts/verify.sh          # whole chain, fail-fast (~30s, no packaging)
-.venv/bin/python -m pytest   # Python tests only
-cd desktop && npm test       # desktop tests only
-cd desktop && npm run package  # build only — must also open the app to test the bridge
+./scripts/verify.sh            # whole chain, fail-fast (~20s, no packaging)
+cd desktop && npm test         # tests only
+cd desktop && npm run package  # build the app (does not launch it)
+cd desktop && npm run smoke    # launch the packaged app and drive the real bridge
 ```
 
-Python lives in `.venv` (3.12). The system Python is 3.9 and will not work.
+Everything is TypeScript and runs from `desktop/`. There is no Python and no
+sidecar; the mentorship engine runs in the Electron main process.
 
 ## Agents
 

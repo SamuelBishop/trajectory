@@ -1,5 +1,12 @@
 # Build the Trajectory MVP
 
+> **Historical.** This prompt built the original Python CLI MVP, which has since
+> been implemented and then migrated to TypeScript. It is kept for the product
+> reasoning it records — the hypothesis, the scope boundary, and the attribution
+> requirements, all of which still hold. Its *technical* instructions describe a
+> Python package that no longer exists. Do not follow them. The current
+> architecture is in `AGENTS.md` and `docs/methodology/CONSTITUTION.md`.
+
 Use the following prompt with a coding agent to implement Trajectory's first usable vertical slice.
 
 ---

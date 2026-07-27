@@ -72,9 +72,9 @@ product exists to avoid.
 
 ## Errors
 
-Surface the message from the sidecar. "Something went wrong" hides the missing
-environment variable or the absent Python dependency that would let the user
-actually fix it.
+Surface the message the engine threw. "Something went wrong" hides the missing
+environment variable, the unmatched goal, or the absent Copilot runtime that
+would let the user actually fix it.
 
 ## Style
 

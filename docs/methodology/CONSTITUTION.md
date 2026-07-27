@@ -27,7 +27,7 @@ refusal contracts, by the tests named in the verification lines, and by review.
 That is a deliberate choice for a solo project, and it means honesty about
 evidence is the only thing holding the system up.
 
-There are 31 rules.
+There are 32 rules.
 
 ---
 
@@ -52,9 +52,13 @@ section exists because that data must not leak.
 
 - **Bar**: Private message and history payloads cross a process boundary on
   stdin, never in command-line arguments.
-- **Pattern**: The desktop sidecar invokes the CLI in stdin JSON mode. Argv is
+- **Pattern**: The engine runs in the Electron main process, so most work crosses
+  no process boundary at all. Where one remains — the Copilot SDK spawning the
+  Copilot runtime — the payload travels over JSON-RPC on stdio. Argv is
   world-readable to any local process listing; stdin is not.
-- **Verification**: `tests/test_cli.py::test_chat_cli_accepts_private_history_on_stdin`.
+- **Verification**: `desktop/tests/engine/providers.test.ts` —
+  "disables tools, denies permissions, and cleans up the session" asserts the
+  prompt is passed through `sendAndWait`, never as a spawn argument.
 
 ### `[HC-SECRETS-ENV-ONLY]`
 
@@ -63,18 +67,27 @@ section exists because that data must not leak.
 - **Pattern**: Read API keys from environment variables. Let the Copilot SDK
   use existing local GitHub authentication. When a credential is missing, name
   the variable, never the value. Do not echo a key back even when redacting.
-- **Verification**: `tests/test_cli.py::test_cli_openai_never_prints_fake_secret`,
-  `tests/test_providers.py::test_openai_environment_requires_credentials`.
+- **Verification**: `desktop/tests/engine/providers.test.ts` —
+  "requires credentials from the environment" and
+  "wraps SDK errors without leaking the underlying message".
 
 ### `[HC-NO-EXFILTRATION]`
 
 - **Bar**: User data leaves the machine only via the model provider the user
   explicitly configured. No telemetry, analytics, crash reporting, or update
   pings.
-- **Pattern**: The only outbound network calls live in `src/trajectory/providers/`.
-  The desktop app makes no network calls of its own. Adding an outbound call
-  anywhere else is a constitution change, not an implementation detail.
-- **Verification**: Manual review of new network calls and dependencies.
+- **Pattern**: The only outbound network calls live in
+  `desktop/src/engine/providers/`. Nothing else in the app makes a network call.
+  Adding an outbound call anywhere else is a constitution change, not an
+  implementation detail. An SDK's *defaults* count as outbound behaviour: the
+  Copilot SDK's default mode reads `AGENTS.md`, `.github/copilot-instructions.md`
+  and `CLAUDE.md` from its working directory — which defaults to
+  `process.cwd()` — into every prompt. Providers therefore opt out explicitly
+  (`mode: "empty"`, `skipCustomInstructions`, `enableSessionTelemetry: false`)
+  and run in an application-owned directory chosen by the main process.
+- **Verification**: `desktop/tests/engine/providers.test.ts` —
+  "gives the runtime no ambient context to read". Manual review of new network
+  calls and dependencies.
 
 ### `[HC-NO-PRIVATE-DATA-COMMITS]`
 
@@ -89,11 +102,14 @@ section exists because that data must not leak.
 - **Bar**: Configuration is read only from an explicitly passed directory or a
   small, declared set of resolution candidates. Never search the filesystem for
   a user's data.
-- **Pattern**: `--user-dir` and `--mentor-dir` win when given. Otherwise resolve
-  a bounded candidate list (working directory, then the packaged/editable
-  install root). Fail with the paths tried rather than widening the search.
-- **Verification**: `tests/test_cli.py::test_default_directory_finds_editable_checkout_outside_repository`,
-  `tests/test_cli.py::test_cli_reports_missing_configuration`.
+- **Pattern**: The engine takes `userDirectory` and `mentorDirectory` as
+  arguments and resolves nothing itself. The main process derives them from
+  `app.getPath("userData")`, seeding once from bundled read-only demo data when
+  they are absent. Seeding never overwrites an existing file.
+- **Verification**: `desktop/tests/engine/paths.test.ts` —
+  "reads from resources when packaged", "reads from the repository in
+  development", "never overwrites configuration the user has edited", and
+  "fails loudly when bundled configuration is missing".
 
 ---
 
@@ -106,7 +122,8 @@ section exists because that data must not leak.
 - **Pattern**: The user chose a provider deliberately; substituting a different
   one changes the meaning of the answer without telling them. Surface the error
   with the remedy.
-- **Verification**: `tests/test_providers.py::test_openai_provider_does_not_fallback`.
+- **Verification**: `desktop/tests/engine/providers.test.ts` —
+  "does not fall back after a second invalid response".
 
 ### `[HC-PROVIDER-PARITY]`
 
@@ -115,18 +132,26 @@ section exists because that data must not leak.
 - **Pattern**: New capabilities are added to the protocol and to all providers
   in the same change, or the gap is declared. A provider that supports half the
   surface makes the provider selector a trap.
-- **Verification**: `tests/test_providers.py::test_openai_provider_supports_chat`,
-  `tests/test_providers.py::test_copilot_provider_supports_chat`.
+- **Verification**: `desktop/tests/engine/providers.test.ts` —
+  "requests a strict schema in which every property is required" (OpenAI chat)
+  and "supports chat" (Copilot).
 
 ### `[HC-STRICT-SCHEMA-REQUIRED]`
 
 - **Bar**: Under strict structured output, every property in the schema must be
   listed in `required`, including properties that have defaults.
-- **Pattern**: Pydantic omits fields with `default_factory` from `required`, and
-  OpenAI's strict mode rejects the resulting schema. Declare such fields
-  required and let validation, not the schema, express optionality.
-- **Verification**: `tests/test_providers.py::test_openai_provider_validates_and_retries`.
-  This rule exists because that exact schema was rejected at runtime.
+- **Pattern**: This rule exists because a Pydantic schema that omitted
+  `default_factory` fields from `required` was rejected at runtime. Zod's
+  `zodResponseFormat` lists every property, so the defect is now structurally
+  hard to reintroduce — but only while the response schemas stay free of
+  `.optional()` and `.default()`. `desktop/src/engine/domain.ts` says so at the
+  top of the file.
+- **Verification**: `desktop/tests/engine/domain.test.ts` —
+  "lists every recommendation property in required" and "lists every chat
+  response property in required", plus
+  `desktop/tests/engine/providers.test.ts` —
+  "requests a strict schema in which every property is required", which asserts
+  the shape actually sent to the API rather than the schema in isolation.
 
 ### `[HC-SDK-BOUNDARY]`
 
@@ -134,11 +159,40 @@ section exists because that data must not leak.
   least authority the SDK offers, cleans up in `finally`, and wraps SDK
   exceptions in this project's error type.
 - **Pattern**: Disable tools, deny permissions, delete the session in a
-  guaranteed-cleanup block. No module under `src/trajectory/` outside
+  guaranteed-cleanup block. Denial must be the SDK's actual refusal decision:
+  the Copilot SDK's `{ kind: "no-result" }` sends *no* decision and leaves the
+  request pending, so the provider returns `{ kind: "reject" }`. Cleanup must not
+  mask the original failure — a throw from teardown replaces the error the
+  caller needed to see. No module under `desktop/src/engine/` outside
   `providers/` imports an SDK, so application code never handles a vendor
-  exception type. Tests may import a vendor exception to assert it gets wrapped.
-- **Verification**: `tests/test_providers.py::test_copilot_provider_uses_sdk_boundary`,
-  `::test_openai_provider_wraps_sdk_errors`, `::test_copilot_provider_wraps_sdk_errors`.
+  exception type. Tests may import a vendor type to assert it gets wrapped.
+- **Verification**: `desktop/tests/engine/providers.test.ts` —
+  "disables tools, denies permissions, and cleans up the session",
+  "rejects permission requests rather than declining to answer them",
+  "wraps SDK errors without leaking the underlying message" (OpenAI, which
+  asserts a credential in the vendor message is not surfaced), and
+  "wraps SDK errors" (Copilot).
+
+### `[HC-PACKAGED-RUNTIME]`
+
+- **Bar**: A provider must work in the packaged application, not only in
+  development. An SDK's assumptions about its host are the application's problem
+  to solve, and a provider that cannot run is a defect, not a limitation.
+- **Pattern**: This rule exists because the Copilot SDK launches its runtime
+  with `process.execPath`, which under Electron is the application binary rather
+  than Node — so `start()` hung forever with no error and no log. Forcing Node
+  mode did not fix it either: the runtime's argument parser branches on
+  `process.versions.electron`, which Electron still reports. The provider now
+  points the SDK at the platform package's native binary, rewritten from
+  `app.asar` to `app.asar.unpacked` because executables cannot be spawned from
+  inside an archive. Each of those three failures was silent or misattributed in
+  development. Assume the packaged environment differs and prove otherwise.
+- **Verification**: `desktop/tests/engine/providers.test.ts` —
+  "spawns the native runtime binary when hosted by Electron",
+  "spawns the unpacked binary rather than one inside the asar",
+  "refuses rather than hanging when the runtime is missing"; and
+  `npm run smoke --prefix desktop` — "the OpenAI SDK ships inside the build".
+  The Copilot runtime needs a signed-in account and stays a manual check.
 
 ---
 
@@ -154,8 +208,8 @@ claim.
 - **Pattern**: Validate citations against the loaded configuration after
   generation. An unresolvable ID is a hallucination, so reject the response
   rather than rendering it.
-- **Verification**: `tests/test_validation.py::test_rejects_unknown_recommendation_citation`,
-  `::test_accepts_resolved_attribution`.
+- **Verification**: `desktop/tests/engine/validation.test.ts` —
+  "rejects an unknown citation" and "accepts resolved attribution".
 
 ### `[HC-BIDIRECTIONAL-ATTRIBUTION]`
 
@@ -164,9 +218,10 @@ claim.
   links to it.
 - **Pattern**: One-directional checks let a model cite an impressive-looking
   source that nothing actually rests on. Check both edges.
-- **Verification**: `tests/test_validation.py::test_rejects_principle_without_cited_support`,
-  `::test_rejects_source_without_cited_principle_link`,
-  `::test_accepts_independently_sourced_principles`.
+- **Verification**: `desktop/tests/engine/validation.test.ts` —
+  "rejects a principle with no cited support",
+  "rejects a source not linked to a cited principle", and
+  "accepts independently sourced principles".
 
 ### `[HC-OBSERVATION-VS-INFERENCE]`
 
@@ -175,7 +230,8 @@ claim.
 - **Pattern**: Observations quote or reference the user's own configuration.
   Inferences are the model's reasoning about them. The user must be able to
   disagree with the second without doubting the first.
-- **Verification**: `tests/test_validation.py::test_preserves_observation_and_inference_fields`.
+- **Verification**: `desktop/tests/engine/validation.test.ts` —
+  "preserves observation and inference fields".
 
 ### `[HC-MENTOR-IDENTITY-INTEGRITY]`
 
@@ -187,9 +243,10 @@ claim.
   in a named living person's style is a refusal, even when asked directly —
   unless the person supplies the text themselves, in which case use it verbatim
   and attribute it.
-- **Verification**: `tests/test_config.py::test_rejects_unapproved_source`,
-  `::test_rejects_unknown_principle_source`. The voice and endorsement clauses
-  are manual.
+- **Verification**: `desktop/tests/engine/config.test.ts` —
+  "rejects an unapproved source", "rejects an unknown principle source", and
+  "rejects a non-synthetic source on a fictional profile". The voice and
+  endorsement clauses are manual.
 
 ### `[HC-REFUSE-UNGROUNDED]`
 
@@ -198,9 +255,10 @@ claim.
 - **Pattern**: Selection fails loudly when no goal matches. The deterministic
   provider refuses questions outside its demo scenario instead of reusing
   scenario advice out of context.
-- **Verification**: `tests/test_selection.py::test_fails_when_no_goal_matches`,
-  `tests/test_providers.py::test_deterministic_provider_rejects_non_demo_question`,
-  `::test_deterministic_provider_does_not_treat_proposal_as_pr`.
+- **Verification**: `desktop/tests/engine/selection.test.ts` —
+  "fails when no goal matches"; `desktop/tests/engine/providers.test.ts` —
+  "rejects a question outside the committed demo" and
+  "does not treat a design proposal as a pull request".
 
 ### `[SC-UNCERTAINTY-DECLARED]`
 
@@ -208,7 +266,8 @@ claim.
   uncertain about.
 - **Pattern**: Confidence is range-validated. An empty uncertainty list on a
   consequential decision is a smell, not a strength.
-- **Verification**: `tests/test_prompting.py::test_rejects_out_of_range_confidence`.
+- **Verification**: `desktop/tests/engine/prompting.test.ts` —
+  "rejects out-of-range confidence" and "rejects a response with no uncertainty".
 
 ---
 
@@ -226,7 +285,10 @@ rules are transcribed from those failures.
 - **Pattern**: The preload exposes a fixed verb list. The main process decides
   *where* things run; the renderer only asks *what* to do.
 - **Verification**: `desktop/src/main/index.ts` window options and
-  `desktop/src/preload/index.ts` surface; manual review.
+  `desktop/src/preload/index.ts` surface; `npm run smoke --prefix desktop` —
+  "the renderer has no Node access", which asserts `require`, `process`, and
+  `module` are all undefined in the launched packaged renderer. The
+  `webPreferences` flags themselves are still review-only.
 
 ### `[HC-PRELOAD-CJS]`
 
@@ -237,10 +299,11 @@ rules are transcribed from those failures.
   `index.cjs`. Without this the bundler emits `.mjs`, the sandboxed preload
   silently fails to load, and `window.trajectory` is `undefined` in the packaged
   app while dev mode looks fine.
-- **Verification**: `desktop/electron.vite.config.ts`; manual packaged smoke
-  test — package the app, launch it, and confirm `window.trajectory` is defined.
-  Packaging alone is not enough: `electron-builder --dir` never runs the app, so
-  a successful package still reports nothing about the bridge.
+- **Verification**: `npm run smoke --prefix desktop` — "the preload bridge is
+  exposed". Packaging alone is not enough: `electron-builder --dir` never runs
+  the app, so a successful package reports nothing about the bridge. The smoke
+  test launches the packaged app and reads `window.trajectory` from the real
+  renderer.
 
 ### `[HC-VALIDATE-IPC-INPUT]`
 
@@ -301,7 +364,9 @@ rules are transcribed from those failures.
   and its output has been shown.
 - **Pattern**: `scripts/verify.sh` runs the whole chain fail-fast. Running a
   targeted subset is fine when the diff is narrow; saying which subset ran, and
-  why it covers the change, is not optional.
+  why it covers the change, is not optional. A change to packaging, the preload,
+  or a provider's runtime also needs `npm run package && npm run smoke` from
+  `desktop/` — the chain cannot see any of those.
 - **Verification**: The command output in the report.
 
 ### `[HC-TEST-WITH-BEHAVIOR]`

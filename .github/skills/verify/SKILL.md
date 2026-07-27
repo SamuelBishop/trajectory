@@ -15,26 +15,27 @@ Run the verification chain and report exactly what happened.
    ./scripts/verify.sh
    ```
 
-   It is fail-fast: Python tests, Ruff lint, Ruff format check, mypy strict,
-   then the desktop typecheck, tests, and build.
+   It is fail-fast: desktop typecheck, tests, then build.
 
 2. If the diff is narrow, a subset is acceptable — but name which stages ran and
    why they cover the change. A partial run reported as a full one is the
    failure this exists to prevent (`[HC-VERIFY-BEFORE-DONE]`).
 
-3. Package the desktop app when the change touched
-   `desktop/electron.vite.config.ts`, `desktop/src/preload/**`, or window
-   creation:
+3. Run the packaged smoke test when the change touched
+   `desktop/electron.vite.config.ts`, `desktop/src/preload/**`, window creation,
+   packaging configuration, or a provider's runtime resolution:
 
    ```bash
-   cd desktop && npm run package
+   cd desktop && npm run package && npm run smoke
    ```
 
-   Then **open the packaged app and confirm `window.trajectory` is defined**.
-   Packaging is necessary but not sufficient — `electron-builder --dir` builds
-   without ever launching the app, so a clean package says nothing about the
-   bridge (`[HC-PRELOAD-CJS]`). Typecheck, tests, and build all pass while
-   `window.trajectory` is `undefined`. Say so when you skip this.
+   Packaging alone is necessary but not sufficient — `electron-builder --dir`
+   builds without ever launching the app, so a clean package says nothing about
+   the preload bridge (`[HC-PRELOAD-CJS]`) or whether a bundled SDK can run
+   (`[HC-PACKAGED-RUNTIME]`). Typecheck, tests, and build all pass while
+   `window.trajectory` is `undefined`. `npm run smoke` launches the packaged app
+   outside the repository and checks both. Say so when you skip this. The
+   Copilot provider needs a signed-in account and is not covered.
 
 4. Report the command, exit status, and relevant output verbatim. Do not
    compress a stack trace into a sentence.
@@ -45,7 +46,7 @@ Run the verification chain and report exactly what happened.
   repairs its own findings is not an independent signal.
 - **Do not interpret a failure into a pass.** A test that looks flaky is a
   reported failure.
-- Python is `.venv` (3.12). The system Python is 3.9 and fails confusingly —
-  check which one ran before reporting a Python failure as real.
+- Everything is TypeScript and runs from `desktop/`. If `desktop/node_modules`
+  is missing the chain refuses to run; report that rather than installing it.
 - The script skips desktop checks when `desktop/node_modules` is missing, and
   exits non-zero when it does. A partial run is not a pass.

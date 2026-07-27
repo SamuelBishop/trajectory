@@ -26,24 +26,25 @@ work, or state plainly that the change rests on review alone.
 | Slug | Status | What actually checks it | What is left uncovered |
 | --- | --- | --- | --- |
 | `[HC-NO-PLAINTEXT-HISTORY]` | Partial | `desktop/tests/store.test.ts` (2 cases) | Tests inject a fake `safeStorage`. Real OS keychain behavior, and the Linux `basic_text` backend check, are exercised only by hand. |
-| `[HC-PRIVATE-INPUT-STDIN]` | Partial | `tests/test_cli.py::test_chat_cli_accepts_private_history_on_stdin` | Proves the CLI *accepts* stdin. Nothing fails if the desktop sidecar starts passing a payload through argv instead. |
-| `[HC-SECRETS-ENV-ONLY]` | Partial | `tests/test_cli.py::test_cli_openai_never_prints_fake_secret`, `tests/test_providers.py::test_openai_environment_requires_credentials` | Covers one known key shape on one path. A secret printed from a new code path is not caught. |
-| `[HC-NO-EXFILTRATION]` | Not verified | — | No dependency policy and no network assertion. A new outbound call anywhere would pass the suite. |
+| `[HC-PRIVATE-INPUT-STDIN]` | Partial | `desktop/tests/engine/providers.test.ts` — "disables tools, denies permissions, and cleans up the session" | The engine now runs in-process, so the only surviving boundary is the Copilot SDK's own stdio transport. The test proves the prompt goes through `sendAndWait`; nothing fails if future code spawns a process with a payload in argv. |
+| `[HC-SECRETS-ENV-ONLY]` | Partial | `desktop/tests/engine/providers.test.ts` — "requires credentials from the environment", "wraps SDK errors without leaking the underlying message" | Covers credential absence and one error path. A secret printed from a new code path is not caught. |
+| `[HC-NO-EXFILTRATION]` | Partial | `desktop/tests/engine/providers.test.ts` — "gives the runtime no ambient context to read" | The Copilot SDK's ambient-file defaults are now pinned. Nothing else is: no dependency policy and no network assertion, so a new outbound call anywhere would pass the suite. |
 | `[HC-NO-PRIVATE-DATA-COMMITS]` | Partial | `.gitignore` | Only covers paths already listed. A new private directory, or a secret pasted into a tracked file, is caught by review alone. |
-| `[HC-EXPLICIT-CONFIG-PATHS]` | Automated | `tests/test_cli.py::test_default_directory_finds_editable_checkout_outside_repository`, `::test_cli_reports_missing_configuration` | — |
-| `[HC-NO-PROVIDER-FALLBACK]` | Automated | `tests/test_providers.py::test_openai_provider_does_not_fallback` | — |
-| `[HC-PROVIDER-PARITY]` | Partial | `::test_openai_provider_supports_chat`, `::test_copilot_provider_supports_chat` | Per-provider tests, not a parity check. A newly added provider with no chat support fails nothing. |
-| `[HC-STRICT-SCHEMA-REQUIRED]` | Partial | `::test_openai_provider_validates_and_retries` | Covers validation and retry behavior, not the emitted schema. Nothing asserts that every property appears in `required` — which is the exact defect that motivated the rule. |
-| `[HC-SDK-BOUNDARY]` | Partial | `::test_copilot_provider_uses_sdk_boundary`, `::test_openai_provider_wraps_sdk_errors`, `::test_copilot_provider_wraps_sdk_errors` | Cleanup and error wrapping are covered. Import discipline is not — nothing fails if a module outside `providers/` imports a vendor SDK. |
-| `[HC-CITATIONS-RESOLVE]` | Automated | `tests/test_validation.py::test_rejects_unknown_recommendation_citation`, `::test_accepts_resolved_attribution` | — |
-| `[HC-BIDIRECTIONAL-ATTRIBUTION]` | Automated | `::test_rejects_principle_without_cited_support`, `::test_rejects_source_without_cited_principle_link`, `::test_accepts_independently_sourced_principles` | — |
-| `[HC-OBSERVATION-VS-INFERENCE]` | Automated | `::test_preserves_observation_and_inference_fields` | Field separation is enforced; whether the model actually put the right content in each field is not. |
-| `[HC-MENTOR-IDENTITY-INTEGRITY]` | Partial | `tests/test_config.py::test_rejects_unapproved_source`, `::test_rejects_unknown_principle_source` | Source approval is enforced at load. The living-voice and implied-endorsement clauses are pure judgment. |
-| `[HC-REFUSE-UNGROUNDED]` | Automated | `tests/test_selection.py::test_fails_when_no_goal_matches`, `tests/test_providers.py::test_deterministic_provider_rejects_non_demo_question`, `::test_deterministic_provider_does_not_treat_proposal_as_pr` | Only the deterministic provider refuses on demand. A hosted model answering thinly from general knowledge is not detectable here. |
-| `[SC-UNCERTAINTY-DECLARED]` | Partial | `tests/test_prompting.py::test_rejects_out_of_range_confidence` | Range is validated. An empty uncertainty list still passes. |
-| `[HC-RENDERER-LEAST-PRIVILEGE]` | Not verified | — | No test asserts `webPreferences`. Flipping `sandbox` or `contextIsolation` breaks nothing in the suite. |
-| `[HC-PRELOAD-CJS]` | Not verified | — | **Highest-risk gap.** This defect is invisible in dev mode and only appears in a packaged build, where `window.trajectory` is silently `undefined`. Nothing in `typecheck`, `test`, or `build` catches it — and neither does `npm run package`, which builds but never launches the app. Only opening the packaged app and checking the bridge detects it. |
-| `[HC-VALIDATE-IPC-INPUT]` | Not verified | — | No IPC handler tests exist. |
+| `[HC-EXPLICIT-CONFIG-PATHS]` | Automated | `desktop/tests/engine/paths.test.ts` (5 cases), `desktop/tests/engine/config.test.ts` — "reports a missing configuration file by path" | — |
+| `[HC-NO-PROVIDER-FALLBACK]` | Automated | `desktop/tests/engine/providers.test.ts` — "does not fall back after a second invalid response" | — |
+| `[HC-PROVIDER-PARITY]` | Partial | `desktop/tests/engine/providers.test.ts` — "requests a strict schema in which every property is required", "supports chat" | The `MentorProvider` interface now makes a missing method a compile error, which is stronger than before. Behavioural parity — that both providers actually answer equivalently — is still per-provider tests rather than a parity check. |
+| `[HC-STRICT-SCHEMA-REQUIRED]` | Automated | `desktop/tests/engine/domain.test.ts` — "lists every recommendation property in required", "lists every chat response property in required"; `desktop/tests/engine/providers.test.ts` — "requests a strict schema in which every property is required" | Gap closed during the TypeScript migration. The emitted schema is now asserted both in isolation and as sent to the API. |
+| `[HC-SDK-BOUNDARY]` | Partial | `desktop/tests/engine/providers.test.ts` — "disables tools, denies permissions, and cleans up the session", "rejects permission requests rather than declining to answer them", "wraps SDK errors without leaking the underlying message", "wraps SDK errors" | Cleanup, denial semantics, and error wrapping are covered. Import discipline is not — nothing fails if a module outside `providers/` imports a vendor SDK. |
+| `[HC-PACKAGED-RUNTIME]` | Partial | `desktop/tests/engine/providers.test.ts` — "spawns the native runtime binary when hosted by Electron", "spawns the unpacked binary rather than one inside the asar", "refuses rather than hanging when the runtime is missing"; `desktop/scripts/smoke-packaged.mjs` — "the OpenAI SDK ships inside the build" | Runtime resolution is unit-tested and the OpenAI SDK is exercised in a real packaged launch. The Copilot runtime needs a signed-in GitHub account, so its packaged path is a manual check. |
+| `[HC-CITATIONS-RESOLVE]` | Automated | `desktop/tests/engine/validation.test.ts` — "rejects an unknown citation", "accepts resolved attribution" | — |
+| `[HC-BIDIRECTIONAL-ATTRIBUTION]` | Automated | `desktop/tests/engine/validation.test.ts` — "rejects a principle with no cited support", "rejects a source not linked to a cited principle", "accepts independently sourced principles" | — |
+| `[HC-OBSERVATION-VS-INFERENCE]` | Automated | `desktop/tests/engine/validation.test.ts` — "preserves observation and inference fields" | Field separation is enforced; whether the model actually put the right content in each field is not. |
+| `[HC-MENTOR-IDENTITY-INTEGRITY]` | Partial | `desktop/tests/engine/config.test.ts` — "rejects an unapproved source", "rejects an unknown principle source", "rejects a non-synthetic source on a fictional profile" | Source approval is enforced at load. The living-voice and implied-endorsement clauses are pure judgment. |
+| `[HC-REFUSE-UNGROUNDED]` | Automated | `desktop/tests/engine/selection.test.ts` — "fails when no goal matches", "fails when no principle matches the selected goals"; `desktop/tests/engine/providers.test.ts` — "rejects a question outside the committed demo", "does not treat a design proposal as a pull request" | Only the deterministic provider refuses on demand. A hosted model answering thinly from general knowledge is not detectable here. |
+| `[SC-UNCERTAINTY-DECLARED]` | Automated | `desktop/tests/engine/prompting.test.ts` — "rejects out-of-range confidence", "rejects a response with no uncertainty" | Zod's `.min(1)` on `uncertainties` is now asserted, so an empty list no longer passes. |
+| `[HC-RENDERER-LEAST-PRIVILEGE]` | Partial | `desktop/scripts/smoke-packaged.mjs` — "the renderer has no Node access" | The observable effect is now asserted in a launched packaged app: `require`, `process`, and `module` must all be undefined. The `webPreferences` flags themselves are still unasserted, and the smoke test only runs when someone runs it. |
+| `[HC-PRELOAD-CJS]` | Automated | `desktop/scripts/smoke-packaged.mjs` — "the preload bridge is exposed" | Gap closed. The smoke test copies the packaged app outside the repository, launches it, and reads `window.trajectory` from the real renderer. It is not part of `scripts/verify.sh` because it needs `npm run package` first, so it still depends on someone running it. |
+| `[HC-VALIDATE-IPC-INPUT]` | Not verified | — | No IPC handler tests exist. The provider validator is now a zod schema shared with the engine, so a typo diverging from `ProviderName` is a compile error — but the ID and message validators are still unexercised. |
 | `[HC-NO-RENDERER-URL-FROM-ENV]` | Not verified | — | Requires a packaged build with the environment variable set. Not covered. |
 | `[HC-ATOMIC-SERIALIZED-WRITES]` | Partial | `desktop/tests/store.test.ts` — "serializes concurrent mutations without losing conversations" | Serialization is covered. Atomicity — temp file, `fsync`, `rename` — is not directly asserted; a regression to a plain in-place write would pass. |
 | `[HC-EVIDENCE]` | Not verified | — | Adversarial review only. This is structural: nothing mechanical can distinguish captured output from convincing prose. |
@@ -59,25 +60,27 @@ work, or state plainly that the change rests on review alone.
 
 ## Summary
 
-Of 31 bars: 6 automated, 10 partial, 15 not verified.
+Of 32 bars: 9 automated, 11 partial, 12 not verified.
 
 The shape of that is expected rather than alarming. The verified end is the
-Python engine's grounding and attribution logic — the part that is pure
-functions over data, and the part where a wrong answer is the product failing at
-its main claim. The unverified end is Electron packaging behavior and process
-discipline, which need either a packaged app or a human.
+engine's grounding and attribution logic — the part that is pure functions over
+data, and the part where a wrong answer is the product failing at its main
+claim. The unverified end is Electron packaging behavior and process discipline,
+which need either a packaged app or a human.
 
-Two gaps are worth closing first if this ever grows:
+The TypeScript migration closed `[HC-STRICT-SCHEMA-REQUIRED]` and
+`[SC-UNCERTAINTY-DECLARED]`: both are now asserted directly rather than implied
+by a retry test. It also closed `[HC-PRELOAD-CJS]` and moved
+`[HC-RENDERER-LEAST-PRIVILEGE]` off zero, by adding
+`desktop/scripts/smoke-packaged.mjs` — a smoke test that copies the packaged app
+outside the repository, launches it, and drives the real preload bridge. That
+script was written because the Copilot runtime failed three different ways in
+the packaged app while every other check stayed green, which is also why
+`[HC-PACKAGED-RUNTIME]` now exists.
 
-1. `[HC-PRELOAD-CJS]` — a packaged smoke test that launches the app and asserts
-   the preload bridge is present. This bug already shipped once and was
-   invisible until the app was packaged *and opened*; packaging alone would not
-   have caught it either.
-2. `[HC-STRICT-SCHEMA-REQUIRED]` — a test asserting the generated schema lists
-   every property in `required`. Also already shipped once.
-
-Both are cheap, and both are rules that exist specifically because the failure
-already happened.
+The gap worth closing next is `[HC-SDK-BOUNDARY]`'s import discipline — nothing
+fails if a module outside `providers/` imports a vendor SDK, and that is the
+boundary the whole provider contract rests on.
 
 ## Infrastructure assumptions
 

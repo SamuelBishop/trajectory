@@ -20,7 +20,7 @@ pattern below is transcribed from one of them — none is hypothetical.
 | `index.ts` | App lifecycle, window creation, renderer URL policy |
 | `ipc.ts` | The IPC handler surface. The trust boundary. |
 | `store.ts` | Encrypted conversation persistence |
-| `sidecar.ts` | Invoking the Python CLI |
+| `../engine/**` | The mentorship engine, called in-process. See `engine.instructions.md`. |
 
 ## Window options are load-bearing
 
@@ -42,10 +42,10 @@ A sandboxed preload cannot be an ES module. Without the override the bundler
 emits `.mjs`, the preload silently fails to load, and `window.trajectory` is
 `undefined` — **only in the packaged app**. Dev mode looks perfectly fine.
 
-If you change the preload build config or its entry filename, package the app
-**and open it** to confirm the bridge exists. `npm run typecheck && npm test &&
+If you change the preload build config or its entry filename, run
+`npm run package && npm run smoke`. `npm run typecheck && npm test &&
 npm run build` all pass while this is broken, and so does `npm run package` —
-`electron-builder --dir` never launches the app.
+`electron-builder --dir` never launches the app. `npm run smoke` does.
 
 ## The preload is an allow-list, not a pipe
 

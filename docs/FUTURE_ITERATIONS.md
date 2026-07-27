@@ -4,14 +4,17 @@ This backlog preserves ideas intentionally excluded from the decision-review MVP
 
 ## Current desktop roadmap
 
-Complete the TypeScript migration before the dependent in-app editing and
-integration work so the desktop app no longer relies on a separately installed
-Python sidecar.
+The TypeScript migration is complete: the mentorship engine now runs in the
+Electron main process and the Python package and sidecar have been deleted. The
+dependent in-app editing and integration work is unblocked.
 
-- [ ] Migrate the mentorship engine from Python to type-safe TypeScript modules that run directly in Electron while preserving provider contracts, grounding validation, and existing behavior.
-- [ ] Add in-app mentor management for one or more editable personalities, principles, communication preferences, and source-linked grounding resources. Depends on the TypeScript migration.
-- [ ] Add a validated `goals.md` editor in the app with stable goal identifiers and safe local persistence. Depends on the TypeScript migration.
-- [ ] Add permission-scoped Notion, calendar, screen-time, and related task integrations so Trajectory can understand current commitments and activity without silently expanding its privacy boundary. Depends on the TypeScript migration.
+- [x] Migrate the mentorship engine from Python to type-safe TypeScript modules that run directly in Electron while preserving provider contracts, grounding validation, and existing behavior.
+- [ ] Store provider credentials in the app using Electron `safeStorage` and an in-app settings screen. `OPENAI_API_KEY` currently has to come from the environment, so a Finder-launched packaged app cannot see it. Pre-existing, and the last thing standing between the packaged app and a first-run OpenAI chat.
+- [ ] Add in-app mentor management for one or more editable personalities, principles, communication preferences, and source-linked grounding resources.
+- [ ] Add a validated `goals.md` editor in the app with stable goal identifiers and safe local persistence.
+- [ ] Add permission-scoped Notion, calendar, screen-time, and related task integrations so Trajectory can understand current commitments and activity without silently expanding its privacy boundary.
+- [x] Add a packaged smoke test that launches the built app and asserts the preload bridge is present. Closes the highest-risk row in `docs/methodology/coverage-gaps.md`. Shipped as `desktop/scripts/smoke-packaged.mjs` (`npm run smoke`); it also covers renderer privilege, first-launch seeding, encrypted history, and that the bundled OpenAI SDK actually runs.
+- [ ] Cover the Copilot provider in the packaged smoke test. It needs a signed-in GitHub account, so it is the one provider the automated smoke run skips — and it is the provider whose runtime resolution broke three separate ways in the packaged app.
 
 ## Product validation gates
 
@@ -260,8 +263,8 @@ Python sidecar.
 - [ ] Add adversarial tests for leaking secrets or ignored private files.
 - [ ] Add recommendation-quality regression fixtures.
 - [ ] Add end-to-end tests for every new workflow before exposing it.
-- [ ] Add CI for tests, Ruff, and mypy.
-- [ ] Add setup verification on supported Python versions and operating systems.
+- [ ] Add CI for the desktop typecheck, tests, and build.
+- [ ] Add setup verification on supported Node.js versions and operating systems.
 
 ## Architecture and operations
 

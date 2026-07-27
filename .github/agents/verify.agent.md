@@ -25,32 +25,38 @@ anything.
 ./scripts/verify.sh
 ```
 
-Fail-fast. It runs Python tests, Ruff lint, Ruff format check, mypy strict, then
-the desktop typecheck, tests, and build. It does **not** package the app —
-packaging takes minutes and is requested explicitly.
+Fail-fast. It runs the typecheck, the tests, and the build. It does **not**
+package the app — packaging takes minutes and is requested explicitly.
 
 Individual stages, when a narrow diff justifies a subset:
 
 ```bash
-.venv/bin/python -m pytest
-.venv/bin/python -m ruff check .
-.venv/bin/python -m mypy
-cd desktop && npm run typecheck && npm test && npm run build
+cd desktop && npm run typecheck
+cd desktop && npm test
+cd desktop && npm run build
 ```
 
-Python is `.venv` (3.12). The system Python is 3.9 and will fail with confusing
-errors — check which one ran before reporting a Python failure as a real one.
+Everything is TypeScript and runs from `desktop/`. If `node_modules` is missing,
+say so rather than installing it.
 
 ## Packaging
 
-`cd desktop && npm run package` is **necessary but not sufficient** to detect a
-broken preload bridge (`[HC-PRELOAD-CJS]`). `electron-builder --dir` builds the
-app without launching it, so a clean package proves nothing on its own — open
-the packaged app and confirm `window.trajectory` is defined. `typecheck`,
-`test`, and `build` all pass while it is `undefined`.
+`cd desktop && npm run package` is **necessary but not sufficient**.
+`electron-builder --dir` builds the app without launching it, so a clean package
+proves nothing about the preload bridge (`[HC-PRELOAD-CJS]`) or whether a
+bundled SDK can actually run (`[HC-PACKAGED-RUNTIME]`). `typecheck`, `test`, and
+`build` all pass while `window.trajectory` is `undefined`.
 
-Run it when the change touched `desktop/electron.vite.config.ts`, the preload,
-or window creation. Say so when you skip it.
+```bash
+cd desktop && npm run package && npm run smoke
+```
+
+`npm run smoke` copies the packaged app outside the repository, launches it
+against a throwaway user-data directory, and drives the real bridge. Run both
+when the change touched `desktop/electron.vite.config.ts`, the preload, window
+creation, packaging configuration, or a provider's runtime resolution. Say so
+when you skip it. The Copilot provider needs a signed-in account and is not
+covered by the smoke test.
 
 ## Reporting
 

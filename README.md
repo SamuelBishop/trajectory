@@ -482,76 +482,62 @@ Trajectory is there to help make sure the work is pointed in a direction you del
 
 ## Technical appendix
 
-The current MVP includes a Python CLI and an experimental Electron chat app.
-It supports a deterministic local demo, the GitHub Copilot SDK, and
-OpenAI-compatible providers.
+Trajectory is an Electron desktop app written entirely in TypeScript. The
+mentorship engine runs in the Electron main process — there is no sidecar and no
+second runtime. It supports a deterministic local demo, the GitHub Copilot SDK,
+and OpenAI-compatible providers.
 
-### Run the CLI
+### Run it
 
-Trajectory requires Python 3.12 or newer.
-
-```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
-trajectory decide "Should I spend another two hours polishing this low-risk pull request?"
-```
-
-The deterministic provider supports only the committed synthetic pull-request
-scenario. Add `--json` to inspect the validated response, or choose Copilot or
-an OpenAI-compatible provider for other questions.
-
-Private user configuration belongs in `.trajectory/`, which is ignored by Git.
-The synthetic demo configuration is in `examples/demo/user/`.
-
-### Run the desktop app
-
-The desktop app requires Node.js 22, npm 10, and the Python environment. Python
-currently runs as a local sidecar.
+Requires Node.js 22.12 or newer.
 
 ```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e '.[all]'
 npm install --prefix desktop
 npm run dev --prefix desktop
 ```
 
-Create an unpacked development build with:
+Create an unpacked build with `npm run package --prefix desktop`.
 
-```bash
-npm run package --prefix desktop
-```
+On first launch the app copies the synthetic demo configuration into its
+user-data directory and reads from there afterwards. Those files are yours to
+edit; nothing writes them back and nothing commits them.
 
-The packaged app does not yet bundle Python. Set
-`TRAJECTORY_SIDECAR_PATH` to an installed `trajectory` executable or ensure it
-is available on `PATH`.
+| Platform | Where your configuration lives |
+| --- | --- |
+| macOS | `~/Library/Application Support/Trajectory/config/` |
+| Windows | `%APPDATA%\Trajectory\config\` |
+| Linux | `~/.config/Trajectory/config/` |
+
+The deterministic provider answers only the committed synthetic pull-request
+scenario. Choose Copilot or an OpenAI-compatible provider for anything else.
+
+The Copilot provider ships the Copilot runtime inside the application, so it
+needs no separate install — sign in to GitHub Copilot and it works. It defaults
+to the `auto` model; set `COPILOT_MODEL` to name a specific one. The OpenAI
+provider reads `OPENAI_API_KEY` and `OPENAI_MODEL` from the environment, which
+means it currently works when the app is launched from a shell but not when
+launched from Finder. In-app credential storage is on the backlog.
 
 ### Architecture and privacy
 
-Trajectory loads only the selected user and mentor directories, retrieves the
-relevant goals, principles, and sources, asks the selected provider for a
-structured response, and validates every referenced identifier.
+Trajectory loads only the user and mentor directories it is handed, selects the
+relevant goals, principles, and sources, asks the chosen provider for a
+structured response, and validates every referenced identifier in both
+directions before showing you anything.
 
 The Electron renderer has no filesystem or process access. A narrow preload
 bridge sends validated requests to the main process, which owns the encrypted
-conversation store and communicates with Python over stdin. The app refuses to
-persist chat history if operating-system encryption is unavailable.
+conversation store and the engine. The app refuses to persist chat history if
+operating-system encryption is unavailable rather than quietly writing plaintext.
 
-Copilot and OpenAI-compatible providers receive the selected context under
-their own processing and retention policies. Trajectory does not silently
-switch providers or ingest messages, calendars, screen time, employer systems,
-or other private sources.
+Copilot and OpenAI-compatible providers receive the selected context under their
+own processing and retention policies. Trajectory does not silently switch
+providers or ingest messages, calendars, screen time, employer systems, or other
+private sources.
 
 ### Development
 
 ```bash
-python -m pip install -e '.[all,dev]'
-pytest
-ruff check .
-ruff format --check .
-mypy
-
 npm install --prefix desktop
 npm run typecheck --prefix desktop
 npm test --prefix desktop
@@ -559,6 +545,18 @@ npm run build --prefix desktop
 ```
 
 Or run the whole chain fail-fast with `./scripts/verify.sh`.
+
+The chain does not package the app, and packaging does not launch it. When a
+change touches the preload, window creation, packaging, or how a provider
+reaches its runtime, run the packaged smoke test too:
+
+```bash
+npm run package --prefix desktop && npm run smoke --prefix desktop
+```
+
+It copies the built app outside the repository, launches it against a throwaway
+user-data directory, and drives the real preload bridge — the only check that
+catches a build which is green everywhere else and broken once installed.
 
 Keep private configuration, credentials, chat history, and generated
 application data out of Git. Behavior changes should preserve the
@@ -571,7 +569,7 @@ it carries a small governance stack so that work is consistent regardless of
 which agent does it.
 
 [`docs/methodology/CONSTITUTION.md`](docs/methodology/CONSTITUTION.md) is the
-single source of truth — 31 rules, each traceable to a real defect or an explicit
+single source of truth — 32 rules, each traceable to a real defect or an explicit
 product decision, and each with a stable `[HC-*]` slug that agents must cite
 verbatim. [`coverage-gaps.md`](docs/methodology/coverage-gaps.md) records
 honestly which of those rules nothing actually checks.
