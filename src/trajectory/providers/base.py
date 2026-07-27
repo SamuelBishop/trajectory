@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from trajectory.domain import DecisionRequest, Recommendation
+from trajectory.domain import ChatRequest, ChatResponse, DecisionRequest, Recommendation
 
 
 class MentorProvider(Protocol):
@@ -10,3 +10,6 @@ class MentorProvider(Protocol):
 
     async def generate(self, request: DecisionRequest) -> Recommendation:
         """Generate one structured recommendation."""
+
+    async def chat(self, request: ChatRequest) -> ChatResponse:
+        """Generate one grounded chat response."""

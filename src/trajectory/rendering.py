@@ -1,6 +1,6 @@
 """Render validated recommendations for terminal users."""
 
-from trajectory.domain import Recommendation
+from trajectory.domain import ChatResponse, Recommendation
 
 
 def confidence_label(confidence: float) -> str:
@@ -33,3 +33,14 @@ def render_recommendation(recommendation: Recommendation) -> str:
             f"Grounding: {' | '.join(grounding)}",
         ]
     )
+
+
+def render_chat_response(response: ChatResponse) -> str:
+    lines = [response.answer]
+    if response.uncertainties:
+        lines.extend(["", f"Uncertainty: {response.uncertainties[0]}"])
+    lines.append(
+        "Grounding: "
+        + " | ".join([*response.goal_ids, *response.principle_ids, *response.source_ids])
+    )
+    return "\n".join(lines)

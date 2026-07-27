@@ -8,6 +8,10 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+ChatText = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=12_000),
+]
 Identifier = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, pattern=r"^[a-z0-9][a-z0-9_-]*$"),
@@ -172,3 +176,44 @@ class Recommendation(StrictModel):
 class DecisionResult(StrictModel):
     recommendation: Recommendation
     request: DecisionRequest
+
+
+class ChatMessage(StrictModel):
+    role: Literal["user", "assistant"]
+    content: ChatText
+
+
+class ChatInput(StrictModel):
+    message: ChatText
+    history: list[ChatMessage] = Field(default_factory=list, max_length=20)
+
+
+class ChatRequest(StrictModel):
+    message: ChatText
+    history: list[ChatMessage] = Field(default_factory=list, max_length=20)
+    values: ValuesConfig
+    current_state: CurrentStateConfig
+    constraints: ConstraintsConfig
+    communication: CommunicationConfig
+    goals: list[Goal] = Field(min_length=1)
+    mentor_profile: MentorProfile
+    principles: list[MentorPrinciple] = Field(min_length=1)
+    sources: list[SourceRecord] = Field(min_length=1)
+    provider: Identifier
+    prompt_version: Identifier
+
+
+class ChatResponse(StrictModel):
+    answer: ChatText
+    goal_ids: list[Identifier] = Field(min_length=1)
+    principle_ids: list[Identifier] = Field(min_length=1)
+    source_ids: list[Identifier] = Field(min_length=1)
+    observations: list[Text]
+    inferences: list[Text]
+    confidence: float = Field(ge=0, le=1)
+    uncertainties: list[Text] = Field(min_length=1)
+
+
+class ChatResult(StrictModel):
+    response: ChatResponse
+    request: ChatRequest

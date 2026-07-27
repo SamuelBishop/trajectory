@@ -6,9 +6,22 @@ import os
 from collections.abc import Callable
 from typing import Any
 
-from trajectory.domain import DecisionRequest, Recommendation
+from pydantic import BaseModel
+
+from trajectory.domain import (
+    ChatRequest,
+    ChatResponse,
+    DecisionRequest,
+    Recommendation,
+)
 from trajectory.errors import ProviderError, ProviderResponseError
-from trajectory.prompting import SYSTEM_PROMPT, build_user_message, parse_recommendation
+from trajectory.prompting import (
+    CHAT_SYSTEM_PROMPT,
+    SYSTEM_PROMPT,
+    build_chat_user_message,
+    build_user_message,
+    parse_structured_response,
+)
 
 
 class CopilotProvider:
@@ -66,7 +79,13 @@ class CopilotProvider:
             ),
         )
 
-    async def generate(self, request: DecisionRequest) -> Recommendation:
+    async def _generate_structured[ResponseT: BaseModel](
+        self,
+        *,
+        system_prompt: str,
+        user_message: str,
+        model_type: type[ResponseT],
+    ) -> ResponseT:
         client_factory, deny_permission, sdk_errors = self._load_sdk()
         client_options: dict[str, Any] = {
             "log_level": "error",
@@ -78,7 +97,7 @@ class CopilotProvider:
         session_config: dict[str, Any] = {
             "client_name": "trajectory",
             "model": self.model,
-            "system_message": {"mode": "append", "content": SYSTEM_PROMPT},
+            "system_message": {"mode": "append", "content": system_prompt},
             "available_tools": [],
             "on_permission_request": deny_permission,
             "streaming": False,
@@ -91,7 +110,7 @@ class CopilotProvider:
             try:
                 await client.start()
                 session = await client.create_session(session_config)
-                message = build_user_message(request)
+                message = user_message
                 last_error: ProviderResponseError | None = None
                 for attempt in range(2):
                     reply = await session.send_and_wait({"prompt": message})
@@ -103,7 +122,7 @@ class CopilotProvider:
                         )
                     else:
                         try:
-                            return parse_recommendation(content)
+                            return parse_structured_response(content, model_type)
                         except ProviderResponseError as error:
                             last_error = error
                     if attempt == 0:
@@ -135,3 +154,17 @@ class CopilotProvider:
                 "Copilot SDK cleanup failed. The recommendation was not accepted; "
                 "check local Copilot session storage before retrying."
             ) from error
+
+    async def generate(self, request: DecisionRequest) -> Recommendation:
+        return await self._generate_structured(
+            system_prompt=SYSTEM_PROMPT,
+            user_message=build_user_message(request),
+            model_type=Recommendation,
+        )
+
+    async def chat(self, request: ChatRequest) -> ChatResponse:
+        return await self._generate_structured(
+            system_prompt=CHAT_SYSTEM_PROMPT,
+            user_message=build_chat_user_message(request),
+            model_type=ChatResponse,
+        )

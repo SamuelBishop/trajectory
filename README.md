@@ -8,7 +8,7 @@ It is not a productivity score, surveillance system, therapist replacement, imit
 
 ## Current status
 
-The first MVP is implemented as a deliberately narrow command-line decision review. It explains its recommendation, cites the context it used, distinguishes observation from inference, and admits meaningful uncertainty.
+The first MVP includes a deliberately narrow command-line decision review and an experimental Electron chat app. Both explain their responses, cite the context they use, distinguish observation from inference, and admit meaningful uncertainty.
 
 The MVP includes a deterministic local demo, an official GitHub Copilot SDK adapter, and an OpenAI-compatible adapter. Real-person mentor profiles, passive monitoring, additional reflection workflows, integrations, and persistent behavioral memory remain deferred in [Future iterations](docs/FUTURE_ITERATIONS.md). The original implementation brief remains in [MVP build prompt](docs/MVP_BUILD_PROMPT.md).
 
@@ -58,6 +58,42 @@ trajectory decide "Should I keep polishing this pull request?" --provider openai
 ```
 
 Provider failures are surfaced directly. Trajectory never silently falls back to the deterministic provider.
+
+## Desktop chat
+
+The experimental desktop app requires Node.js 22 and npm 10. It currently
+launches the Python package from this repository as a local sidecar, so install
+the Python environment first.
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[all]'
+npm install --prefix desktop
+npm run dev --prefix desktop
+```
+
+Choose GitHub Copilot, OpenAI-compatible, or the deterministic demo from the
+model selector. The deterministic provider supports only the synthetic
+pull-request scenario used by the CLI demo. Provider setup and environment
+variables are the same as above.
+
+Conversation history is encrypted with Electron `safeStorage` beneath the
+operating system's application-data directory. The app refuses to persist
+history if OS-backed encryption is unavailable; it never falls back to
+plaintext. Messages sent to Copilot or an OpenAI-compatible provider are still
+subject to that provider's processing and retention policies.
+
+Create an unpacked development build with:
+
+```bash
+npm run package --prefix desktop
+```
+
+The packaged app does not yet bundle Python. Set `TRAJECTORY_SIDECAR_PATH` to an
+installed `trajectory` executable before launching it, or ensure `trajectory`
+is available on `PATH`. Signed installers and a bundled Python runtime remain
+future work.
 
 ## Configuration
 

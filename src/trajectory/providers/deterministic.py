@@ -2,7 +2,7 @@
 
 import re
 
-from trajectory.domain import DecisionRequest, Recommendation
+from trajectory.domain import ChatRequest, ChatResponse, DecisionRequest, Recommendation
 from trajectory.errors import ProviderError
 
 
@@ -63,6 +63,38 @@ class DeterministicProvider:
                 "Write a short correctness checklist, address only material risks, submit "
                 "the pull request, then outline the design proposal."
             ),
+            confidence=0.72,
+            uncertainties=["The system cannot inspect unreported production or security risk."],
+        )
+
+    async def chat(self, request: ChatRequest) -> ChatResponse:
+        question = request.message.lower()
+        if not (
+            "polish" in question
+            and ("pull request" in question or re.search(r"\bpr\b", question))
+            and request.goals[0].id == "career_001"
+            and request.principles[0].id == "demo_opportunity_cost_001"
+        ):
+            raise ProviderError(
+                "The deterministic provider supports only the committed pull-request "
+                "demo. Choose copilot or openai for other chat messages."
+            )
+        return ChatResponse(
+            answer=(
+                "I would stop after a short correctness check. The pull request is "
+                "functionally complete, while the postponed design proposal more directly "
+                "supports your architectural-ownership goal. Write a brief material-risk "
+                "checklist, submit the pull request, and use the remaining time to outline "
+                "the proposal."
+            ),
+            goal_ids=[request.goals[0].id],
+            principle_ids=[request.principles[0].id],
+            source_ids=[request.sources[0].id],
+            observations=[
+                "The current state describes the pull request as functionally complete.",
+                "The design proposal has been postponed twice.",
+            ],
+            inferences=["Additional polish may have lower opportunity value than the design work."],
             confidence=0.72,
             uncertainties=["The system cannot inspect unreported production or security risk."],
         )

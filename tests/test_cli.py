@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from trajectory.cli import app
+from trajectory.cli import _default_directory, app
 
 runner = CliRunner()
 QUESTION = "Should I spend another two hours polishing this low-risk pull request?"
@@ -31,6 +31,38 @@ def test_cli_json_output() -> None:
     assert payload["confidence"] == 0.72
     assert payload["observations"]
     assert payload["inferences"]
+
+
+def test_chat_cli_accepts_private_history_on_stdin() -> None:
+    payload = {
+        "message": QUESTION,
+        "history": [
+            {"role": "user", "content": "I am deciding what to do tonight."},
+            {"role": "assistant", "content": "What are the highest-value alternatives?"},
+        ],
+    }
+    result = runner.invoke(
+        app,
+        ["chat", "--provider", "deterministic", "--json", "--input-json"],
+        input=json.dumps(payload),
+    )
+
+    assert result.exit_code == 0
+    response = json.loads(result.stdout)
+    assert "short correctness check" in response["answer"]
+    assert response["goal_ids"] == ["career_001"]
+    assert response["uncertainties"]
+
+
+def test_default_directory_finds_editable_checkout_outside_repository(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    directory = _default_directory(Path("examples/demo/user"), "demo/user")
+
+    assert (directory / "values.yaml").is_file()
 
 
 def test_cli_reports_missing_configuration(tmp_path: Path) -> None:

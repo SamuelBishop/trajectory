@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from openai import OpenAIError
 
-from tests.helpers import demo_request
+from tests.helpers import demo_chat_request, demo_request
 from trajectory.errors import ProviderError, ProviderResponseError
 from trajectory.providers.copilot import CopilotProvider
 from trajectory.providers.deterministic import DeterministicProvider
@@ -29,6 +29,21 @@ def _provider_json(request: Any) -> str:
             "alternatives_considered": ["Keep polishing.", "Submit after checking."],
             "suggested_next_step": "Run a short correctness checklist and submit.",
             "confidence": 0.7,
+            "uncertainties": ["Unreported production risk may exist."],
+        }
+    )
+
+
+def _chat_json(request: Any) -> str:
+    return json.dumps(
+        {
+            "answer": "Focus on the design proposal after a short correctness check.",
+            "goal_ids": [request.goals[0].id],
+            "principle_ids": [request.principles[0].id],
+            "source_ids": [request.sources[0].id],
+            "observations": ["The pull request is described as complete."],
+            "inferences": ["Additional polish may have lower opportunity value."],
+            "confidence": 0.75,
             "uncertainties": ["Unreported production risk may exist."],
         }
     )
@@ -120,6 +135,22 @@ async def test_openai_provider_validates_and_retries(
 
 
 @pytest.mark.asyncio
+async def test_openai_provider_supports_chat(
+    user_directory: Path,
+    mentor_directory: Path,
+) -> None:
+    request = await demo_chat_request(user_directory, mentor_directory)
+    client = FakeOpenAIClient([_chat_json(request)])
+    provider = OpenAICompatibleProvider(model="test-model", client=client)
+
+    response = await provider.chat(request)
+
+    assert response.goal_ids == ["career_001"]
+    response_format = client.chat.completions.calls[0]["response_format"]
+    assert response_format["json_schema"]["name"] == "trajectory_chat_response"
+
+
+@pytest.mark.asyncio
 async def test_deterministic_provider_rejects_non_demo_question(
     user_directory: Path,
     mentor_directory: Path,
@@ -192,6 +223,24 @@ async def test_copilot_provider_uses_sdk_boundary(
 
     assert recommendation.principle_ids == ["demo_opportunity_cost_001"]
     assert created_clients[0].deleted_session_ids == ["fake-session"]
+
+
+@pytest.mark.asyncio
+async def test_copilot_provider_supports_chat(
+    user_directory: Path,
+    mentor_directory: Path,
+) -> None:
+    request = await demo_chat_request(user_directory, mentor_directory)
+    contents = [_chat_json(request)]
+
+    def factory(options: dict[str, Any]) -> FakeCopilotClient:
+        return FakeCopilotClient(contents, options)
+
+    provider = CopilotProvider(model="test-model", client_factory=factory)
+
+    response = await provider.chat(request)
+
+    assert response.answer.startswith("Focus on the design proposal")
 
 
 @pytest.mark.asyncio
