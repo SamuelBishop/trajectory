@@ -1,18 +1,107 @@
 # Trajectory
 
-**Open-source AI mentorship for people serious about who they are becoming.**
+**Open-source AI mentorship for people serious about where their effort is taking them.**
 
-Trajectory is a local-first experiment in candid, context-aware guidance. It aims to combine a user's values, goals, current circumstances, and source-linked mentor principles to help answer a practical question: does this choice move you toward the person you said you wanted to become?
+Most ambitious people do not need another system telling them to work harder.
 
-It is not a productivity score, surveillance system, therapist replacement, imitation of a living person, or authority that should be obeyed automatically. The user remains responsible for every decision.
+They already care. They already have goals. They already know how to fill a day.
+The harder problem is noticing when a full day and a meaningful day stop being
+the same thing.
+
+That drift rarely looks dramatic. It looks like polishing work that is already
+good enough. Saying yes to an urgent request that has little to do with the
+person you want to become. Treating exhaustion as a character flaw. Staying
+busy because the important task is uncomfortable.
+
+Each choice can sound reasonable on its own. Stack enough of them together and
+you can work extremely hard in a direction you never deliberately chose.
+
+Trajectory is an attempt to build better feedback into that gap.
+
+## What is Trajectory?
+
+Trajectory is a local-first AI mentor that combines:
+
+- your values and non-negotiables;
+- your goals and current priorities;
+- your responsibilities, constraints, and energy;
+- source-linked principles from mentors you respect;
+- and the decision in front of you.
+
+It uses that context to give a direct, grounded answer to a practical question:
+
+> Does this choice move you toward the person you said you wanted to become?
+
+Not a productivity score. Not automatic approval. Not a machine demanding more
+output from every available hour.
+
+Sometimes the answer should be: keep going.
+
+Sometimes it should be: ship the work.
+
+Sometimes it should be: you are avoiding the thing that matters.
+
+And sometimes the highest-leverage move is to close the laptop and recover.
+
+Context is the point.
+
+## What useful mentorship should feel like
+
+A useful mentor does not agree with everything you say. It helps separate:
+
+- necessary persistence from stubbornness;
+- high standards from perfectionism;
+- meaningful work from visible activity;
+- discomfort from genuine misalignment;
+- and disciplined effort from unsustainable intensity.
+
+Trajectory is designed to be candid without becoming demeaning, supportive
+without becoming flattering, and uncertain when the available evidence is not
+strong enough.
+
+It critiques decisions and patterns. It does not judge a person's worth.
+
+It also does not pretend to *be* a living mentor. Mentor resources are
+source-grounded perspectives with explicit citations, interpretations,
+confidence, and limitations. The user's own values and goals always outrank
+them.
+
+## An example
+
+You ask:
+
+> Should I spend another two hours polishing this low-risk pull request?
+
+Trajectory can connect that choice to the facts that the change is already
+functionally complete, a higher-value design proposal has been postponed twice,
+and architectural ownership is one of your stated goals.
+
+It can then recommend a short correctness check, explain the opportunity cost,
+identify possible perfectionism as an inference rather than a fact, cite the
+goal and mentor principle it used, and admit that it cannot see an unreported
+production or security risk.
+
+Specific enough to act on. Transparent enough to question.
 
 ## Current status
 
-The first MVP includes a deliberately narrow command-line decision review and an experimental Electron chat app. Both explain their responses, cite the context they use, distinguish observation from inference, and admit meaningful uncertainty.
+The MVP has two interfaces:
 
-The MVP includes a deterministic local demo, an official GitHub Copilot SDK adapter, and an OpenAI-compatible adapter. Real-person mentor profiles, passive monitoring, additional reflection workflows, integrations, and persistent behavioral memory remain deferred in [Future iterations](docs/FUTURE_ITERATIONS.md). The original implementation brief remains in [MVP build prompt](docs/MVP_BUILD_PROMPT.md).
+- a Python CLI for structured decision reviews and grounded chat;
+- an experimental Electron chat app for macOS and Windows development.
 
-## Quick start
+It supports a deterministic local demo, the official GitHub Copilot SDK, and
+OpenAI-compatible providers. Responses use validated contracts, cite the
+selected context, distinguish observations from inferences, and include
+meaningful uncertainty.
+
+This is still an early experiment. Editable mentors and goals, context
+integrations, proactive interventions, mobile clients, and behavioral memory
+remain pending in [Future iterations](docs/FUTURE_ITERATIONS.md). The original
+implementation brief is preserved in
+[MVP build prompt](docs/MVP_BUILD_PROMPT.md).
+
+## Quick start: CLI
 
 Trajectory requires Python 3.12 or newer.
 
@@ -23,9 +112,11 @@ python -m pip install -e .
 trajectory decide "Should I spend another two hours polishing this low-risk pull request?"
 ```
 
-The deterministic provider is the default. It uses only the committed synthetic pull-request demo, rejects other scenarios, and requires no network access or credentials. Add `--json` to inspect the exact validated recommendation object. Use Copilot or OpenAI-compatible providers for other decisions.
+The deterministic provider is the default. It supports only the committed
+synthetic pull-request scenario and requires no network access or credentials.
+Add `--json` to inspect the exact validated response.
 
-Use different local configuration with explicit paths:
+Use private local configuration with explicit paths:
 
 ```bash
 trajectory decide "Should I keep polishing this?" \
@@ -33,7 +124,72 @@ trajectory decide "Should I keep polishing this?" \
   --mentor-dir resources/mentors/demo_mentor
 ```
 
-`.trajectory/` is ignored by Git and is the recommended location for private user files.
+`.trajectory/` is ignored by Git and is the recommended location for private
+user files.
+
+## Quick start: desktop chat
+
+The desktop app requires Node.js 22, npm 10, and the local Python environment.
+It currently launches Python as a sidecar process.
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[all]'
+npm install --prefix desktop
+npm run dev --prefix desktop
+```
+
+Choose GitHub Copilot, OpenAI-compatible, or the deterministic demo from the
+model selector. Conversation history is encrypted with Electron `safeStorage`
+in the operating system's application-data directory. If OS-backed encryption
+is unavailable, the app refuses to persist history rather than falling back to
+plaintext.
+
+Create an unpacked development build with:
+
+```bash
+npm run package --prefix desktop
+```
+
+The packaged app does not yet bundle Python. Set `TRAJECTORY_SIDECAR_PATH` to an
+installed `trajectory` executable or ensure it is available on `PATH`. Signed
+installers and a bundled runtime are future work.
+
+## How it works
+
+Trajectory keeps context assembly, generation, validation, and presentation
+separate:
+
+1. It loads only the user and mentor directories selected for the request.
+2. It chooses the goals, principles, and source records relevant to the question.
+3. It sends that bounded context to the selected provider.
+4. It validates the structured response and every referenced identifier.
+5. It returns the recommendation, reasoning, citations, confidence, and uncertainty.
+
+The deterministic provider generates the committed demo response locally.
+Copilot and OpenAI-compatible providers receive the selected context and must
+return the same domain contract. Provider failures are surfaced directly;
+Trajectory never silently swaps in a different provider.
+
+The Electron renderer has no direct filesystem or process access. A narrow
+preload bridge sends validated requests to the main process, which owns the
+encrypted store and communicates with Python over stdin. Private messages are
+not placed in process arguments.
+
+## Configuration
+
+The synthetic demo user lives in `examples/demo/user/`:
+
+- `values.yaml` — values, non-negotiables, and unacceptable tradeoffs;
+- `goals.yaml` — stable goal IDs, priorities, criteria, and tags;
+- `current_state.yaml` — responsibilities, projects, deadlines, and progress;
+- `constraints.yaml` — practical limits and protected commitments;
+- `communication.yaml` — directness, challenge, uncertainty, and prohibited patterns.
+
+The fictional profile in `resources/mentors/demo_mentor/` exists only to test
+source and principle linkage. It is not empirical evidence or a representation
+of a real person.
 
 ## Model providers
 
@@ -45,7 +201,10 @@ export COPILOT_MODEL=gpt-5
 trajectory decide "Should I keep polishing this pull request?" --provider copilot
 ```
 
-The published SDK wheel includes its compatible Copilot runtime. By default, the SDK uses the locally signed-in GitHub or GitHub CLI user. An authorized token may be supplied through `COPILOT_GITHUB_TOKEN`, but a Copilot Business or Enterprise entitlement is not a generic API key. Organization policy may restrict SDK access, models, data handling, request quotas, or billing. Confirm allowed work-account use with your administrator and never commit a token.
+The SDK uses the locally signed-in GitHub or GitHub CLI user by default.
+Organization policy may restrict SDK access, models, retention, quotas, or
+billing. Confirm allowed work-account use with your administrator and never
+commit a token.
 
 ### OpenAI-compatible
 
@@ -57,63 +216,37 @@ export OPENAI_MODEL=...
 trajectory decide "Should I keep polishing this pull request?" --provider openai
 ```
 
-Provider failures are surfaced directly. Trajectory never silently falls back to the deterministic provider.
-
-## Desktop chat
-
-The experimental desktop app requires Node.js 22 and npm 10. It currently
-launches the Python package from this repository as a local sidecar, so install
-the Python environment first.
-
-```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e '.[all]'
-npm install --prefix desktop
-npm run dev --prefix desktop
-```
-
-Choose GitHub Copilot, OpenAI-compatible, or the deterministic demo from the
-model selector. The deterministic provider supports only the synthetic
-pull-request scenario used by the CLI demo. Provider setup and environment
-variables are the same as above.
-
-Conversation history is encrypted with Electron `safeStorage` beneath the
-operating system's application-data directory. The app refuses to persist
-history if OS-backed encryption is unavailable; it never falls back to
-plaintext. Messages sent to Copilot or an OpenAI-compatible provider are still
-subject to that provider's processing and retention policies.
-
-Create an unpacked development build with:
-
-```bash
-npm run package --prefix desktop
-```
-
-The packaged app does not yet bundle Python. Set `TRAJECTORY_SIDECAR_PATH` to an
-installed `trajectory` executable before launching it, or ensure `trajectory`
-is available on `PATH`. Signed installers and a bundled Python runtime remain
-future work.
-
-## Configuration
-
-The demo user configuration lives in `examples/demo/user/`:
-
-- `values.yaml` — values, non-negotiables, and unacceptable tradeoffs
-- `goals.yaml` — stable goal IDs, priorities, domains, criteria, and tags
-- `current_state.yaml` — responsibilities, projects, deadlines, energy, and progress
-- `constraints.yaml` — practical constraints and protected commitments
-- `communication.yaml` — directness, challenge, uncertainty, and prohibited patterns
-
-The fictional mentor under `resources/mentors/demo_mentor/` exists only to test source and principle linkage. Its records are explicitly synthetic and are not empirical evidence or a representation of a real person.
-
 ## Privacy boundary
 
-Trajectory reads only the user and mentor directories passed to the command. It does not crawl the repository, home directory, messages, shell history, or employer systems. Telemetry is absent. Trajectory does not persist request or response content in its own storage; the Copilot adapter also deletes its SDK session before shutdown.
+The CLI does not crawl the repository, home directory, messages, shell history,
+or employer systems. It does not persist its own request history, and the
+Copilot adapter deletes its SDK session before shutdown.
 
-The deterministic provider remains local. Copilot and OpenAI-compatible providers receive the selected values, goals, current state, constraints, communication preferences, and synthetic mentor grounding. Provider-side processing and retention remain governed by the selected provider and organization policies. Do not submit employer-confidential or otherwise restricted information.
+The desktop app persists conversation history only in its encrypted local
+store. Copilot and OpenAI-compatible providers still receive selected user and
+mentor context, and their processing remains governed by their own policies.
+Do not submit employer-confidential or otherwise restricted information.
 
-## Development
+Passive monitoring, integrations, and notifications are not part of the
+current application. Any future data source must be explicit, permission
+scoped, inspectable, and removable.
+
+## Contributing
+
+Trajectory should improve through transparent engineering and stronger
+evidence—not by making an AI sound more certain or more famous.
+
+Useful contributions include:
+
+- Electron and TypeScript architecture;
+- privacy, encryption, and local-first storage;
+- grounded mentor-resource research;
+- recommendation and prompt evaluation;
+- task, calendar, and activity adapters;
+- accessibility and interaction design;
+- tests, documentation, and developer experience.
+
+Set up both development surfaces from the repository root:
 
 ```bash
 python -m pip install -e '.[all,dev]'
@@ -121,8 +254,30 @@ pytest
 ruff check .
 ruff format --check .
 mypy
-python -m build
+
+npm install --prefix desktop
+npm run typecheck --prefix desktop
+npm test --prefix desktop
+npm run build --prefix desktop
 ```
+
+Keep changes narrow, preserve provider-independent contracts, and add tests when
+behavior changes. Never commit private user configuration, credentials, chat
+history, or generated application data.
+
+Mentor-resource contributions must:
+
+- use public or properly licensed sources;
+- cite the material supporting each principle;
+- distinguish direct statements from interpretation;
+- avoid fabricated quotations and unsupported attribution;
+- document confidence, uncertainty, and likely blind spots;
+- avoid implying that a living person endorses the profile or this project.
+
+Start with [Future iterations](docs/FUTURE_ITERATIONS.md) for the broader
+backlog. Large additions should be scoped before implementation so integrations
+do not quietly widen the privacy boundary or turn uncertain inference into
+fact.
 
 ## Principles
 
