@@ -1,107 +1,492 @@
-# Trajectory
+Trajectory
 
-**Open-source AI mentorship for people serious about where their effort is taking them.**
+Open-source AI mentorship for people serious about who they are becoming.
 
-Most ambitious people do not need another system telling them to work harder.
+Most ambitious people do not have an effort problem.
 
-They already care. They already have goals. They already know how to fill a day.
-The harder problem is noticing when a full day and a meaningful day stop being
-the same thing.
+They work hard. They care. They consume books, podcasts, research, and advice. They set goals, make plans, and repeatedly promise themselves that tomorrow will be more intentional.
 
-That drift rarely looks dramatic. It looks like polishing work that is already
-good enough. Saying yes to an urgent request that has little to do with the
-person you want to become. Treating exhaustion as a character flaw. Staying
-busy because the important task is uncomfortable.
+Then life gets noisy.
 
-Each choice can sound reasonable on its own. Stack enough of them together and
-you can work extremely hard in a direction you never deliberately chose.
+The important project is displaced by the urgent request. A difficult hour of focused work becomes forty minutes of email followed by twenty minutes of scrolling. The evening that was supposed to contain training, reading, or building something meaningful disappears beneath the accumulated fatigue of the workday.
 
-Trajectory is an attempt to build better feedback into that gap.
+Nothing catastrophic happens.
 
-## What is Trajectory?
+That is what makes the problem dangerous.
 
-Trajectory is a local-first AI mentor that combines:
+A life rarely drifts off course because of one obviously disastrous decision. Direction is lost gradually, through hundreds of reasonable choices that make sense in isolation but point nowhere in particular when added together.
 
-- your values and non-negotiables;
-- your goals and current priorities;
-- your responsibilities, constraints, and energy;
-- source-linked principles from mentors you respect;
-- and the decision in front of you.
+Trajectory is an attempt to build something that notices.
 
-It uses that context to give a direct, grounded answer to a practical question:
+⸻
 
-> Does this choice move you toward the person you said you wanted to become?
+The mentorship gap
 
-Not a productivity score. Not automatic approval. Not a machine demanding more
-output from every available hour.
+Good mentorship is an extraordinary advantage.
 
-Sometimes the answer should be: keep going.
+A great mentor can see the mistake you are about to spend six months making. They can distinguish necessary persistence from stubbornness, useful detail from perfectionism, and healthy fatigue from the early stages of burnout.
 
-Sometimes it should be: ship the work.
+They can tell you when to push.
 
-Sometimes it should be: you are avoiding the thing that matters.
+More importantly, they can tell you when pushing harder is the wrong answer.
 
-And sometimes the highest-leverage move is to close the laptop and recover.
+Many of us have people who love us, support us, and genuinely want us to succeed. That is not the same thing as having someone who understands the path we are trying to follow and has the experience, context, time, and willingness to continually challenge us along it.
 
-Context is the point.
+That combination is rare.
 
-## What useful mentorship should feel like
+The people most qualified to provide this kind of guidance are usually occupied building careers, businesses, families, teams, and lives of their own. Even an exceptional human mentor cannot observe every small tradeoff, remember every commitment, or be available each time we lose perspective.
 
-A useful mentor does not agree with everything you say. It helps separate:
+As a result, capable and driven people can spend years applying enormous effort in slightly the wrong direction.
 
-- necessary persistence from stubbornness;
-- high standards from perfectionism;
-- meaningful work from visible activity;
-- discomfort from genuine misalignment;
-- and disciplined effort from unsustainable intensity.
+The problem is not always laziness.
 
-Trajectory is designed to be candid without becoming demeaning, supportive
-without becoming flattering, and uncertain when the available evidence is not
-strong enough.
+Sometimes it is insufficient feedback.
 
-It critiques decisions and patterns. It does not judge a person's worth.
+⸻
 
-It also does not pretend to *be* a living mentor. Mentor resources are
-source-grounded perspectives with explicit citations, interpretations,
-confidence, and limitations. The user's own values and goals always outrank
-them.
+What is Trajectory?
 
-## An example
+Trajectory is a local-first, open-source AI mentorship system.
+
+It combines:
+
+* the person you are trying to become;
+* the values you refuse to sacrifice;
+* your long-term and short-term goals;
+* your current responsibilities and constraints;
+* the projects and tasks competing for your attention;
+* your recent actions and progress;
+* evidence from relevant research;
+* and principles extracted from people whose judgment you respect.
+
+It uses that context to provide candid, practical mentorship.
+
+Not generic encouragement.
+
+Not another productivity dashboard.
+
+Not an algorithm telling you to squeeze more output from every hour.
+
+The goal is to help you make better decisions about what deserves your effort—and recognize when effort itself is no longer the limiting factor.
+
+⸻
+
+The central idea
+
+Most productivity systems measure activity.
+
+Trajectory is interested in direction.
+
+Completing twelve tasks is not necessarily better than completing one. Working late is not inherently admirable. A full calendar does not prove that important work occurred.
+
+The real question is:
+
+Did the way you spent today move you toward the person you said you wanted to become?
+
+Sometimes the answer will be yes.
+
+Sometimes the honest answer will be that you stayed busy to avoid something difficult.
+
+Sometimes the right action will be another focused hour.
+
+Sometimes it will be closing the laptop, eating dinner, going for a run, and getting enough sleep to make tomorrow useful.
+
+Context matters.
+
+Trajectory exists to help interpret that context.
+
+⸻
+
+What mentorship should feel like
+
+A useful mentor should not agree with everything you say.
+
+It should be able to tell you:
+
+You are polishing work that is already good enough because finishing it would expose you to judgment.
+
+Or:
+
+This project sounds exciting, but it does not appear connected to the priorities you established for this quarter.
+
+Or:
+
+You are interpreting fatigue as a discipline problem. Based on the last several days, recovery is probably the higher-leverage choice.
+
+Or simply:
+
+I do not have enough information to give you a confident answer.
+
+The system should be direct without being demeaning.
+
+Supportive without becoming flattering.
+
+Ambitious without treating rest, relationships, or health as obstacles to production.
+
+It should critique decisions and patterns—not the worth or character of the person making them.
+
+⸻
+
+A council, not a guru
+
+Trajectory does not pretend to be a famous coach, entrepreneur, author, or thinker.
+
+It does not claim to know exactly what another person would do in your situation.
+
+Instead, it can maintain a council of source-grounded perspectives.
+
+Each mentor profile documents:
+
+* the domains in which that person has demonstrated relevant experience;
+* principles repeatedly expressed in their public work;
+* the sources supporting those principles;
+* useful decision-making heuristics;
+* the limits and possible blind spots of their worldview;
+* and the confidence with which each principle has been interpreted.
+
+A running coach may emphasize consistency, adaptation, patience, and the correct dose of work.
+
+An entrepreneur may emphasize leverage, opportunity cost, repetition, and speed of execution.
+
+A technical leader may emphasize ownership, clarity, influence, and durable systems.
+
+Those perspectives may disagree.
+
+That disagreement is useful.
+
+Trajectory should not average them into generic advice. It should surface the tension, apply your values and circumstances, and explain why one principle appears more relevant than another.
+
+Your mentors contribute perspective.
+
+They do not choose your life for you.
+
+⸻
+
+Evidence before certainty
+
+Confident language is easy to generate.
+
+Good judgment is harder.
+
+Trajectory should distinguish among:
+
+* directly sourced mentor principles;
+* scientific or behavioral evidence;
+* observations from the user’s own history;
+* self-reported information;
+* tentative patterns;
+* and model-generated inference.
+
+A plausible explanation is not automatically evidence.
+
+A repeated observation is not automatically a fact.
+
+A public statement from a mentor is not automatically relevant to every situation.
+
+Recommendations should therefore include their reasoning, relevant sources, meaningful uncertainty, and the information that could change the conclusion.
+
+The aim is not artificial certainty.
+
+The aim is a recommendation strong enough to act on and honest enough to question.
+
+⸻
+
+How it might work
+
+Morning
+
+Trajectory reviews your goals, calendar, active projects, deadlines, recent commitments, and current energy.
+
+It identifies:
+
+* the most important outcome for the day;
+* the few priorities that support it;
+* the distraction most likely to derail it;
+* and any recovery or relationship commitment that should remain protected.
+
+During the day
+
+You can ask questions such as:
+
+* Should I spend another two hours polishing this pull request?
+* Is this meeting worth attending?
+* Am I avoiding the important task?
+* Should I train today or recover?
+* Which of these projects has the greatest long-term value?
+* Am I taking on too much, or making excuses?
+
+The answer should consider opportunity cost rather than evaluating the choice in isolation.
+
+Evening
+
+Trajectory helps you review what actually happened.
+
+Not merely how many boxes were checked, but:
+
+* what moved forward;
+* what was avoided;
+* what unexpected demands appeared;
+* where energy changed;
+* whether your actions matched your stated priorities;
+* and what should carry into tomorrow.
+
+Weekly
+
+The system produces a trajectory review across the areas of life you care about.
+
+Each area can be assessed as:
+
+* improving;
+* stable;
+* declining;
+* or uncertain.
+
+The report explains the evidence behind that assessment, identifies recurring drift, and recommends one or two meaningful adjustments.
+
+No fake precision.
+
+No life score out of 100.
+
+Just an honest attempt to see the pattern.
+
+⸻
+
+What Trajectory is not
+
+Trajectory is not:
+
+* a replacement for real human relationships;
+* a substitute for professional medical or mental-health care;
+* an imitation of a living person;
+* an authority that should be obeyed automatically;
+* a covert employee-monitoring system;
+* a tool for maximizing every available minute;
+* an excuse to outsource personal responsibility;
+* or a machine that treats leisure as failure.
+
+The user remains responsible for every decision.
+
+The system’s job is to improve reflection, not eliminate agency.
+
+⸻
+
+Design principles
+
+Direction over volume
+
+The amount of work matters less than whether the work points somewhere meaningful.
+
+Fundamentals over hacks
+
+Clear priorities, consistent action, adequate recovery, honest feedback, and repeated reflection should matter more than elaborate optimization.
+
+Patterns over isolated events
+
+One unproductive afternoon is usually noise. Repeating the same avoidance pattern for six weeks is information.
+
+Context over rigid rules
+
+The same behavior can represent procrastination, deliberate recovery, exploration, or genuine constraint. The system should avoid judging an event without understanding its context.
+
+Challenge over flattery
+
+Encouragement is useful when it is earned and specific. Constant praise makes feedback meaningless.
+
+Sustainability over performative intensity
+
+More work is not always better work. Ambition without restraint can consume the conditions required for long-term progress.
+
+Transparency over authority
+
+Advice should show its reasoning, sources, assumptions, and uncertainty.
+
+Privacy by default
+
+Personal goals, journal entries, behavioral data, and daily patterns are sensitive. Local operation, explicit permissions, selective context sharing, and user-controlled deletion should be foundational rather than optional.
+
+⸻
+
+Example
 
 You ask:
 
-> Should I spend another two hours polishing this low-risk pull request?
+Should I keep polishing this low-risk pull request tonight?
 
-Trajectory can connect that choice to the facts that the change is already
-functionally complete, a higher-value design proposal has been postponed twice,
-and architectural ownership is one of your stated goals.
+Trajectory might respond:
 
-It can then recommend a short correctness check, explain the opportunity cost,
-identify possible perfectionism as an inference rather than a fact, cite the
-goal and mentor principle it used, and admit that it cannot see an unreported
-production or security risk.
+I would stop.
 
-Specific enough to act on. Transparent enough to question.
+You have already spent substantially more time on this than its risk and expected impact appear to justify. Based on your stated goal of developing greater architectural ownership, another two hours here likely has lower value than drafting the first section of the design proposal you have postponed twice.
 
-## Current status
+My concern is not that quality is unimportant. It is that perfectionism may be disguising itself as responsibility.
 
-The MVP has two interfaces:
+Recommended next step: write a brief checklist for the remaining PR concerns, resolve only those that could materially affect correctness, and submit it. Spend the next 45 minutes outlining the design proposal.
 
-- a Python CLI for structured decision reviews and grounded chat;
-- an experimental Electron chat app for macOS and Windows development.
+Confidence: moderate. I do not know whether the pull request contains an unreported production or security risk.
 
-It supports a deterministic local demo, the official GitHub Copilot SDK, and
-OpenAI-compatible providers. Responses use validated contracts, cite the
-selected context, distinguish observations from inferences, and include
-meaningful uncertainty.
+That is the standard.
 
-This is still an early experiment. Editable mentors and goals, context
-integrations, proactive interventions, mobile clients, and behavioral memory
-remain pending in [Future iterations](docs/FUTURE_ITERATIONS.md). The original
-implementation brief is preserved in
-[MVP build prompt](docs/MVP_BUILD_PROMPT.md).
+Specific enough to act on.
 
-## Quick start: CLI
+Direct enough to matter.
+
+Uncertain where uncertainty is real.
+
+⸻
+
+Current status
+
+Trajectory is an early experiment.
+
+The first version is expected to focus on a small number of core workflows:
+
+* editable values, identity, goals, and current-state files;
+* source-grounded mentor profiles;
+* task and screen-time data imports;
+* structured decision reviews;
+* morning and evening reflections;
+* weekly trajectory reports;
+* local memory;
+* and a command-line interface.
+
+The first milestone is not autonomous monitoring.
+
+It is a simpler and more important test:
+
+Can an AI combine your goals, current context, documented mentor principles, and credible evidence to give feedback that you genuinely respect?
+
+Until the answer is yes, more integrations will only create a better-informed mediocre coach.
+
+⸻
+
+Repository structure
+
+trajectory/
+├── config/
+│   ├── personality.md
+│   ├── values.md
+│   ├── goals.md
+│   ├── current_state.md
+│   └── constraints.md
+├── resources/
+│   ├── mentors/
+│   ├── evidence/
+│   └── source_registry.yaml
+├── data/
+│   ├── imports/
+│   └── examples/
+├── prompts/
+├── src/
+├── tests/
+└── docs/
+
+Public mentor resources and application code can live in the repository.
+
+Private goals, journals, activity records, and credentials should not.
+
+⸻
+
+Roadmap
+
+Phase 1 — Foundations
+
+* Define the values, goals, mentor, evidence, memory, and recommendation schemas.
+* Build configuration validation.
+* Establish source and attribution requirements.
+* Implement local storage.
+* Add a deterministic test model.
+
+Phase 2 — Decision mentorship
+
+* Implement the first end-to-end decision-review workflow.
+* Retrieve relevant goals and mentor principles.
+* Produce structured recommendations.
+* Validate claims and attribution.
+* Expose the workflow through a CLI.
+
+Phase 3 — Reflection
+
+* Add morning briefings.
+* Add evening reviews.
+* Add weekly trajectory reports.
+* Track commitments, decisions, and outcomes.
+
+Phase 4 — Context
+
+* Add generic task imports.
+* Add screen-time exports.
+* Add GitHub activity.
+* Create adapter interfaces for calendars, Notion, Telegram, and fitness data.
+
+Phase 5 — Carefully designed interventions
+
+* Introduce user-configured notification windows.
+* Add cooldowns and confidence thresholds.
+* Evaluate repeated patterns rather than isolated behavior.
+* Default to silence when context is insufficient.
+
+⸻
+
+Contributing
+
+Trajectory should improve through transparent reasoning, not personality imitation.
+
+Contributions are welcome in areas such as:
+
+* application architecture;
+* privacy and local-first design;
+* mentor-source research;
+* evidence review;
+* behavioral-data adapters;
+* prompt evaluation;
+* recommendation-quality testing;
+* accessibility;
+* documentation;
+* and user-experience design.
+
+Mentor profiles must:
+
+* rely on public or properly licensed sources;
+* cite the material supporting each principle;
+* separate direct statements from interpretation;
+* avoid fabricated quotations;
+* document uncertainty;
+* acknowledge likely blind spots;
+* and avoid presenting a living person as if they endorsed this project.
+
+⸻
+
+The larger goal
+
+There is no system that can guarantee a meaningful career, a strong relationship, athletic progress, creative success, or a well-lived life.
+
+There is no prompt that removes uncertainty.
+
+There is no mentor—human or artificial—who always knows the right answer.
+
+But better feedback changes outcomes.
+
+So does asking the right question before months of effort accumulate behind the wrong one.
+
+Trajectory is built around the belief that more people should have access to thoughtful challenge, experienced perspective, and consistent reflection—not only those fortunate enough to find the perfect coach, manager, collaborator, or mentor at exactly the right moment.
+
+You still have to do the work.
+
+You still have to make the decision.
+
+You still have to live with the tradeoff.
+
+Trajectory is there to help make sure the work is pointed in a direction you deliberately chose.
+
+---
+
+## Technical appendix
+
+The current MVP includes a Python CLI and an experimental Electron chat app.
+It supports a deterministic local demo, the GitHub Copilot SDK, and
+OpenAI-compatible providers.
+
+### Run the CLI
 
 Trajectory requires Python 3.12 or newer.
 
@@ -112,25 +497,17 @@ python -m pip install -e .
 trajectory decide "Should I spend another two hours polishing this low-risk pull request?"
 ```
 
-The deterministic provider is the default. It supports only the committed
-synthetic pull-request scenario and requires no network access or credentials.
-Add `--json` to inspect the exact validated response.
+The deterministic provider supports only the committed synthetic pull-request
+scenario. Add `--json` to inspect the validated response, or choose Copilot or
+an OpenAI-compatible provider for other questions.
 
-Use private local configuration with explicit paths:
+Private user configuration belongs in `.trajectory/`, which is ignored by Git.
+The synthetic demo configuration is in `examples/demo/user/`.
 
-```bash
-trajectory decide "Should I keep polishing this?" \
-  --user-dir .trajectory/user \
-  --mentor-dir resources/mentors/demo_mentor
-```
+### Run the desktop app
 
-`.trajectory/` is ignored by Git and is the recommended location for private
-user files.
-
-## Quick start: desktop chat
-
-The desktop app requires Node.js 22, npm 10, and the local Python environment.
-It currently launches Python as a sidecar process.
+The desktop app requires Node.js 22, npm 10, and the Python environment. Python
+currently runs as a local sidecar.
 
 ```bash
 python3.12 -m venv .venv
@@ -140,113 +517,33 @@ npm install --prefix desktop
 npm run dev --prefix desktop
 ```
 
-Choose GitHub Copilot, OpenAI-compatible, or the deterministic demo from the
-model selector. Conversation history is encrypted with Electron `safeStorage`
-in the operating system's application-data directory. If OS-backed encryption
-is unavailable, the app refuses to persist history rather than falling back to
-plaintext.
-
 Create an unpacked development build with:
 
 ```bash
 npm run package --prefix desktop
 ```
 
-The packaged app does not yet bundle Python. Set `TRAJECTORY_SIDECAR_PATH` to an
-installed `trajectory` executable or ensure it is available on `PATH`. Signed
-installers and a bundled runtime are future work.
+The packaged app does not yet bundle Python. Set
+`TRAJECTORY_SIDECAR_PATH` to an installed `trajectory` executable or ensure it
+is available on `PATH`.
 
-## How it works
+### Architecture and privacy
 
-Trajectory keeps context assembly, generation, validation, and presentation
-separate:
+Trajectory loads only the selected user and mentor directories, retrieves the
+relevant goals, principles, and sources, asks the selected provider for a
+structured response, and validates every referenced identifier.
 
-1. It loads only the user and mentor directories selected for the request.
-2. It chooses the goals, principles, and source records relevant to the question.
-3. It sends that bounded context to the selected provider.
-4. It validates the structured response and every referenced identifier.
-5. It returns the recommendation, reasoning, citations, confidence, and uncertainty.
+The Electron renderer has no filesystem or process access. A narrow preload
+bridge sends validated requests to the main process, which owns the encrypted
+conversation store and communicates with Python over stdin. The app refuses to
+persist chat history if operating-system encryption is unavailable.
 
-The deterministic provider generates the committed demo response locally.
-Copilot and OpenAI-compatible providers receive the selected context and must
-return the same domain contract. Provider failures are surfaced directly;
-Trajectory never silently swaps in a different provider.
+Copilot and OpenAI-compatible providers receive the selected context under
+their own processing and retention policies. Trajectory does not silently
+switch providers or ingest messages, calendars, screen time, employer systems,
+or other private sources.
 
-The Electron renderer has no direct filesystem or process access. A narrow
-preload bridge sends validated requests to the main process, which owns the
-encrypted store and communicates with Python over stdin. Private messages are
-not placed in process arguments.
-
-## Configuration
-
-The synthetic demo user lives in `examples/demo/user/`:
-
-- `values.yaml` — values, non-negotiables, and unacceptable tradeoffs;
-- `goals.yaml` — stable goal IDs, priorities, criteria, and tags;
-- `current_state.yaml` — responsibilities, projects, deadlines, and progress;
-- `constraints.yaml` — practical limits and protected commitments;
-- `communication.yaml` — directness, challenge, uncertainty, and prohibited patterns.
-
-The fictional profile in `resources/mentors/demo_mentor/` exists only to test
-source and principle linkage. It is not empirical evidence or a representation
-of a real person.
-
-## Model providers
-
-### GitHub Copilot SDK
-
-```bash
-python -m pip install -e '.[copilot]'
-export COPILOT_MODEL=gpt-5
-trajectory decide "Should I keep polishing this pull request?" --provider copilot
-```
-
-The SDK uses the locally signed-in GitHub or GitHub CLI user by default.
-Organization policy may restrict SDK access, models, retention, quotas, or
-billing. Confirm allowed work-account use with your administrator and never
-commit a token.
-
-### OpenAI-compatible
-
-```bash
-python -m pip install -e '.[openai]'
-export OPENAI_API_KEY=...
-export OPENAI_MODEL=...
-# export OPENAI_BASE_URL=https://compatible.example/v1
-trajectory decide "Should I keep polishing this pull request?" --provider openai
-```
-
-## Privacy boundary
-
-The CLI does not crawl the repository, home directory, messages, shell history,
-or employer systems. It does not persist its own request history, and the
-Copilot adapter deletes its SDK session before shutdown.
-
-The desktop app persists conversation history only in its encrypted local
-store. Copilot and OpenAI-compatible providers still receive selected user and
-mentor context, and their processing remains governed by their own policies.
-Do not submit employer-confidential or otherwise restricted information.
-
-Passive monitoring, integrations, and notifications are not part of the
-current application. Any future data source must be explicit, permission
-scoped, inspectable, and removable.
-
-## Contributing
-
-Trajectory should improve through transparent engineering and stronger
-evidence—not by making an AI sound more certain or more famous.
-
-Useful contributions include:
-
-- Electron and TypeScript architecture;
-- privacy, encryption, and local-first storage;
-- grounded mentor-resource research;
-- recommendation and prompt evaluation;
-- task, calendar, and activity adapters;
-- accessibility and interaction design;
-- tests, documentation, and developer experience.
-
-Set up both development surfaces from the repository root:
+### Development
 
 ```bash
 python -m pip install -e '.[all,dev]'
@@ -261,34 +558,10 @@ npm test --prefix desktop
 npm run build --prefix desktop
 ```
 
-Keep changes narrow, preserve provider-independent contracts, and add tests when
-behavior changes. Never commit private user configuration, credentials, chat
-history, or generated application data.
+Keep private configuration, credentials, chat history, and generated
+application data out of Git. Behavior changes should preserve the
+provider-independent contracts and include focused tests.
 
-Mentor-resource contributions must:
-
-- use public or properly licensed sources;
-- cite the material supporting each principle;
-- distinguish direct statements from interpretation;
-- avoid fabricated quotations and unsupported attribution;
-- document confidence, uncertainty, and likely blind spots;
-- avoid implying that a living person endorses the profile or this project.
-
-Start with [Future iterations](docs/FUTURE_ITERATIONS.md) for the broader
-backlog. Large additions should be scoped before implementation so integrations
-do not quietly widen the privacy boundary or turn uncertain inference into
-fact.
-
-## Principles
-
-- Direction over task volume
-- Context over rigid rules
-- Patterns over isolated events
-- Challenge over flattery
-- Sustainability over performative intensity
-- Transparency over authority
-- Privacy and user agency by default
-
-## License
-
-Licensed under the [Apache License 2.0](LICENSE).
+The active backlog is maintained in
+[Future iterations](docs/FUTURE_ITERATIONS.md). Trajectory is licensed under
+the [Apache License 2.0](LICENSE).
