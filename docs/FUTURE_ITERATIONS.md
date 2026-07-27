@@ -2,6 +2,17 @@
 
 This backlog preserves ideas intentionally excluded from the decision-review MVP. Every item is pending until it is deliberately selected, scoped, implemented, and validated. The ordering is directional rather than a commitment.
 
+## Current desktop roadmap
+
+Complete the TypeScript migration before the dependent in-app editing and
+integration work so the desktop app no longer relies on a separately installed
+Python sidecar.
+
+- [ ] Migrate the mentorship engine from Python to type-safe TypeScript modules that run directly in Electron while preserving provider contracts, grounding validation, and existing behavior.
+- [ ] Add in-app mentor management for one or more editable personalities, principles, communication preferences, and source-linked grounding resources. Depends on the TypeScript migration.
+- [ ] Add a validated `goals.md` editor in the app with stable goal identifiers and safe local persistence. Depends on the TypeScript migration.
+- [ ] Add permission-scoped Notion, calendar, screen-time, and related task integrations so Trajectory can understand current commitments and activity without silently expanding its privacy boundary. Depends on the TypeScript migration.
+
 ## Product validation gates
 
 - [ ] Evaluate whether users respect and act on decision-review recommendations before adding more context sources.
