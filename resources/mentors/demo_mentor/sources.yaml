@@ -1,0 +1,14 @@
+sources:
+  - id: demo_source_001
+    title: "Synthetic demo source: Focus and Tradeoffs"
+    creator: Trajectory project
+    mentor_id: demo_mentor
+    source_type: synthetic_demo
+    url: null
+    publication_date: null
+    accessed_date: null
+    first_party: true
+    approved: true
+    copyright_status: synthetic
+    synthetic: true
+    notes: Created only to exercise source linkage. It is not external evidence.

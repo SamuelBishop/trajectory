@@ -1,0 +1,5 @@
+practical_constraints:
+  - The system cannot inspect unreported production or security risk.
+  - The user has only one focused hour remaining today.
+protected_commitments:
+  - Stop work in time for dinner and adequate sleep.

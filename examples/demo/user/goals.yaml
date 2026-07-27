@@ -1,0 +1,29 @@
+goals:
+  - id: career_001
+    description: Develop greater architectural ownership by writing and leading design proposals.
+    motivation: Grow from reliable implementation toward durable technical leadership.
+    priority: 1
+    domain: career
+    success_criteria:
+      - Publish and review two meaningful design proposals this quarter.
+    status: active
+    target_date: null
+    tags:
+      - architecture
+      - design
+      - pull request
+      - perfectionism
+      - opportunity cost
+  - id: health_001
+    description: Maintain enough recovery to make sustained high-quality work possible.
+    motivation: Ambition should not consume the conditions required for progress.
+    priority: 2
+    domain: health
+    success_criteria:
+      - Protect the planned evening recovery window most workdays.
+    status: active
+    target_date: null
+    tags:
+      - recovery
+      - sleep
+      - sustainable work

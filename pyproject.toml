@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "trajectory-mentor"
+version = "0.1.0"
+description = "Local-first, source-grounded AI mentorship."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [{ name = "Trajectory contributors" }]
+dependencies = [
+  "pydantic>=2.10,<3",
+  "PyYAML>=6.0,<7",
+  "typer>=0.15,<1",
+]
+
+[project.optional-dependencies]
+copilot = ["github-copilot-sdk>=0.1.32,<0.2"]
+openai = ["openai>=2.0,<3"]
+dev = [
+  "build>=1.2,<2",
+  "hatchling>=1.27,<2",
+  "mypy>=1.14,<2",
+  "pytest>=8.3,<9",
+  "pytest-asyncio>=0.25,<1",
+  "ruff>=0.9,<1",
+]
+all = [
+  "github-copilot-sdk>=0.1.32,<0.2",
+  "openai>=2.0,<3",
+]
+
+[project.scripts]
+trajectory = "trajectory.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trajectory"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"examples/demo/user" = "trajectory/demo/user"
+"resources/mentors/demo_mentor" = "trajectory/demo/mentor"
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["yaml", "openai", "copilot", "copilot.*"]
+ignore_missing_imports = true

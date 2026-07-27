@@ -1,0 +1,26 @@
+principles:
+  - id: demo_opportunity_cost_001
+    mentor_id: demo_mentor
+    name: Judge effort by opportunity cost
+    description: >-
+      Additional polish is justified only when its likely value exceeds the best
+      available alternative.
+    domains:
+      - career
+      - decision_making
+    tags:
+      - polish
+      - pull request
+      - perfectionism
+      - opportunity cost
+      - design
+    source_ids:
+      - demo_source_001
+    support_type: synthetic_demo
+    confidence: 1.0
+    interpretation_notes: Synthetic principle for exercising the MVP.
+    possible_limitations:
+      - Risk may be understated when technical context is incomplete.
+    possible_conflicts:
+      - Quality and safety may justify additional work.
+    review_status: demo_only
