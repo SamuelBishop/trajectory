@@ -558,9 +558,36 @@ npm test --prefix desktop
 npm run build --prefix desktop
 ```
 
+Or run the whole chain fail-fast with `./scripts/verify.sh`.
+
 Keep private configuration, credentials, chat history, and generated
 application data out of Git. Behavior changes should preserve the
 provider-independent contracts and include focused tests.
+
+### Working with agents
+
+This repository is developed through the GitHub Copilot desktop app and CLI, and
+it carries a small governance stack so that work is consistent regardless of
+which agent does it.
+
+[`docs/methodology/CONSTITUTION.md`](docs/methodology/CONSTITUTION.md) is the
+single source of truth — 31 rules, each traceable to a real defect or an explicit
+product decision, and each with a stable `[HC-*]` slug that agents must cite
+verbatim. [`coverage-gaps.md`](docs/methodology/coverage-gaps.md) records
+honestly which of those rules nothing actually checks.
+
+[`AGENTS.md`](AGENTS.md) is the router: it holds no rules, only the read order
+and a path-to-rule table so `.github/instructions/*` load lazily based on the
+files being touched.
+
+Four agents split the work by privilege — `plan` cannot edit, `implement`
+refuses to start without captured baseline evidence, `verify` cannot fix what it
+finds, and `review` cannot write and runs on a different model vendor from the
+author. Skills: `/verify`, `/reflect`, `/cap`.
+
+There is no CI and there are no hooks. That is deliberate for a project this
+size; the rules are held up by agent refusal contracts, the test suite, and
+review.
 
 The active backlog is maintained in
 [Future iterations](docs/FUTURE_ITERATIONS.md). Trajectory is licensed under
