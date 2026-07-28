@@ -33,6 +33,32 @@ import {
 } from "../prompting";
 import type { MentorProvider } from "./types";
 
+/**
+ * The runtime reports a missing credential as a plain message on a plain
+ * `Error`, so there is no type or code to match on. It is still worth
+ * detecting: this is the one failure a user can act on, and the generic
+ * message lists four possible causes without saying which.
+ *
+ * Matching text is brittle, so it only ever *upgrades* the message — an
+ * unrecognised failure still gets the generic one, and the cause chain is
+ * logged either way.
+ */
+function isAuthenticationFailure(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 8 && current instanceof Error; depth += 1) {
+    const message = current.message.toLowerCase();
+    if (
+      message.includes("not created with authentication") ||
+      message.includes("unauthorized") ||
+      message.includes("authentication failed")
+    ) {
+      return true;
+    }
+    current = current.cause;
+  }
+  return false;
+}
+
 const RETRY_INSTRUCTION =
   "Your response was not valid against the supplied schema. " +
   "Return only a corrected JSON object.";
@@ -228,8 +254,15 @@ export class CopilotProvider implements MentorProvider {
       // context leaves the machine, so opt out of ambient behaviour entirely
       // and run in a directory the application owns.
       mode: "empty",
-      baseDirectory: this.baseDirectory,
+      // Isolation is a property of the *working* directory. `baseDirectory`
+      // is a different thing: the SDK turns it into COPILOT_HOME, which is
+      // where the runtime looks for a stored login. Setting it to an
+      // app-owned directory therefore guarantees `useLoggedInUser` finds
+      // nothing, and the runtime fails with "Session was not created with
+      // authentication info". Only override it when an explicit token makes
+      // COPILOT_HOME irrelevant.
       workingDirectory: this.baseDirectory,
+      ...(this.githubToken ? { baseDirectory: this.baseDirectory } : {}),
       logLevel: "error",
       useLoggedInUser: this.githubToken === undefined,
       env: this.runtimeEnv(),
@@ -284,6 +317,15 @@ export class CopilotProvider implements MentorProvider {
     } catch (error) {
       if (error instanceof ProviderResponseError) {
         throw error;
+      }
+      if (isAuthenticationFailure(error)) {
+        throw new ProviderError(
+          "Copilot could not authenticate. Sign in with the Copilot CLI, or " +
+            "add a GitHub token in Settings — an app launched from Finder " +
+            "inherits no shell environment, so an exported token is invisible " +
+            "to it.",
+          { cause: error },
+        );
       }
       const label =
         error instanceof Error ? error.constructor.name : "UnknownError";

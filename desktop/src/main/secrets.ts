@@ -29,7 +29,7 @@ interface SecretEnvelope {
 
 export const SECRETS_FILE = "trajectory-secrets.enc.json";
 
-export type SecretName = "openaiApiKey";
+export type SecretName = "openaiApiKey" | "githubToken";
 
 export class SecretStore {
   constructor(

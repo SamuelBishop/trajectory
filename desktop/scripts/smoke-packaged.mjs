@@ -379,11 +379,18 @@ try {
           const before = await window.trajectory.getSecretStatus();
           const stored = await window.trajectory.setOpenAiKey("sk-smoke-not-a-real-credential");
           const cleared = await window.trajectory.clearOpenAiKey();
+          // The Copilot token is the credential that makes the default
+          // provider work from Finder, so it gets the same treatment.
+          const ghStored = await window.trajectory.setGithubToken("ghp-smoke-not-a-real-credential");
+          const ghCleared = await window.trajectory.clearGithubToken();
           return JSON.stringify({
             ok: true,
             before: before.hasOpenAiKey,
             stored: stored.hasOpenAiKey,
             cleared: cleared.hasOpenAiKey,
+            ghBefore: before.hasGithubToken,
+            ghStored: ghStored.hasGithubToken,
+            ghCleared: ghCleared.hasGithubToken,
             surface: Object.keys(window.trajectory),
           });
         } catch (error) {
@@ -398,6 +405,9 @@ try {
       secretFlow.before === false &&
       secretFlow.stored === true &&
       secretFlow.cleared === false &&
+      secretFlow.ghBefore === false &&
+      secretFlow.ghStored === true &&
+      secretFlow.ghCleared === false &&
       !secretFlow.surface.some((name) => /^(get|read|fetch).*(Key|Secret|Token)$/.test(name)),
     JSON.stringify(secretFlow),
   );
@@ -418,7 +428,9 @@ try {
   ).catch(() => "");
   check(
     "the credential was never written in the clear [HC-SECRETS-ENV-ONLY]",
-    secretsFile.length > 0 && !secretsFile.includes("sk-smoke-not-a-real"),
+    secretsFile.length > 0 &&
+      !secretsFile.includes("sk-smoke-not-a-real") &&
+      !secretsFile.includes("ghp-smoke-not-a-real"),
     `${secretsFile.length} bytes`,
   );
 } finally {

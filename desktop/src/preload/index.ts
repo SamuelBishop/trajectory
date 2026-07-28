@@ -38,12 +38,16 @@ const api: DesktopApi = {
   saveSettings: (settings: AppSettings) =>
     ipcRenderer.invoke("settings:save", settings),
 
-  // No `getOpenAiKey`. The renderer can learn that a key exists and can replace
-  // or remove it, but no channel returns one ([HC-SECRETS-ENV-ONLY]).
+  // No getter for either credential. The renderer can learn that one exists
+  // and can replace or remove it, but no channel returns a value
+  // ([HC-SECRETS-ENV-ONLY]).
   getSecretStatus: () => ipcRenderer.invoke("secrets:status"),
   setOpenAiKey: (value: string) =>
     ipcRenderer.invoke("secrets:setOpenAi", value),
   clearOpenAiKey: () => ipcRenderer.invoke("secrets:clearOpenAi"),
+  setGithubToken: (value: string) =>
+    ipcRenderer.invoke("secrets:setGithubToken", value),
+  clearGithubToken: () => ipcRenderer.invoke("secrets:clearGithubToken"),
 };
 
 contextBridge.exposeInMainWorld("trajectory", api);

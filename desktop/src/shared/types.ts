@@ -79,6 +79,8 @@ export interface DesktopApi {
   getSecretStatus(): Promise<SecretStatus>;
   setOpenAiKey(value: string): Promise<SecretStatus>;
   clearOpenAiKey(): Promise<SecretStatus>;
+  setGithubToken(value: string): Promise<SecretStatus>;
+  clearGithubToken(): Promise<SecretStatus>;
 }
 
 export type UserConfigFile =
@@ -125,5 +127,6 @@ export interface AppSettings {
  */
 export interface SecretStatus {
   hasOpenAiKey: boolean;
+  hasGithubToken: boolean;
   encryptionAvailable: boolean;
 }

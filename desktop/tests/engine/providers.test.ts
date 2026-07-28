@@ -284,11 +284,69 @@ describe("Copilot provider", () => {
     // that directory to process.cwd(). For a desktop app that means whatever
     // folder the user launched from silently steers the mentor.
     expect(options.mode).toBe("empty");
-    expect(options.baseDirectory).toBe(RUNTIME_DIRECTORY);
     expect(options.workingDirectory).toBe(RUNTIME_DIRECTORY);
+    // Not baseDirectory: the SDK turns that into COPILOT_HOME, which is where
+    // the runtime looks for a stored login. Isolating it too would leave
+    // `useLoggedInUser` searching an app-owned directory that can never
+    // contain one.
+    expect(options.baseDirectory).toBeUndefined();
     const session = created[0]!.sessionConfig;
     expect(session?.skipCustomInstructions).toBe(true);
     expect(session?.enableSessionTelemetry).toBe(false);
+  });
+
+  it("keeps COPILOT_HOME isolated once a token makes the stored login moot", async () => {
+    const request = await demoRequest();
+    const created: FakeCopilotClient[] = [];
+
+    await new CopilotProvider({
+      model: "test-model",
+      githubToken: "test-token",
+      baseDirectory: RUNTIME_DIRECTORY,
+      clientFactory: (options) => {
+        const client = new FakeCopilotClient(
+          [recommendationJson(request)],
+          options,
+        );
+        created.push(client);
+        return client;
+      },
+    }).generate(request);
+
+    const options = created[0]!.options;
+    expect(options.gitHubToken).toBe("test-token");
+    expect(options.useLoggedInUser).toBe(false);
+    // An explicit token authenticates on its own, so redirecting COPILOT_HOME
+    // costs nothing and keeps the runtime's state inside the application.
+    expect(options.baseDirectory).toBe(RUNTIME_DIRECTORY);
+  });
+
+  it("explains an authentication failure instead of listing four guesses", async () => {
+    const request = await demoRequest();
+
+    await expect(
+      new CopilotProvider({
+        model: "test-model",
+        baseDirectory: RUNTIME_DIRECTORY,
+        clientFactory: () => ({
+          sessionId: "x",
+          async start() {
+            throw new Error(
+              "Execution failed: Error: Session was not created with authentication info or custom provider",
+            );
+          },
+          async stop() {
+            return undefined;
+          },
+          async createSession() {
+            throw new Error("unreachable");
+          },
+          async deleteSession() {
+            return undefined;
+          },
+        }),
+      }).generate(request),
+    ).rejects.toThrow(/could not authenticate.*Settings/s);
   });
 
   it("rejects permission requests rather than declining to answer them", async () => {

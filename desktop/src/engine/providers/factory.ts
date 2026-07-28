@@ -28,6 +28,13 @@ export interface ProviderContext {
    * Never logged, never returned across IPC ([HC-SECRETS-ENV-ONLY]).
    */
   readonly openaiApiKey?: string | undefined;
+  /**
+   * GitHub token entered in Settings. Optional: when absent the Copilot
+   * runtime uses the login stored by the Copilot CLI. It is required only
+   * when there is no such login, which is the normal case for an app
+   * launched from Finder on a machine that has never run the CLI.
+   */
+  readonly githubToken?: string | undefined;
 }
 
 /**
@@ -43,11 +50,16 @@ export function createProvider(
   const model = context.model?.trim() ? context.model.trim() : undefined;
 
   switch (name) {
-    case "copilot":
+    case "copilot": {
+      const githubToken = context.githubToken?.trim()
+        ? context.githubToken.trim()
+        : undefined;
       return CopilotProvider.fromEnvironment(context.runtimeDirectory, {
         ...process.env,
+        ...(githubToken ? { COPILOT_GITHUB_TOKEN: githubToken } : {}),
         ...(model ? { COPILOT_MODEL: model } : {}),
       });
+    }
     case "openai": {
       const apiKey = context.openaiApiKey?.trim()
         ? context.openaiApiKey.trim()

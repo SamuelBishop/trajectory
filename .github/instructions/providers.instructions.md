@@ -117,6 +117,20 @@ Treat an empty string as absent. `env.COPILOT_MODEL ?? DEFAULT` passes an
 exported-but-empty variable through as though it were a real model name; the
 check is on trimmed content, not on `undefined`.
 
+## `baseDirectory` is COPILOT_HOME, not isolation
+
+The Copilot SDK turns `baseDirectory` into `COPILOT_HOME` on the spawned
+runtime, and `COPILOT_HOME` is where the runtime looks for a stored login.
+Pointing it at an app-owned directory therefore guarantees that
+`useLoggedInUser: true` finds nothing, and every request fails with `Session was
+not created with authentication info or custom provider` — surfaced to the user
+as a generic error, with the real reason written only to a log inside that same
+directory.
+
+Isolation from the launch directory is `workingDirectory`. Set that. Set
+`baseDirectory` only when an explicit token has already made `COPILOT_HOME`
+irrelevant.
+
 ## The packaged app is a different environment
 
 `[HC-PACKAGED-RUNTIME]`. An SDK that works in `npm test` and `npm run dev` can

@@ -1,5 +1,5 @@
 /**
- * Provider, model, active mentor, and the OpenAI credential.
+ * Provider, model, active mentor, and the stored credentials.
  *
  * Implements: [HC-SECRETS-ENV-ONLY], [HC-RENDERER-IS-UNTRUSTED]
  *
@@ -46,9 +46,6 @@ export function SettingsView({
   const [problem, setProblem] = useState<string | null>(null);
 
   const [secretStatus, setSecretStatus] = useState<SecretStatus | null>(null);
-  const [keyDraft, setKeyDraft] = useState("");
-  const [keyBusy, setKeyBusy] = useState(false);
-  const [keyNote, setKeyNote] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(settings);
@@ -81,26 +78,6 @@ export function SettingsView({
       })
       .finally(() => {
         setSaving(false);
-      });
-  };
-
-  const runKeyAction = (
-    action: () => Promise<SecretStatus>,
-    note: string,
-  ): void => {
-    setKeyBusy(true);
-    setKeyNote(null);
-    void action()
-      .then((next) => {
-        setSecretStatus(next);
-        setKeyDraft("");
-        setKeyNote(note);
-      })
-      .catch((error: unknown) => {
-        setKeyNote(toErrorMessage(error));
-      })
-      .finally(() => {
-        setKeyBusy(false);
       });
   };
 
@@ -168,71 +145,153 @@ export function SettingsView({
         </div>
 
         <div className="editor">
+<div className="editor-body">
+            <CredentialSection
+              title="GitHub Copilot credential"
+              stored={secretStatus?.hasGithubToken === true}
+              encryptionAvailable={secretStatus?.encryptionAvailable !== false}
+              placeholder="ghp_…"
+              storedNote="A token is stored and encrypted on this device. It is never displayed again."
+              emptyNote="No token stored. Copilot will use the login from the Copilot CLI if there is one. An app launched from Finder inherits no shell environment, so a token is required on a machine that has never signed in."
+              unavailableNote={
+                <>
+                  This device cannot encrypt local storage, so Trajectory will
+                  not save a token here. Sign in with the Copilot CLI, or set{" "}
+                  <code>COPILOT_GITHUB_TOKEN</code> in the environment instead.
+                </>
+              }
+              onStore={(value) => window.trajectory.setGithubToken(value)}
+              onClear={() => window.trajectory.clearGithubToken()}
+              onChanged={setSecretStatus}
+            />
+          </div>
+        </div>
+
+        <div className="editor">
           <div className="editor-body">
-            <h2 className="section-title">OpenAI credential</h2>
-            {secretStatus?.encryptionAvailable === false ? (
-              <p className="empty-note">
-                This device cannot encrypt local storage, so Trajectory will not
-                save a key here. Set <code>OPENAI_API_KEY</code> in the
-                environment instead.
-              </p>
-            ) : (
-              <>
-                <p className="empty-note">
-                  {secretStatus?.hasOpenAiKey
-                    ? "A key is stored and encrypted on this device. It is never displayed again."
-                    : "No key stored. The OpenAI provider will use OPENAI_API_KEY from the environment if it is set."}
-                </p>
-                <Field
-                  label={secretStatus?.hasOpenAiKey ? "Replace key" : "API key"}
-                  hint="Stored encrypted on this device and never shown again."
-                >
-                  <input
-                    className="text-input"
-                    type="password"
-                    value={keyDraft}
-                    placeholder="sk-…"
-                    autoComplete="off"
-                    spellCheck={false}
-                    disabled={keyBusy}
-                    onChange={(event) => setKeyDraft(event.target.value)}
-                  />
-                </Field>
-                <div className="save-bar">
-                  <span className="save-status">{keyNote ?? ""}</span>
-                  {secretStatus?.hasOpenAiKey && (
-                    <button
-                      type="button"
-                      disabled={keyBusy}
-                      onClick={() =>
-                        runKeyAction(
-                          () => window.trajectory.clearOpenAiKey(),
-                          "Key removed.",
-                        )
-                      }
-                    >
-                      Remove
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="primary"
-                    disabled={keyBusy || keyDraft.trim().length === 0}
-                    onClick={() =>
-                      runKeyAction(
-                        () => window.trajectory.setOpenAiKey(keyDraft),
-                        "Key stored.",
-                      )
-                    }
-                  >
-                    {keyBusy ? "Saving…" : "Store key"}
-                  </button>
-                </div>
-              </>
-            )}
+            <CredentialSection
+              title="OpenAI credential"
+              stored={secretStatus?.hasOpenAiKey === true}
+              encryptionAvailable={secretStatus?.encryptionAvailable !== false}
+              placeholder="sk-…"
+              storedNote="A key is stored and encrypted on this device. It is never displayed again."
+              emptyNote="No key stored. The OpenAI provider will use OPENAI_API_KEY from the environment if it is set."
+              unavailableNote={
+                <>
+                  This device cannot encrypt local storage, so Trajectory will
+                  not save a key here. Set <code>OPENAI_API_KEY</code> in the
+                  environment instead.
+                </>
+              }
+              onStore={(value) => window.trajectory.setOpenAiKey(value)}
+              onClear={() => window.trajectory.clearOpenAiKey()}
+              onChanged={setSecretStatus}
+            />
           </div>
         </div>
       </section>
     </main>
+  );
+}
+
+/**
+ * One stored credential: a write-only field, a note about what is on disk, and
+ * the two actions that change it.
+ *
+ * Each instance owns its own draft and busy state, so storing a token cannot
+ * clear the other field's input or claim its status message. The value is only
+ * ever sent outward — nothing here reads a credential back
+ * ([HC-SECRETS-ENV-ONLY]).
+ */
+function CredentialSection({
+  title,
+  stored,
+  encryptionAvailable,
+  placeholder,
+  storedNote,
+  emptyNote,
+  unavailableNote,
+  onStore,
+  onClear,
+  onChanged,
+}: {
+  readonly title: string;
+  readonly stored: boolean;
+  readonly encryptionAvailable: boolean;
+  readonly placeholder: string;
+  readonly storedNote: string;
+  readonly emptyNote: string;
+  readonly unavailableNote: React.ReactNode;
+  readonly onStore: (value: string) => Promise<SecretStatus>;
+  readonly onClear: () => Promise<SecretStatus>;
+  readonly onChanged: (status: SecretStatus) => void;
+}): React.JSX.Element {
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const run = (action: () => Promise<SecretStatus>, done: string): void => {
+    setBusy(true);
+    setNote(null);
+    void action()
+      .then((next) => {
+        onChanged(next);
+        setDraft("");
+        setNote(done);
+      })
+      .catch((error: unknown) => {
+        setNote(toErrorMessage(error));
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  };
+
+  return (
+    <>
+      <h2 className="section-title">{title}</h2>
+      {!encryptionAvailable ? (
+        <p className="empty-note">{unavailableNote}</p>
+      ) : (
+        <>
+          <p className="empty-note">{stored ? storedNote : emptyNote}</p>
+          <Field
+            label={stored ? "Replace" : "Value"}
+            hint="Stored encrypted on this device and never shown again."
+          >
+            <input
+              className="text-input"
+              type="password"
+              value={draft}
+              placeholder={placeholder}
+              autoComplete="off"
+              spellCheck={false}
+              disabled={busy}
+              onChange={(event) => setDraft(event.target.value)}
+            />
+          </Field>
+          <div className="save-bar">
+            <span className="save-status">{note ?? ""}</span>
+            {stored && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => run(onClear, "Removed.")}
+              >
+                Remove
+              </button>
+            )}
+            <button
+              type="button"
+              className="primary"
+              disabled={busy || draft.trim().length === 0}
+              onClick={() => run(() => onStore(draft), "Stored.")}
+            >
+              {busy ? "Saving…" : "Store"}
+            </button>
+          </div>
+        </>
+      )}
+    </>
   );
 }

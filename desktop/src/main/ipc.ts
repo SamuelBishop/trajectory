@@ -34,6 +34,30 @@ import type { ProviderName, SendMessageInput } from "../shared/types";
 import { SecretStore } from "./secrets";
 import { EncryptedChatStore } from "./store";
 
+/**
+ * Flatten an error and everything that caused it into one line for the main
+ * process log.
+ *
+ * A provider wraps the vendor failure in its own message so the renderer never
+ * has to know SDK types, but that summary alone is not diagnosable — a bare
+ * `(Error)` says only that something went wrong. The detail belongs in the log,
+ * where the operator can read it, and stays out of the renderer.
+ */
+function describeCauseChain(error: unknown): string {
+  const parts: string[] = [];
+  let current: unknown = error;
+  for (let depth = 0; depth < 8 && current instanceof Error; depth += 1) {
+    parts.push(`${current.constructor.name}: ${current.message}`);
+    if (current.stack && depth === parts.length - 1) {
+      const frame = current.stack.split("\n")[1]?.trim();
+      if (frame) parts[parts.length - 1] += ` (${frame})`;
+    }
+    current = current.cause;
+  }
+  if (parts.length === 0) parts.push(String(error));
+  return parts.join("\n  caused by ");
+}
+
 function requireId(value: unknown): string {
   if (typeof value !== "string" || !/^[0-9a-f-]{36}$/i.test(value)) {
     throw new Error("Invalid conversation ID.");
@@ -163,9 +187,11 @@ export function registerIpcHandlers(): void {
 
   const secretStatus = async (): Promise<{
     hasOpenAiKey: boolean;
+    hasGithubToken: boolean;
     encryptionAvailable: boolean;
   }> => ({
     hasOpenAiKey: await secrets.has("openaiApiKey"),
+    hasGithubToken: await secrets.has("githubToken"),
     encryptionAvailable: encryption.isAvailable(),
   });
 
@@ -199,19 +225,26 @@ export function registerIpcHandlers(): void {
     const directories = await localConfig();
     await store.append(conversationId, "user", content);
 
-    const { response } = await chatWithMentor(
-      content,
-      conversation.messages.map((item) => ({
-        role: item.role,
-        content: item.content,
-      })),
-      createProvider(provider, {
-        runtimeDirectory: await ensureRuntimeDirectory(),
-        model: settings.model,
-        openaiApiKey: await secrets.read("openaiApiKey"),
-      }),
-      directories,
-    );
+    let response;
+    try {
+      ({ response } = await chatWithMentor(
+        content,
+        conversation.messages.map((item) => ({
+          role: item.role,
+          content: item.content,
+        })),
+        createProvider(provider, {
+          runtimeDirectory: await ensureRuntimeDirectory(),
+          model: settings.model,
+          openaiApiKey: await secrets.read("openaiApiKey"),
+          githubToken: await secrets.read("githubToken"),
+        }),
+        directories,
+      ));
+    } catch (error) {
+      console.error(`Chat failed via "${provider}":`, describeCauseChain(error));
+      throw error;
+    }
 
     return await store.append(conversationId, "assistant", response.answer, {
       goalIds: response.goal_ids,
@@ -339,6 +372,17 @@ export function registerIpcHandlers(): void {
   });
   ipcMain.handle("secrets:clearOpenAi", async () => {
     await secrets.clear("openaiApiKey");
+    return await secretStatus();
+  });
+  ipcMain.handle("secrets:setGithubToken", async (_event, value: unknown) => {
+    if (typeof value !== "string") {
+      throw new Error("The credential must be text.");
+    }
+    await secrets.set("githubToken", value);
+    return await secretStatus();
+  });
+  ipcMain.handle("secrets:clearGithubToken", async () => {
+    await secrets.clear("githubToken");
     return await secretStatus();
   });
 }
