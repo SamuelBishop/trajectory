@@ -167,8 +167,11 @@ export class CopilotProvider implements MentorProvider {
     baseDirectory: string,
     env: NodeJS.ProcessEnv = process.env,
   ): CopilotProvider {
+    // `??` would let an exported-but-empty COPILOT_MODEL through as a real
+    // model name, which the SDK then rejects with an opaque error.
+    const model = env.COPILOT_MODEL?.trim();
     return new CopilotProvider({
-      model: env.COPILOT_MODEL ?? DEFAULT_COPILOT_MODEL,
+      model: model ? model : DEFAULT_COPILOT_MODEL,
       githubToken: env.COPILOT_GITHUB_TOKEN,
       baseDirectory,
       env,

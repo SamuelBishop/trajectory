@@ -111,8 +111,15 @@ function splitLimited(value: string, separator: string, maxSplit: number): strin
   return parts;
 }
 
-async function readMarkdownProfile(filePath: string): Promise<MentorProfile> {
-  const text = await readText(filePath);
+/**
+ * Parse a mentor profile from text. Exported so the editor can validate what
+ * the user typed without writing it first, using exactly the same rules the
+ * loader applies.
+ */
+export function parseMentorProfileText(
+  filePath: string,
+  text: string,
+): MentorProfile {
   if (!text.startsWith("---\n")) {
     throw new ConfigurationError(
       `Mentor profile must start with YAML front matter: ${filePath}`,
@@ -140,6 +147,10 @@ async function readMarkdownProfile(filePath: string): Promise<MentorProfile> {
   );
 }
 
+async function readMarkdownProfile(filePath: string): Promise<MentorProfile> {
+  return parseMentorProfileText(filePath, await readText(filePath));
+}
+
 function assertUniqueIds(records: readonly { id: string }[], kind: string): void {
   const seen = new Set<string>();
   const duplicates = new Set<string>();
@@ -154,6 +165,42 @@ function assertUniqueIds(records: readonly { id: string }[], kind: string): void
       `Duplicate ${kind} IDs: ${[...duplicates].sort().join(", ")}`,
     );
   }
+}
+
+/**
+ * The editable surface. Every file the app lets you change is listed here with
+ * the schema that governs it, so the writer and the IPC layer cannot disagree
+ * with the loader about what is valid.
+ */
+export const USER_CONFIG_FILES = {
+  "values.yaml": valuesConfigSchema,
+  "goals.yaml": goalsConfigSchema,
+  "current_state.yaml": currentStateConfigSchema,
+  "constraints.yaml": constraintsConfigSchema,
+  "communication.yaml": communicationConfigSchema,
+} as const;
+
+export const MENTOR_CONFIG_FILES = {
+  "sources.yaml": sourcesConfigSchema,
+  "principles.yaml": principlesConfigSchema,
+} as const;
+
+export const MENTOR_PROFILE_FILE = "profile.md";
+
+export type UserConfigFileName = keyof typeof USER_CONFIG_FILES;
+export type MentorConfigFileName = keyof typeof MENTOR_CONFIG_FILES;
+
+export function isUserConfigFile(name: string): name is UserConfigFileName {
+  return Object.hasOwn(USER_CONFIG_FILES, name);
+}
+
+export function isMentorConfigFile(name: string): name is MentorConfigFileName {
+  return Object.hasOwn(MENTOR_CONFIG_FILES, name);
+}
+
+/** Raw file text for the advanced YAML editor, which must show what is on disk. */
+export async function readConfigText(filePath: string): Promise<string> {
+  return await readText(filePath);
 }
 
 export async function loadUserConfig(directory: string): Promise<UserConfig> {

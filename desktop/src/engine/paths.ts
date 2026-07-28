@@ -9,7 +9,9 @@
  */
 
 import path from "node:path";
-import { access, cp, mkdir } from "node:fs/promises";
+import { access, cp, mkdir, readdir } from "node:fs/promises";
+
+import { mentorDirectoryFor } from "./mentors";
 
 export interface BundledData {
   readonly userDirectory: string;
@@ -20,6 +22,8 @@ export interface LocalConfig {
   readonly configDirectory: string;
   readonly userDirectory: string;
   readonly mentorDirectory: string;
+  readonly mentorsDirectory: string;
+  readonly activeMentorId: string;
 }
 
 export const DEMO_MENTOR_ID = "demo_mentor";
@@ -70,6 +74,35 @@ async function seedDirectory(source: string, destination: string): Promise<void>
   await cp(source, destination, { recursive: true, errorOnExist: true });
 }
 
+/**
+ * Seed every bundled mentor, not just the active one, so the Mentors view has
+ * something to list on first launch. `seedDirectory` no-ops when the
+ * destination exists, so the user's own edits always win.
+ */
+async function seedAllMentors(
+  bundledMentorsDirectory: string,
+  mentorsDirectory: string,
+): Promise<void> {
+  let bundled: string[];
+  try {
+    bundled = (
+      await readdir(bundledMentorsDirectory, { withFileTypes: true })
+    )
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+  } catch {
+    return;
+  }
+  await Promise.all(
+    bundled.map((id) =>
+      seedDirectory(
+        path.join(bundledMentorsDirectory, id),
+        path.join(mentorsDirectory, id),
+      ),
+    ),
+  );
+}
+
 export async function ensureLocalConfig(
   bundled: BundledData,
   userDataPath: string,
@@ -77,13 +110,23 @@ export async function ensureLocalConfig(
 ): Promise<LocalConfig> {
   const configDirectory = path.join(userDataPath, "config");
   const userDirectory = path.join(configDirectory, "user");
-  const mentorDirectory = path.join(configDirectory, "mentors", mentorId);
+  const mentorsDirectory = path.join(configDirectory, "mentors");
 
   await seedDirectory(bundled.userDirectory, userDirectory);
-  await seedDirectory(
-    path.join(bundled.mentorsDirectory, mentorId),
-    mentorDirectory,
-  );
+  await seedAllMentors(bundled.mentorsDirectory, mentorsDirectory);
 
-  return { configDirectory, userDirectory, mentorDirectory };
+  // A settings file can name a mentor the user has since deleted. Falling back
+  // to the demo mentor keeps chat working; refusing to start would not.
+  const requested = mentorDirectoryFor(mentorsDirectory, mentorId);
+  const mentorDirectory = (await exists(requested))
+    ? requested
+    : mentorDirectoryFor(mentorsDirectory, DEMO_MENTOR_ID);
+
+  return {
+    configDirectory,
+    userDirectory,
+    mentorDirectory,
+    mentorsDirectory,
+    activeMentorId: path.basename(mentorDirectory),
+  };
 }

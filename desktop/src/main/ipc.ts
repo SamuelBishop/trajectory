@@ -3,11 +3,35 @@ import path from "node:path";
 
 import { app, ipcMain, safeStorage } from "electron";
 
+import {
+  isMentorDocumentName,
+  isUserDocumentName,
+  readMentorDocument,
+  readUserDocument,
+  writeMentorDocument,
+  writeMentorDocumentText,
+  writeUserDocument,
+  writeUserDocumentText,
+  type MentorDocumentName,
+  type UserDocumentName,
+} from "../engine/documents";
 import { providerNameSchema } from "../engine/domain";
-import { chatWithMentor, type EngineDirectories } from "../engine/mentorship";
-import { ensureLocalConfig, resolveBundledData } from "../engine/paths";
+import {
+  assertValidMentorId,
+  deleteMentor,
+  duplicateMentor,
+  listMentors,
+} from "../engine/mentors";
+import { chatWithMentor } from "../engine/mentorship";
+import {
+  ensureLocalConfig,
+  resolveBundledData,
+  type LocalConfig,
+} from "../engine/paths";
 import { createProvider } from "../engine/providers/factory";
+import { loadSettings, saveSettings } from "../engine/settings";
 import type { ProviderName, SendMessageInput } from "../shared/types";
+import { SecretStore } from "./secrets";
 import { EncryptedChatStore } from "./store";
 
 function requireId(value: unknown): string {
@@ -36,33 +60,107 @@ function requireProvider(value: unknown): ProviderName {
   return result.data;
 }
 
-export function registerIpcHandlers(): void {
-  const store = new EncryptedChatStore(
-    path.join(app.getPath("userData"), "trajectory-chats.enc.json"),
-    {
-      isAvailable: () =>
-        safeStorage.isEncryptionAvailable() &&
-        !(
-          process.platform === "linux" &&
-          safeStorage.getSelectedStorageBackend() === "basic_text"
-        ),
-      encrypt: (value) => safeStorage.encryptString(value),
-      decrypt: (value) => safeStorage.decryptString(value),
-    },
-  );
+function requireUserDocument(value: unknown): UserDocumentName {
+  if (!isUserDocumentName(value)) {
+    throw new Error("Unknown profile file.");
+  }
+  return value;
+}
 
-  let seeded: Promise<EngineDirectories> | undefined;
-  const localConfig = async (): Promise<EngineDirectories> => {
-    seeded ??= ensureLocalConfig(
-      resolveBundledData({
-        isPackaged: app.isPackaged,
-        resourcesPath: process.resourcesPath,
-        appPath: app.getAppPath(),
-      }),
-      app.getPath("userData"),
-    );
+function requireMentorDocument(value: unknown): MentorDocumentName {
+  if (!isMentorDocumentName(value)) {
+    throw new Error("Unknown mentor file.");
+  }
+  return value;
+}
+
+/**
+ * A mentor ID crosses the boundary and becomes a directory name, so it is
+ * checked here as well as in the engine. `assertValidMentorId` is the pattern
+ * check; `mentorDirectoryFor` re-resolves and confirms containment.
+ */
+function requireMentorId(value: unknown): string {
+  if (typeof value !== "string") {
+    throw new Error("Invalid mentor ID.");
+  }
+  return assertValidMentorId(value);
+}
+
+function requireText(value: unknown, label: string): string {
+  if (typeof value !== "string") {
+    throw new Error(`${label} must be text.`);
+  }
+  if (value.length > 400_000) {
+    throw new Error(`${label} is too large to save.`);
+  }
+  return value;
+}
+
+function requireName(value: unknown): string {
+  if (typeof value !== "string") {
+    throw new Error("Invalid mentor name.");
+  }
+  const name = value.trim();
+  if (name.length === 0 || name.length > 120) {
+    throw new Error("A mentor name must be 1 to 120 characters.");
+  }
+  return name;
+}
+
+export function registerIpcHandlers(): void {
+  const encryption = {
+    isAvailable: () =>
+      safeStorage.isEncryptionAvailable() &&
+      !(
+        process.platform === "linux" &&
+        safeStorage.getSelectedStorageBackend() === "basic_text"
+      ),
+    encrypt: (value: string) => safeStorage.encryptString(value),
+    decrypt: (value: Buffer) => safeStorage.decryptString(value),
+  };
+
+  const userData = app.getPath("userData");
+  const store = new EncryptedChatStore(
+    path.join(userData, "trajectory-chats.enc.json"),
+    encryption,
+  );
+  const secrets = new SecretStore(SecretStore.defaultPath(userData), encryption);
+
+  /**
+   * Seeding is keyed on the active mentor, so switching mentors in Settings
+   * invalidates the cache rather than leaving chat pointed at the old profile
+   * until the next restart.
+   */
+  let seeded: Promise<LocalConfig> | undefined;
+  let seededFor: string | undefined;
+  const localConfig = async (): Promise<LocalConfig> => {
+    const { activeMentorId } = await loadSettings(userData);
+    if (!seeded || seededFor !== activeMentorId) {
+      seededFor = activeMentorId;
+      seeded = ensureLocalConfig(
+        resolveBundledData({
+          isPackaged: app.isPackaged,
+          resourcesPath: process.resourcesPath,
+          appPath: app.getAppPath(),
+        }),
+        userData,
+        activeMentorId,
+      );
+    }
     return await seeded;
   };
+
+  // Seed at startup rather than on the first message, so the editor has files
+  // to open before the user has said anything.
+  void localConfig().catch(() => undefined);
+
+  const secretStatus = async (): Promise<{
+    hasOpenAiKey: boolean;
+    encryptionAvailable: boolean;
+  }> => ({
+    hasOpenAiKey: await secrets.has("openaiApiKey"),
+    encryptionAvailable: encryption.isAvailable(),
+  });
 
   // Where the Copilot runtime keeps its state and, crucially, what it treats as
   // its working directory. The main process picks it so the runtime never runs
@@ -90,6 +188,8 @@ export function registerIpcHandlers(): void {
     const content = requireMessage(input.content);
     const provider = requireProvider(input.provider);
     const conversation = await store.get(conversationId);
+    const settings = await loadSettings(userData);
+    const directories = await localConfig();
     await store.append(conversationId, "user", content);
 
     const { response } = await chatWithMentor(
@@ -100,8 +200,10 @@ export function registerIpcHandlers(): void {
       })),
       createProvider(provider, {
         runtimeDirectory: await ensureRuntimeDirectory(),
+        model: settings.model,
+        openaiApiKey: await secrets.read("openaiApiKey"),
       }),
-      await localConfig(),
+      directories,
     );
 
     return await store.append(conversationId, "assistant", response.answer, {
@@ -111,5 +213,125 @@ export function registerIpcHandlers(): void {
       confidence: response.confidence,
       uncertainties: response.uncertainties,
     });
+  });
+
+  ipcMain.handle("config:readUser", async (_event, file: unknown) => {
+    const { userDirectory } = await localConfig();
+    return await readUserDocument(userDirectory, requireUserDocument(file));
+  });
+  ipcMain.handle(
+    "config:writeUser",
+    async (_event, file: unknown, data: unknown) => {
+      const { userDirectory } = await localConfig();
+      return await writeUserDocument(
+        userDirectory,
+        requireUserDocument(file),
+        data,
+      );
+    },
+  );
+  ipcMain.handle(
+    "config:writeUserText",
+    async (_event, file: unknown, text: unknown) => {
+      const { userDirectory } = await localConfig();
+      return await writeUserDocumentText(
+        userDirectory,
+        requireUserDocument(file),
+        requireText(text, "Configuration"),
+      );
+    },
+  );
+
+  ipcMain.handle("mentors:list", async () => {
+    const { configDirectory } = await localConfig();
+    return await listMentors(configDirectory);
+  });
+  ipcMain.handle(
+    "mentors:read",
+    async (_event, id: unknown, file: unknown) => {
+      const { configDirectory } = await localConfig();
+      return await readMentorDocument(
+        configDirectory,
+        requireMentorId(id),
+        requireMentorDocument(file),
+      );
+    },
+  );
+  ipcMain.handle(
+    "mentors:write",
+    async (_event, id: unknown, file: unknown, data: unknown) => {
+      const { configDirectory } = await localConfig();
+      return await writeMentorDocument(
+        configDirectory,
+        requireMentorId(id),
+        requireMentorDocument(file),
+        data,
+      );
+    },
+  );
+  ipcMain.handle(
+    "mentors:writeText",
+    async (_event, id: unknown, file: unknown, text: unknown) => {
+      const { configDirectory } = await localConfig();
+      return await writeMentorDocumentText(
+        configDirectory,
+        requireMentorId(id),
+        requireMentorDocument(file),
+        requireText(text, "Mentor configuration"),
+      );
+    },
+  );
+  ipcMain.handle(
+    "mentors:duplicate",
+    async (_event, sourceId: unknown, targetId: unknown, name: unknown) => {
+      const { configDirectory } = await localConfig();
+      await duplicateMentor(
+        configDirectory,
+        requireMentorId(sourceId),
+        requireMentorId(targetId),
+        requireName(name),
+      );
+      return await listMentors(configDirectory);
+    },
+  );
+  ipcMain.handle("mentors:delete", async (_event, id: unknown) => {
+    const { configDirectory } = await localConfig();
+    const mentorId = requireMentorId(id);
+    await deleteMentor(configDirectory, mentorId);
+
+    // Deleting the mentor chat is pointed at would leave the next message
+    // loading a directory that no longer exists.
+    const settings = await loadSettings(userData);
+    if (settings.activeMentorId === mentorId) {
+      const remaining = await listMentors(configDirectory);
+      const next = remaining.find((mentor) => mentor.loadable) ?? remaining[0];
+      if (next) {
+        await saveSettings(userData, { ...settings, activeMentorId: next.id });
+        seeded = undefined;
+      }
+    }
+    return await listMentors(configDirectory);
+  });
+
+  ipcMain.handle("settings:get", () => loadSettings(userData));
+  ipcMain.handle("settings:save", async (_event, raw: unknown) => {
+    const saved = await saveSettings(userData, raw);
+    // Force the next message to resolve directories against the new mentor.
+    seeded = undefined;
+    await localConfig();
+    return saved;
+  });
+
+  ipcMain.handle("secrets:status", () => secretStatus());
+  ipcMain.handle("secrets:setOpenAi", async (_event, value: unknown) => {
+    if (typeof value !== "string") {
+      throw new Error("The credential must be text.");
+    }
+    await secrets.set("openaiApiKey", value);
+    return await secretStatus();
+  });
+  ipcMain.handle("secrets:clearOpenAi", async () => {
+    await secrets.clear("openaiApiKey");
+    return await secretStatus();
   });
 }

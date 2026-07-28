@@ -1,0 +1,70 @@
+/**
+ * Application settings: which provider answers, which model, which mentor.
+ *
+ * Implements: [HC-EXPLICIT-CONFIG-PATHS], [HC-NO-PROVIDER-FALLBACK]
+ *
+ * Secrets are deliberately absent. Settings are plain JSON on disk; a
+ * credential belongs in the encrypted store, never here.
+ */
+
+import path from "node:path";
+import { readFile } from "node:fs/promises";
+
+import { z } from "zod";
+
+import { providerNameSchema } from "./domain";
+import { DEMO_MENTOR_ID } from "./paths";
+import { writeFileAtomic } from "./writer";
+
+export const SETTINGS_FILE = "settings.json";
+
+/**
+ * A blank model override means "let the provider choose its own default".
+ * Storing an empty string instead of omitting the key keeps the form simple.
+ */
+export const settingsSchema = z.strictObject({
+  provider: providerNameSchema.default("copilot"),
+  model: z.string().trim().default(""),
+  activeMentorId: z.string().trim().min(1).default(DEMO_MENTOR_ID),
+});
+
+export type Settings = z.infer<typeof settingsSchema>;
+
+export const DEFAULT_SETTINGS: Settings = settingsSchema.parse({});
+
+export function settingsPath(userDataPath: string): string {
+  return path.join(userDataPath, SETTINGS_FILE);
+}
+
+/**
+ * Settings are a convenience, not a source of truth: a missing or corrupt file
+ * falls back to defaults rather than blocking the app on a JSON syntax error
+ * the user cannot see. Invalid *values* still fall back, because a provider
+ * name that no longer exists must not reach the factory.
+ */
+export async function loadSettings(userDataPath: string): Promise<Settings> {
+  let text: string;
+  try {
+    text = await readFile(settingsPath(userDataPath), "utf8");
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+  try {
+    const result = settingsSchema.safeParse(JSON.parse(text));
+    return result.success ? result.data : DEFAULT_SETTINGS;
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+export async function saveSettings(
+  userDataPath: string,
+  input: unknown,
+): Promise<Settings> {
+  const settings = settingsSchema.parse(input);
+  await writeFileAtomic(
+    settingsPath(userDataPath),
+    `${JSON.stringify(settings, null, 2)}\n`,
+  );
+  return settings;
+}
