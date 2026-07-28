@@ -1,6 +1,6 @@
-Trajectory
+# Trajectory
 
-Open-source AI mentorship for people serious about who they are becoming.
+**Open-source AI mentorship for people serious about who they are becoming.**
 
 Most ambitious people do not have an effort problem.
 
@@ -18,9 +18,7 @@ A life rarely drifts off course because of one obviously disastrous decision. Di
 
 Trajectory is an attempt to build something that notices.
 
-⸻
-
-The mentorship gap
+## The mentorship gap
 
 Good mentorship is an extraordinary advantage.
 
@@ -42,22 +40,20 @@ The problem is not always laziness.
 
 Sometimes it is insufficient feedback.
 
-⸻
-
-What is Trajectory?
+## What is Trajectory?
 
 Trajectory is a local-first, open-source AI mentorship system.
 
 It combines:
 
-* the person you are trying to become;
-* the values you refuse to sacrifice;
-* your long-term and short-term goals;
-* your current responsibilities and constraints;
-* the projects and tasks competing for your attention;
-* your recent actions and progress;
-* evidence from relevant research;
-* and principles extracted from people whose judgment you respect.
+- the person you are trying to become;
+- the values you refuse to sacrifice;
+- your long-term and short-term goals;
+- your current responsibilities and constraints;
+- the projects and tasks competing for your attention;
+- your recent actions and progress;
+- evidence from relevant research;
+- and principles extracted from people whose judgment you respect.
 
 It uses that context to provide candid, practical mentorship.
 
@@ -69,9 +65,7 @@ Not an algorithm telling you to squeeze more output from every hour.
 
 The goal is to help you make better decisions about what deserves your effort—and recognize when effort itself is no longer the limiting factor.
 
-⸻
-
-The central idea
+## The central idea
 
 Most productivity systems measure activity.
 
@@ -81,7 +75,7 @@ Completing twelve tasks is not necessarily better than completing one. Working l
 
 The real question is:
 
-Did the way you spent today move you toward the person you said you wanted to become?
+> Did the way you spent today move you toward the person you said you wanted to become?
 
 Sometimes the answer will be yes.
 
@@ -95,27 +89,25 @@ Context matters.
 
 Trajectory exists to help interpret that context.
 
-⸻
-
-What mentorship should feel like
+## What mentorship should feel like
 
 A useful mentor should not agree with everything you say.
 
 It should be able to tell you:
 
-You are polishing work that is already good enough because finishing it would expose you to judgment.
+> You are polishing work that is already good enough because finishing it would expose you to judgment.
 
 Or:
 
-This project sounds exciting, but it does not appear connected to the priorities you established for this quarter.
+> This project sounds exciting, but it does not appear connected to the priorities you established for this quarter.
 
 Or:
 
-You are interpreting fatigue as a discipline problem. Based on the last several days, recovery is probably the higher-leverage choice.
+> You are interpreting fatigue as a discipline problem. Based on the last several days, recovery is probably the higher-leverage choice.
 
 Or simply:
 
-I do not have enough information to give you a confident answer.
+> I do not have enough information to give you a confident answer.
 
 The system should be direct without being demeaning.
 
@@ -125,9 +117,7 @@ Ambitious without treating rest, relationships, or health as obstacles to produc
 
 It should critique decisions and patterns—not the worth or character of the person making them.
 
-⸻
-
-A council, not a guru
+## A council, not a guru
 
 Trajectory does not pretend to be a famous coach, entrepreneur, author, or thinker.
 
@@ -137,12 +127,12 @@ Instead, it can maintain a council of source-grounded perspectives.
 
 Each mentor profile documents:
 
-* the domains in which that person has demonstrated relevant experience;
-* principles repeatedly expressed in their public work;
-* the sources supporting those principles;
-* useful decision-making heuristics;
-* the limits and possible blind spots of their worldview;
-* and the confidence with which each principle has been interpreted.
+- the domains in which that person has demonstrated relevant experience;
+- principles repeatedly expressed in their public work;
+- the sources supporting those principles;
+- useful decision-making heuristics;
+- the limits and possible blind spots of their worldview;
+- and the confidence with which each principle has been interpreted.
 
 A running coach may emphasize consistency, adaptation, patience, and the correct dose of work.
 
@@ -160,9 +150,7 @@ Your mentors contribute perspective.
 
 They do not choose your life for you.
 
-⸻
-
-Evidence before certainty
+## Evidence before certainty
 
 Confident language is easy to generate.
 
@@ -170,12 +158,12 @@ Good judgment is harder.
 
 Trajectory should distinguish among:
 
-* directly sourced mentor principles;
-* scientific or behavioral evidence;
-* observations from the user’s own history;
-* self-reported information;
-* tentative patterns;
-* and model-generated inference.
+- directly sourced mentor principles;
+- scientific or behavioral evidence;
+- observations from the user’s own history;
+- self-reported information;
+- tentative patterns;
+- and model-generated inference.
 
 A plausible explanation is not automatically evidence.
 
@@ -189,57 +177,55 @@ The aim is not artificial certainty.
 
 The aim is a recommendation strong enough to act on and honest enough to question.
 
-⸻
+## How it might work
 
-How it might work
-
-Morning
+### Morning
 
 Trajectory reviews your goals, calendar, active projects, deadlines, recent commitments, and current energy.
 
 It identifies:
 
-* the most important outcome for the day;
-* the few priorities that support it;
-* the distraction most likely to derail it;
-* and any recovery or relationship commitment that should remain protected.
+- the most important outcome for the day;
+- the few priorities that support it;
+- the distraction most likely to derail it;
+- and any recovery or relationship commitment that should remain protected.
 
-During the day
+### During the day
 
 You can ask questions such as:
 
-* Should I spend another two hours polishing this pull request?
-* Is this meeting worth attending?
-* Am I avoiding the important task?
-* Should I train today or recover?
-* Which of these projects has the greatest long-term value?
-* Am I taking on too much, or making excuses?
+- Should I spend another two hours polishing this pull request?
+- Is this meeting worth attending?
+- Am I avoiding the important task?
+- Should I train today or recover?
+- Which of these projects has the greatest long-term value?
+- Am I taking on too much, or making excuses?
 
 The answer should consider opportunity cost rather than evaluating the choice in isolation.
 
-Evening
+### Evening
 
 Trajectory helps you review what actually happened.
 
 Not merely how many boxes were checked, but:
 
-* what moved forward;
-* what was avoided;
-* what unexpected demands appeared;
-* where energy changed;
-* whether your actions matched your stated priorities;
-* and what should carry into tomorrow.
+- what moved forward;
+- what was avoided;
+- what unexpected demands appeared;
+- where energy changed;
+- whether your actions matched your stated priorities;
+- and what should carry into tomorrow.
 
-Weekly
+### Weekly
 
 The system produces a trajectory review across the areas of life you care about.
 
 Each area can be assessed as:
 
-* improving;
-* stable;
-* declining;
-* or uncertain.
+- improving;
+- stable;
+- declining;
+- or uncertain.
 
 The report explains the evidence behind that assessment, identifies recurring drift, and recommends one or two meaningful adjustments.
 
@@ -249,80 +235,74 @@ No life score out of 100.
 
 Just an honest attempt to see the pattern.
 
-⸻
-
-What Trajectory is not
+## What Trajectory is not
 
 Trajectory is not:
 
-* a replacement for real human relationships;
-* a substitute for professional medical or mental-health care;
-* an imitation of a living person;
-* an authority that should be obeyed automatically;
-* a covert employee-monitoring system;
-* a tool for maximizing every available minute;
-* an excuse to outsource personal responsibility;
-* or a machine that treats leisure as failure.
+- a replacement for real human relationships;
+- a substitute for professional medical or mental-health care;
+- an imitation of a living person;
+- an authority that should be obeyed automatically;
+- a covert employee-monitoring system;
+- a tool for maximizing every available minute;
+- an excuse to outsource personal responsibility;
+- or a machine that treats leisure as failure.
 
 The user remains responsible for every decision.
 
 The system’s job is to improve reflection, not eliminate agency.
 
-⸻
+## Design principles
 
-Design principles
-
-Direction over volume
+### Direction over volume
 
 The amount of work matters less than whether the work points somewhere meaningful.
 
-Fundamentals over hacks
+### Fundamentals over hacks
 
 Clear priorities, consistent action, adequate recovery, honest feedback, and repeated reflection should matter more than elaborate optimization.
 
-Patterns over isolated events
+### Patterns over isolated events
 
 One unproductive afternoon is usually noise. Repeating the same avoidance pattern for six weeks is information.
 
-Context over rigid rules
+### Context over rigid rules
 
 The same behavior can represent procrastination, deliberate recovery, exploration, or genuine constraint. The system should avoid judging an event without understanding its context.
 
-Challenge over flattery
+### Challenge over flattery
 
 Encouragement is useful when it is earned and specific. Constant praise makes feedback meaningless.
 
-Sustainability over performative intensity
+### Sustainability over performative intensity
 
 More work is not always better work. Ambition without restraint can consume the conditions required for long-term progress.
 
-Transparency over authority
+### Transparency over authority
 
 Advice should show its reasoning, sources, assumptions, and uncertainty.
 
-Privacy by default
+### Privacy by default
 
 Personal goals, journal entries, behavioral data, and daily patterns are sensitive. Local operation, explicit permissions, selective context sharing, and user-controlled deletion should be foundational rather than optional.
 
-⸻
-
-Example
+## Example
 
 You ask:
 
-Should I keep polishing this low-risk pull request tonight?
+> Should I keep polishing this low-risk pull request tonight?
 
 Trajectory might respond:
 
-I would stop.
-
-You have already spent substantially more time on this than its risk and expected impact appear to justify. Based on your stated goal of developing greater architectural ownership, another two hours here likely has lower value than drafting the first section of the design proposal you have postponed twice.
-
-My concern is not that quality is unimportant. It is that perfectionism may be disguising itself as responsibility.
-
-Recommended next step: write a brief checklist for the remaining PR concerns, resolve only those that could materially affect correctness, and submit it. Spend the next 45 minutes outlining the design proposal.
-
-Confidence: moderate. I do not know whether the pull request contains an unreported production or security risk.
+> I would stop.
+>
+> You have already spent substantially more time on this than its risk and expected impact appear to justify. Based on your stated goal of developing greater architectural ownership, another two hours here likely has lower value than drafting the first section of the design proposal you have postponed twice.
+>
+> My concern is not that quality is unimportant. It is that perfectionism may be disguising itself as responsibility.
+>
+> Recommended next step: write a brief checklist for the remaining PR concerns, resolve only those that could materially affect correctness, and submit it. Spend the next 45 minutes outlining the design proposal.
+>
+> Confidence: moderate. I do not know whether the pull request contains an unreported production or security risk.
 
 That is the standard.
 
@@ -332,35 +312,32 @@ Direct enough to matter.
 
 Uncertain where uncertainty is real.
 
-⸻
-
-Current status
+## Current status
 
 Trajectory is an early experiment.
 
 The first version is expected to focus on a small number of core workflows:
 
-* editable values, identity, goals, and current-state files;
-* source-grounded mentor profiles;
-* task and screen-time data imports;
-* structured decision reviews;
-* morning and evening reflections;
-* weekly trajectory reports;
-* local memory;
-* and a command-line interface.
+- editable values, identity, goals, and current-state files;
+- source-grounded mentor profiles;
+- task and screen-time data imports;
+- structured decision reviews;
+- morning and evening reflections;
+- weekly trajectory reports;
+- local memory;
+- and a command-line interface.
 
 The first milestone is not autonomous monitoring.
 
 It is a simpler and more important test:
 
-Can an AI combine your goals, current context, documented mentor principles, and credible evidence to give feedback that you genuinely respect?
+> Can an AI combine your goals, current context, documented mentor principles, and credible evidence to give feedback that you genuinely respect?
 
 Until the answer is yes, more integrations will only create a better-informed mediocre coach.
 
-⸻
+## Repository structure
 
-Repository structure
-
+```text
 trajectory/
 ├── config/
 │   ├── personality.md
@@ -379,84 +356,79 @@ trajectory/
 ├── src/
 ├── tests/
 └── docs/
+```
 
 Public mentor resources and application code can live in the repository.
 
 Private goals, journals, activity records, and credentials should not.
 
-⸻
+## Roadmap
 
-Roadmap
+### Phase 1 — Foundations
 
-Phase 1 — Foundations
+- Define the values, goals, mentor, evidence, memory, and recommendation schemas.
+- Build configuration validation.
+- Establish source and attribution requirements.
+- Implement local storage.
+- Add a deterministic test model.
 
-* Define the values, goals, mentor, evidence, memory, and recommendation schemas.
-* Build configuration validation.
-* Establish source and attribution requirements.
-* Implement local storage.
-* Add a deterministic test model.
+### Phase 2 — Decision mentorship
 
-Phase 2 — Decision mentorship
+- Implement the first end-to-end decision-review workflow.
+- Retrieve relevant goals and mentor principles.
+- Produce structured recommendations.
+- Validate claims and attribution.
+- Expose the workflow through a CLI.
 
-* Implement the first end-to-end decision-review workflow.
-* Retrieve relevant goals and mentor principles.
-* Produce structured recommendations.
-* Validate claims and attribution.
-* Expose the workflow through a CLI.
+### Phase 3 — Reflection
 
-Phase 3 — Reflection
+- Add morning briefings.
+- Add evening reviews.
+- Add weekly trajectory reports.
+- Track commitments, decisions, and outcomes.
 
-* Add morning briefings.
-* Add evening reviews.
-* Add weekly trajectory reports.
-* Track commitments, decisions, and outcomes.
+### Phase 4 — Context
 
-Phase 4 — Context
+- Add generic task imports.
+- Add screen-time exports.
+- Add GitHub activity.
+- Create adapter interfaces for calendars, Notion, Telegram, and fitness data.
 
-* Add generic task imports.
-* Add screen-time exports.
-* Add GitHub activity.
-* Create adapter interfaces for calendars, Notion, Telegram, and fitness data.
+### Phase 5 — Carefully designed interventions
 
-Phase 5 — Carefully designed interventions
+- Introduce user-configured notification windows.
+- Add cooldowns and confidence thresholds.
+- Evaluate repeated patterns rather than isolated behavior.
+- Default to silence when context is insufficient.
 
-* Introduce user-configured notification windows.
-* Add cooldowns and confidence thresholds.
-* Evaluate repeated patterns rather than isolated behavior.
-* Default to silence when context is insufficient.
-
-⸻
-
-Contributing
+## Contributing
 
 Trajectory should improve through transparent reasoning, not personality imitation.
 
 Contributions are welcome in areas such as:
 
-* application architecture;
-* privacy and local-first design;
-* mentor-source research;
-* evidence review;
-* behavioral-data adapters;
-* prompt evaluation;
-* recommendation-quality testing;
-* accessibility;
-* documentation;
-* and user-experience design.
+- application architecture;
+- privacy and local-first design;
+- mentor-source research;
+- evidence review;
+- behavioral-data adapters;
+- prompt evaluation;
+- recommendation-quality testing;
+- accessibility;
+- documentation;
+- and user-experience design.
 
 Mentor profiles must:
 
-* rely on public or properly licensed sources;
-* cite the material supporting each principle;
-* separate direct statements from interpretation;
-* avoid fabricated quotations;
-* document uncertainty;
-* acknowledge likely blind spots;
-* and avoid presenting a living person as if they endorsed this project.
+- rely on public or properly licensed sources;
+- cite the material supporting each principle;
+- separate direct statements from interpretation;
+- avoid fabricated quotations;
+- document uncertainty;
+- acknowledge likely blind spots;
+- and avoid presenting a living person as if they endorsed this project.
 
-⸻
-
-The larger goal
+## The larger goal
 
 There is no system that can guarantee a meaningful career, a strong relationship, athletic progress, creative success, or a well-lived life.
 
