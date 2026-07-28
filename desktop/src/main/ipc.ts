@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
-import { app, ipcMain, safeStorage } from "electron";
+import { app, ipcMain, safeStorage, shell } from "electron";
 
 import {
   isMentorDocumentName,
@@ -28,9 +28,11 @@ import {
   resolveBundledData,
   type LocalConfig,
 } from "../engine/paths";
+import { CopilotProvider } from "../engine/providers/copilot";
 import { createProvider } from "../engine/providers/factory";
 import { loadSettings, saveSettings } from "../engine/settings";
 import type { ProviderName, SendMessageInput } from "../shared/types";
+import { CopilotLogin } from "./copilot-login";
 import { SecretStore } from "./secrets";
 import { EncryptedChatStore } from "./store";
 
@@ -374,6 +376,47 @@ export function registerIpcHandlers(): void {
     await secrets.clear("openaiApiKey");
     return await secretStatus();
   });
+  // One flow at a time, owned by the main process: the renderer may start,
+  // watch, and cancel a sign-in, but the credential itself is handled only by
+  // the runtime and never crosses this boundary ([HC-SECRETS-ENV-ONLY]).
+  let login: CopilotLogin | undefined;
+  ipcMain.handle("auth:start", async () => {
+    login ??= new CopilotLogin(await ensureRuntimeDirectory());
+    const prompt = await login.start();
+    // Opening the browser here rather than in the renderer keeps
+    // `shell.openExternal` away from a renderer-supplied URL.
+    void shell.openExternal(prompt.verificationUri).catch(() => undefined);
+    return prompt;
+  });
+  ipcMain.handle("auth:wait", async () => {
+    if (!login) {
+      return { ok: false, problem: "No sign-in is running." };
+    }
+    const result = await login.wait();
+    if (result.ok) {
+      // The runtime resolves credentials once at start, so a client built
+      // before the sign-in would still be unauthenticated.
+      seeded = undefined;
+    }
+    return result;
+  });
+  ipcMain.handle("auth:cancel", () => {
+    login?.cancel();
+    return { ok: false, problem: "Sign-in cancelled." };
+  });
+  ipcMain.handle("auth:status", async () => {
+    const settings = await loadSettings(userData);
+    const provider = createProvider("copilot", {
+      runtimeDirectory: await ensureRuntimeDirectory(),
+      model: settings.model,
+      githubToken: await secrets.read("githubToken"),
+    });
+    if (!(provider instanceof CopilotProvider)) {
+      return { isAuthenticated: false };
+    }
+    return await provider.authStatus();
+  });
+
   ipcMain.handle("secrets:setGithubToken", async (_event, value: unknown) => {
     if (typeof value !== "string") {
       throw new Error("The credential must be text.");

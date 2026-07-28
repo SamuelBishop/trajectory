@@ -12,6 +12,8 @@ import { useEffect, useState } from "react";
 
 import type {
   AppSettings,
+  CopilotAuthStatus,
+  LoginPrompt,
   MentorSummary,
   ProviderName,
   SecretStatus,
@@ -146,6 +148,12 @@ export function SettingsView({
 
         <div className="editor">
 <div className="editor-body">
+            <SignInSection />
+          </div>
+        </div>
+
+        <div className="editor">
+          <div className="editor-body">
             <CredentialSection
               title="GitHub Copilot credential"
               stored={secretStatus?.hasGithubToken === true}
@@ -288,6 +296,109 @@ function CredentialSection({
               onClick={() => run(() => onStore(draft), "Stored.")}
             >
               {busy ? "Saving…" : "Store"}
+            </button>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+/**
+ * Interactive GitHub sign-in.
+ *
+ * The device flow is the honest default for a desktop app: the browser handles
+ * the credential, and the runtime stores it in the system keychain. This view
+ * only ever sees a short-lived user code.
+ *
+ * Status comes from the runtime rather than from anything this app remembers,
+ * so it stays accurate when the credential is changed or revoked elsewhere. It
+ * costs a runtime start, so it is checked on demand and after signing in — not
+ * on every render.
+ */
+function SignInSection(): React.JSX.Element {
+  const [status, setStatus] = useState<CopilotAuthStatus | null>(null);
+  const [prompt, setPrompt] = useState<LoginPrompt | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const refresh = (): void => {
+    setBusy(true);
+    void window.trajectory
+      .getAuthStatus()
+      .then(setStatus)
+      .catch(() => setStatus({ isAuthenticated: false }))
+      .finally(() => setBusy(false));
+  };
+
+  const signIn = (): void => {
+    setBusy(true);
+    setNote(null);
+    void window.trajectory
+      .startSignIn()
+      .then((next) => {
+        setPrompt(next);
+        return window.trajectory.waitForSignIn();
+      })
+      .then((result) => {
+        setPrompt(null);
+        setNote(result.ok ? "Signed in." : (result.problem ?? "Sign-in failed."));
+        if (result.ok) refresh();
+      })
+      .catch((error: unknown) => {
+        setPrompt(null);
+        setNote(toErrorMessage(error));
+      })
+      .finally(() => setBusy(false));
+  };
+
+  const cancel = (): void => {
+    void window.trajectory.cancelSignIn().catch(() => undefined);
+    setPrompt(null);
+  };
+
+  return (
+    <>
+      <h2 className="section-title">GitHub sign-in</h2>
+      {prompt ? (
+        <>
+          <p className="empty-note">
+            Your browser should have opened. Enter this code to finish signing
+            in.
+          </p>
+          <p className="device-code">{prompt.userCode}</p>
+          <p className="empty-note">
+            If the browser did not open, go to{" "}
+            <code>{prompt.verificationUri}</code>.
+          </p>
+          <div className="save-bar">
+            <span className="save-status">Waiting for authorization…</span>
+            <button type="button" onClick={cancel}>
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="empty-note">
+            {status === null
+              ? "Sign in with GitHub to use Copilot, or check whether this device is already signed in."
+              : status.isAuthenticated
+                ? `Signed in${status.login ? ` as ${status.login}` : ""}. Copilot is ready to use.`
+                : "Not signed in. Copilot needs either a sign-in or a token below."}
+          </p>
+          <div className="save-bar">
+            <span className="save-status">{note ?? ""}</span>
+            <button type="button" disabled={busy} onClick={refresh}>
+              {busy ? "Checking…" : "Check status"}
+            </button>
+            <button
+              type="button"
+              className="primary"
+              disabled={busy}
+              onClick={signIn}
+            >
+              {status?.isAuthenticated ? "Sign in again" : "Sign in with GitHub"}
             </button>
           </div>
         </>

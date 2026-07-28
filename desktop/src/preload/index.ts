@@ -48,6 +48,14 @@ const api: DesktopApi = {
   setGithubToken: (value: string) =>
     ipcRenderer.invoke("secrets:setGithubToken", value),
   clearGithubToken: () => ipcRenderer.invoke("secrets:clearGithubToken"),
+
+  // Sign-in is started and observed from here, but the credential it produces
+  // is written by the Copilot runtime into the system keychain. No channel
+  // carries it ([HC-SECRETS-ENV-ONLY]).
+  startSignIn: () => ipcRenderer.invoke("auth:start"),
+  waitForSignIn: () => ipcRenderer.invoke("auth:wait"),
+  cancelSignIn: () => ipcRenderer.invoke("auth:cancel"),
+  getAuthStatus: () => ipcRenderer.invoke("auth:status"),
 };
 
 contextBridge.exposeInMainWorld("trajectory", api);

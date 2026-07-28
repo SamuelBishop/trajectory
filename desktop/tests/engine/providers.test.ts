@@ -127,7 +127,21 @@ class FakeCopilotClient implements CopilotClientLike {
   constructor(
     private readonly contents: string[],
     readonly options: Record<string, unknown>,
-  ) {}
+  ) {
+    // Mirror the real client's constructor-time contract. A fake that accepts
+    // option combinations `CopilotClient` rejects will happily prove a
+    // configuration correct that cannot start in the packaged app — which is
+    // exactly how a client that never launched once shipped.
+    if (
+      options.mode === "empty" &&
+      options.baseDirectory === undefined &&
+      options.sessionFs === undefined
+    ) {
+      throw new Error(
+        "CopilotClient was created with mode: 'empty' but neither 'baseDirectory' nor 'sessionFs' was set.",
+      );
+    }
+  }
 
   async start(): Promise<void> {}
 
@@ -285,11 +299,9 @@ describe("Copilot provider", () => {
     // folder the user launched from silently steers the mentor.
     expect(options.mode).toBe("empty");
     expect(options.workingDirectory).toBe(RUNTIME_DIRECTORY);
-    // Not baseDirectory: the SDK turns that into COPILOT_HOME, which is where
-    // the runtime looks for a stored login. Isolating it too would leave
-    // `useLoggedInUser` searching an app-owned directory that can never
-    // contain one.
-    expect(options.baseDirectory).toBeUndefined();
+    // Also the persistence location `mode: "empty"` refuses to start without,
+    // and the COPILOT_HOME the runtime stores a login under.
+    expect(options.baseDirectory).toBe(RUNTIME_DIRECTORY);
     const session = created[0]!.sessionConfig;
     expect(session?.skipCustomInstructions).toBe(true);
     expect(session?.enableSessionTelemetry).toBe(false);
@@ -316,9 +328,35 @@ describe("Copilot provider", () => {
     const options = created[0]!.options;
     expect(options.gitHubToken).toBe("test-token");
     expect(options.useLoggedInUser).toBe(false);
-    // An explicit token authenticates on its own, so redirecting COPILOT_HOME
-    // costs nothing and keeps the runtime's state inside the application.
     expect(options.baseDirectory).toBe(RUNTIME_DIRECTORY);
+  });
+
+  it("always gives the client a persistence location it will start with", async () => {
+    const request = await demoRequest();
+
+    // `mode: "empty"` throws at construction without `baseDirectory` or
+    // `sessionFs`, and both authentication paths must clear that bar.
+    for (const githubToken of [undefined, "test-token"]) {
+      const created: FakeCopilotClient[] = [];
+      await new CopilotProvider({
+        model: "test-model",
+        githubToken,
+        baseDirectory: RUNTIME_DIRECTORY,
+        clientFactory: (options) => {
+          const client = new FakeCopilotClient(
+            [recommendationJson(request)],
+            options,
+          );
+          created.push(client);
+          return client;
+        },
+      }).generate(request);
+
+      const options = created[0]!.options;
+      expect(
+        options.baseDirectory !== undefined || options.sessionFs !== undefined,
+      ).toBe(true);
+    }
   });
 
   it("explains an authentication failure instead of listing four guesses", async () => {
@@ -346,7 +384,7 @@ describe("Copilot provider", () => {
           },
         }),
       }).generate(request),
-    ).rejects.toThrow(/could not authenticate.*Settings/s);
+    ).rejects.toThrow(/could not authenticate.*sign in with GitHub/is);
   });
 
   it("rejects permission requests rather than declining to answer them", async () => {

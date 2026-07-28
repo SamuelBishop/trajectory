@@ -70,12 +70,18 @@ export interface CopilotSessionLike {
   >;
 }
 
+export interface CopilotAuthStatus {
+  readonly isAuthenticated: boolean;
+  readonly login?: string | undefined;
+}
+
 /** The narrow slice of the Copilot SDK client this provider depends on. */
 export interface CopilotClientLike {
   start(): Promise<void>;
   stop(): Promise<unknown>;
   createSession(config: Record<string, unknown>): Promise<CopilotSessionLike>;
   deleteSession(sessionId: string): Promise<void>;
+  getAuthStatus?(): Promise<CopilotAuthStatus>;
 }
 
 export type CopilotClientFactory = (
@@ -254,15 +260,14 @@ export class CopilotProvider implements MentorProvider {
       // context leaves the machine, so opt out of ambient behaviour entirely
       // and run in a directory the application owns.
       mode: "empty",
-      // Isolation is a property of the *working* directory. `baseDirectory`
-      // is a different thing: the SDK turns it into COPILOT_HOME, which is
-      // where the runtime looks for a stored login. Setting it to an
-      // app-owned directory therefore guarantees `useLoggedInUser` finds
-      // nothing, and the runtime fails with "Session was not created with
-      // authentication info". Only override it when an explicit token makes
-      // COPILOT_HOME irrelevant.
+      // `baseDirectory` is two things at once: the persistence location that
+      // `mode: "empty"` refuses to start without, and the value the SDK
+      // exports as COPILOT_HOME — where the runtime keeps, and looks for, a
+      // stored login. Both point at the application's own directory, so
+      // signing in through Settings writes the credential exactly where this
+      // provider will look for it.
+      baseDirectory: this.baseDirectory,
       workingDirectory: this.baseDirectory,
-      ...(this.githubToken ? { baseDirectory: this.baseDirectory } : {}),
       logLevel: "error",
       useLoggedInUser: this.githubToken === undefined,
       env: this.runtimeEnv(),
@@ -320,8 +325,8 @@ export class CopilotProvider implements MentorProvider {
       }
       if (isAuthenticationFailure(error)) {
         throw new ProviderError(
-          "Copilot could not authenticate. Sign in with the Copilot CLI, or " +
-            "add a GitHub token in Settings — an app launched from Finder " +
+          "Copilot could not authenticate. Open Settings and sign in with " +
+            "GitHub, or store a token there — an app launched from Finder " +
             "inherits no shell environment, so an exported token is invisible " +
             "to it.",
           { cause: error },
@@ -344,6 +349,40 @@ export class CopilotProvider implements MentorProvider {
           .deleteSession(session.sessionId)
           .catch(() => undefined);
       }
+      await client.stop().catch(() => undefined);
+    }
+  }
+
+  /**
+   * Ask the runtime whether it can authenticate.
+   *
+   * Settings needs a truthful answer, and the only authority is the runtime
+   * itself: the credential may sit in the system keychain, in COPILOT_HOME, or
+   * in an environment variable, and a flag we stored ourselves would go stale
+   * the moment any of those changed elsewhere. Costs a runtime start, so call
+   * it on demand rather than on every render.
+   */
+  async authStatus(): Promise<CopilotAuthStatus> {
+    const factory = await this.resolveFactory();
+    const client = factory({
+      mode: "empty",
+      baseDirectory: this.baseDirectory,
+      workingDirectory: this.baseDirectory,
+      logLevel: "error",
+      useLoggedInUser: this.githubToken === undefined,
+      env: this.runtimeEnv(),
+      ...(this.githubToken ? { gitHubToken: this.githubToken } : {}),
+    });
+    try {
+      await client.start();
+      const status = await client.getAuthStatus?.();
+      return status ?? { isAuthenticated: false };
+    } catch {
+      // A runtime that will not start cannot authenticate either, and this is
+      // a status probe: report the fact rather than propagating a failure the
+      // caller can do nothing with.
+      return { isAuthenticated: false };
+    } finally {
       await client.stop().catch(() => undefined);
     }
   }

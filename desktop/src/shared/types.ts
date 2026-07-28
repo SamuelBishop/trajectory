@@ -81,6 +81,10 @@ export interface DesktopApi {
   clearOpenAiKey(): Promise<SecretStatus>;
   setGithubToken(value: string): Promise<SecretStatus>;
   clearGithubToken(): Promise<SecretStatus>;
+  startSignIn(): Promise<LoginPrompt>;
+  waitForSignIn(): Promise<LoginResult>;
+  cancelSignIn(): Promise<LoginResult>;
+  getAuthStatus(): Promise<CopilotAuthStatus>;
 }
 
 export type UserConfigFile =
@@ -125,6 +129,23 @@ export interface AppSettings {
  * What Settings may know about a credential: whether one exists, and whether
  * the OS can encrypt it. Never the value itself ([HC-SECRETS-ENV-ONLY]).
  */
+/** What the renderer shows while an OAuth device flow is pending. */
+export interface LoginPrompt {
+  verificationUri: string;
+  userCode: string;
+}
+
+export interface LoginResult {
+  ok: boolean;
+  problem?: string;
+}
+
+/** Answered by the runtime, never by a flag this application stored. */
+export interface CopilotAuthStatus {
+  isAuthenticated: boolean;
+  login?: string;
+}
+
 export interface SecretStatus {
   hasOpenAiKey: boolean;
   hasGithubToken: boolean;

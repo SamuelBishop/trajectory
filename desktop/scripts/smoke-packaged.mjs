@@ -412,6 +412,30 @@ try {
     JSON.stringify(secretFlow),
   );
 
+  // The tokenless path is the one a first launch takes, and `mode: "empty"`
+  // refuses to start without a persistence location — a failure that no unit
+  // test with a permissive fake will catch. On a machine with no credential
+  // the honest outcome is an authentication error; a configuration error
+  // means the client never launched at all.
+  const copilotStart = await session.evaluate(`
+    (async () => {
+      const c = await window.trajectory.createConversation();
+      try {
+        await window.trajectory.sendMessage({
+          conversationId: c.id,
+          content: "Should I spend another two hours polishing this low-risk pull request?",
+          provider: "copilot",
+        });
+        return "ANSWERED";
+      } catch (error) { return String(error.message ?? error); }
+    })()
+  `);
+  check(
+    "the Copilot client starts without a credential [HC-PACKAGED-RUNTIME]",
+    !/mode: 'empty'|neither 'baseDirectory' nor 'sessionFs'/.test(copilotStart),
+    copilotStart.slice(0, 200),
+  );
+
   const history = await readFile(
     path.join(userDataDir, "trajectory-chats.enc.json"),
     "utf8",
