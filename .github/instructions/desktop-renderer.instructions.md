@@ -60,6 +60,26 @@ active conversation after their await — that is the user's intent, not a stale
 write. The question to ask is whether the awaited result is still the one the
 user is looking at.
 
+## Editing configuration
+
+Every configuration file is edited two ways: a structured form and a raw YAML
+tab. They are two views of one document, so `useDocument` holds a single rule —
+after any save, re-read the file from disk and reset both surfaces from that
+result. The screen then shows what was written, not what we hoped was written.
+
+Switching tabs is blocked while there are unsaved edits. The alternative is
+serializing the form to YAML in the renderer, which means a second serializer
+that can drift from `engine/writer.ts`, and showing the stale tab instead would
+silently discard the user's edits on the next save.
+
+A file that fails to parse still opens. It returns its text with a `problem`
+set, the form steps aside, and the YAML tab is selected — refusing to open the
+editor is the one response that makes the file unrepairable.
+
+Never validate a config edit only in the renderer. The schema check that
+decides whether bytes hit the disk runs in the main process, over the same zod
+schemas the loader uses.
+
 ## Presenting grounded output
 
 Observations and inferences arrive in separate fields and stay visually

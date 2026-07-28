@@ -99,9 +99,23 @@ Keep the vendor inside the module:
 
 ## Credentials
 
-Read from the environment, or use the host's existing GitHub authentication for
-Copilot. Never from a file, an argument, or an interactive prompt. When missing,
-name the variable and stop — never echo the value, not even partially masked.
+Read from the environment, from the encrypted secret store, or from the host's
+existing GitHub authentication for Copilot. Never from a file, an argument, or
+an interactive prompt. When missing, name the variable and stop — never echo the
+value, not even partially masked.
+
+A provider never reaches into the secret store itself. `createProvider` takes a
+`ProviderContext` carrying the resolved `model` and `openaiApiKey`, and every
+constructor still reads from an environment-shaped object — so the injection
+seam that makes these testable without a network call stays the only seam.
+
+In-app settings override the environment, because a GUI app launched from
+Finder inherits no shell environment: the value typed into the window is the
+only one the user can see or change.
+
+Treat an empty string as absent. `env.COPILOT_MODEL ?? DEFAULT` passes an
+exported-but-empty variable through as though it were a real model name; the
+check is on trimmed content, not on `undefined`.
 
 ## The packaged app is a different environment
 

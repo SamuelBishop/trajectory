@@ -69,6 +69,30 @@ Every `ipcMain.handle` treats its payload as untrusted. Check the shape and the
 identifier, and reject rather than coerce. Renderer-side checks are UX, not
 control — a compromised renderer skips them.
 
+An argument that becomes a filesystem path is the sharp case. A mentor ID
+arrives from the renderer and ends up as a directory name, so it is checked
+twice: a strict pattern (`assertValidMentorId`), then a resolved-prefix
+containment check (`mentorDirectoryFor`). The second is what still holds if the
+first is ever loosened, so do not drop it as redundant.
+
+## Credentials
+
+A credential the user types into the app is permitted, and
+`[HC-SECRETS-ENV-ONLY]` names the four conditions. In practice that means
+`SecretStore`: encrypted with the same adapter as chat history, refusing to
+write when encryption is unavailable, and exposing `set`, `clear`, and a boolean
+`has` across IPC — never a getter.
+
+`read` exists for the main process, which needs the value to construct a
+provider. It must never be wired to a channel. `tests/secrets.test.ts` asserts
+the bridge has no method matching `get*Key`, and the packaged smoke test proves
+the file on disk never contains the key.
+
+In-app values take precedence over environment variables. A GUI app launched
+from Finder inherits no shell environment, so the value typed into the window is
+the only one the user can see or change; preferring a stale exported variable
+makes Settings look broken.
+
 ## Renderer URL
 
 ```ts

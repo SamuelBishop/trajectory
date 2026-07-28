@@ -339,24 +339,24 @@ Until the answer is yes, more integrations will only create a better-informed me
 
 ```text
 trajectory/
-├── config/
-│   ├── personality.md
-│   ├── values.md
-│   ├── goals.md
-│   ├── current_state.md
-│   └── constraints.md
-├── resources/
-│   ├── mentors/
-│   ├── evidence/
-│   └── source_registry.yaml
-├── data/
-│   ├── imports/
-│   └── examples/
-├── prompts/
-├── src/
-├── tests/
-└── docs/
+├── desktop/            Electron app: everything runs here
+│   ├── src/
+│   │   ├── engine/     Mentorship engine, schemas, model providers
+│   │   ├── main/       Electron main process, IPC, encrypted stores
+│   │   ├── preload/    The only bridge the renderer can see
+│   │   ├── renderer/   React UI: chat, profile, mentors, settings
+│   │   └── shared/     Types crossing the process boundary
+│   ├── tests/
+│   └── scripts/        Packaged-app smoke test
+├── resources/mentors/  Bundled mentor profiles, principles, sources
+├── examples/demo/      Seed configuration copied on first launch
+├── docs/methodology/   The constitution and its coverage registry
+└── scripts/verify.sh   Typecheck, test, build
 ```
+
+Your own goals, values, and history are never in this repository. They are
+seeded into the OS user-data directory on first launch and edited in the app,
+which is also where the encrypted chat history and any stored credential live.
 
 Public mentor resources and application code can live in the repository.
 

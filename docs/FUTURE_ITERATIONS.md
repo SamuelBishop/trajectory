@@ -28,15 +28,21 @@ happened. The chain takes 2.7 seconds.
 ## Current desktop roadmap
 
 The TypeScript migration is complete: the mentorship engine now runs in the
-Electron main process and the Python package and sidecar have been deleted. The
-dependent in-app editing and integration work is unblocked.
+Electron main process and the Python package and sidecar have been deleted.
+In-app editing has since landed on top of it — the app is now configurable
+without a text editor, which was the last thing standing between it and being
+usable by someone who is not its author.
+
+What remains open here is integrations and the Copilot provider's packaged
+coverage.
 
 - [x] Migrate the mentorship engine from Python to type-safe TypeScript modules that run directly in Electron while preserving provider contracts, grounding validation, and existing behavior.
-- [ ] Store provider credentials in the app using Electron `safeStorage` and an in-app settings screen. `OPENAI_API_KEY` currently has to come from the environment, so a Finder-launched packaged app cannot see it. Pre-existing, and the last thing standing between the packaged app and a first-run OpenAI chat.
-- [ ] Add in-app mentor management for one or more editable personalities, principles, communication preferences, and source-linked grounding resources.
-- [ ] Add a validated `goals.md` editor in the app with stable goal identifiers and safe local persistence.
+- [x] Store provider credentials in the app using Electron `safeStorage` and an in-app settings screen. Shipped as `desktop/src/main/secrets.ts` plus the Settings view. Required amending `[HC-SECRETS-ENV-ONLY]`, which the repository owner approved: an in-app key is permitted only when encrypted at rest, refused rather than downgraded when encryption is unavailable, and write-only across IPC.
+- [x] Add in-app mentor management for one or more editable personalities, principles, communication preferences, and source-linked grounding resources. Shipped as the Mentors view: list, duplicate, delete, switch active, and edit all three files per mentor. Duplication rewrites `mentor_id` on every record, because copying it verbatim produces a profile that cites another mentor's sources.
+- [x] Add a validated goals editor in the app with stable goal identifiers and safe local persistence. Shipped as the Profile view over all five user files, with a structured form and a raw YAML tab. Writes are atomic and guarded by a serialize-reparse-revalidate round trip.
 - [ ] Add permission-scoped Notion, calendar, screen-time, and related task integrations so Trajectory can understand current commitments and activity without silently expanding its privacy boundary.
 - [x] Add a packaged smoke test that launches the built app and asserts the preload bridge is present. Closes the highest-risk row in `docs/methodology/coverage-gaps.md`. Shipped as `desktop/scripts/smoke-packaged.mjs` (`npm run smoke`); it also covers renderer privilege, first-launch seeding, encrypted history, and that the bundled OpenAI SDK actually runs.
+- [ ] Preserve YAML comments when saving from the structured form. The raw YAML tab writes the user's text verbatim, so comments survive there; the form serializes from the model and drops them. Round-tripping needs the `yaml` package's Document AST rather than `parse`/`stringify`. Recorded as a stated trade-off rather than an oversight.
 - [ ] Cover the Copilot provider in the packaged smoke test. It needs a signed-in GitHub account, so it is the one provider the automated smoke run skips — and it is the provider whose runtime resolution broke three separate ways in the packaged app.
 
 ## Product validation gates

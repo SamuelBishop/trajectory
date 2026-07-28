@@ -99,14 +99,28 @@ section exists because that data must not leak.
 
 ### `[HC-SECRETS-ENV-ONLY]`
 
-- **Bar**: Credentials are read only from the environment or the host's own
-  auth, and never appear in output, logs, error messages, or committed files.
+- **Bar**: Credentials are read only from the environment, the host's own auth,
+  or an encrypted local store the user typed into deliberately. A credential
+  never appears in output, logs, error messages, committed files, or any value
+  returned to the renderer.
 - **Pattern**: Read API keys from environment variables. Let the Copilot SDK
   use existing local GitHub authentication. When a credential is missing, name
   the variable, never the value. Do not echo a key back even when redacting.
+  A key the user types into the app is permitted only under all four of:
+  encrypted at rest with the same backend as chat history; **refused** rather
+  than written when that backend is unavailable, with no plaintext fallback;
+  write-only across IPC, so the bridge exposes set, clear, and a boolean `has`
+  but no getter; and never logged. A GUI app inherits no shell environment, so
+  the in-app value takes precedence over the variable when both are present.
 - **Verification**: `desktop/tests/engine/providers.test.ts` —
   "requires credentials from the environment" and
-  "wraps SDK errors without leaking the underlying message".
+  "wraps SDK errors without leaking the underlying message";
+  `desktop/tests/secrets.test.ts` — "never writes the credential in a readable
+  form", "refuses to store anything when encryption is unavailable", and
+  "exposes no channel that returns a credential";
+  `desktop/scripts/smoke-packaged.mjs` — "a credential can be stored and
+  removed but never read back" and "the credential was never written in the
+  clear".
 
 ### `[HC-NO-EXFILTRATION]`
 

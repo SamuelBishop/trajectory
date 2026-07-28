@@ -27,7 +27,7 @@ work, or state plainly that the change rests on review alone.
 | --- | --- | --- | --- |
 | `[HC-NO-PLAINTEXT-HISTORY]` | Partial | `desktop/tests/store.test.ts` (2 cases) | Tests inject a fake `safeStorage`. Real OS keychain behavior, and the Linux `basic_text` backend check, are exercised only by hand. |
 | `[HC-PRIVATE-INPUT-STDIN]` | Partial | `desktop/tests/engine/providers.test.ts` — "disables tools, denies permissions, and cleans up the session" | The engine now runs in-process, so the only surviving boundary is the Copilot SDK's own stdio transport. The test proves the prompt goes through `sendAndWait`; nothing fails if future code spawns a process with a payload in argv. |
-| `[HC-SECRETS-ENV-ONLY]` | Partial | `desktop/tests/engine/providers.test.ts` — "requires credentials from the environment", "wraps SDK errors without leaking the underlying message" | Covers credential absence and one error path. A secret printed from a new code path is not caught. |
+| `[HC-SECRETS-ENV-ONLY]` | Partial | `desktop/tests/secrets.test.ts` (11 cases), including "never writes the credential in a readable form", "refuses to store anything when encryption is unavailable", and "exposes no channel that returns a credential"; `desktop/scripts/smoke-packaged.mjs` — "a credential can be stored and removed but never read back", "the credential was never written in the clear"; `desktop/tests/engine/providers.test.ts` — "requires credentials from the environment" | The in-app credential path added by the Settings editor is covered end to end, including the refusal when encryption is unavailable and the absence of a getter on the bridge. A secret printed from a new code path is still not caught. |
 | `[HC-NO-EXFILTRATION]` | Partial | `desktop/tests/engine/providers.test.ts` — "gives the runtime no ambient context to read" | The Copilot SDK's ambient-file defaults are now pinned. Nothing else is: no dependency policy and no network assertion, so a new outbound call anywhere would pass the suite. |
 | `[HC-NO-PRIVATE-DATA-COMMITS]` | Partial | `.gitignore` | Only covers paths already listed. A new private directory, or a secret pasted into a tracked file, is caught by review alone. |
 | `[HC-EXPLICIT-CONFIG-PATHS]` | Automated | `desktop/tests/engine/paths.test.ts` (5 cases), `desktop/tests/engine/config.test.ts` — "reports a missing configuration file by path" | — |
@@ -39,12 +39,12 @@ work, or state plainly that the change rests on review alone.
 | `[HC-CITATIONS-RESOLVE]` | Automated | `desktop/tests/engine/validation.test.ts` — "rejects an unknown citation", "accepts resolved attribution" | — |
 | `[HC-BIDIRECTIONAL-ATTRIBUTION]` | Automated | `desktop/tests/engine/validation.test.ts` — "rejects a principle with no cited support", "rejects a source not linked to a cited principle", "accepts independently sourced principles" | — |
 | `[HC-OBSERVATION-VS-INFERENCE]` | Automated | `desktop/tests/engine/validation.test.ts` — "preserves observation and inference fields" | Field separation is enforced; whether the model actually put the right content in each field is not. |
-| `[HC-MENTOR-IDENTITY-INTEGRITY]` | Partial | `desktop/tests/engine/config.test.ts` — "rejects an unapproved source", "rejects an unknown principle source", "rejects a non-synthetic source on a fictional profile" | Source approval is enforced at load. The living-voice and implied-endorsement clauses are pure judgment. |
+| `[HC-MENTOR-IDENTITY-INTEGRITY]` | Partial | `desktop/tests/engine/config.test.ts` — "rejects an unapproved source", "rejects an unknown principle source", "rejects a non-synthetic source on a fictional profile"; `desktop/tests/engine/mentors.test.ts` — "rewrites the mentor id on every record so the copy loads", "reports a broken profile instead of hiding it" | Source approval is enforced at load, and a duplicated profile cannot inherit another mentor's attribution. The living-voice and implied-endorsement clauses are pure judgment. |
 | `[HC-REFUSE-UNGROUNDED]` | Automated | `desktop/tests/engine/selection.test.ts` — "fails when no goal matches", "fails when no principle matches the selected goals"; `desktop/tests/engine/providers.test.ts` — "rejects a question outside the committed demo", "does not treat a design proposal as a pull request" | Only the deterministic provider refuses on demand. A hosted model answering thinly from general knowledge is not detectable here. |
 | `[SC-UNCERTAINTY-DECLARED]` | Automated | `desktop/tests/engine/prompting.test.ts` — "rejects out-of-range confidence", "rejects a response with no uncertainty" | Zod's `.min(1)` on `uncertainties` is now asserted, so an empty list no longer passes. |
 | `[HC-RENDERER-LEAST-PRIVILEGE]` | Partial | `desktop/scripts/smoke-packaged.mjs` — "the renderer has no Node access" | The observable effect is now asserted in a launched packaged app: `require`, `process`, and `module` must all be undefined. The `webPreferences` flags themselves are still unasserted, and the smoke test only runs when someone runs it. |
 | `[HC-PRELOAD-CJS]` | Automated | `desktop/scripts/smoke-packaged.mjs` — "the preload bridge is exposed" | Gap closed. The smoke test copies the packaged app outside the repository, launches it, and reads `window.trajectory` from the real renderer. It is not part of `scripts/verify.sh` because it needs `npm run package` first, so it still depends on someone running it. |
-| `[HC-VALIDATE-IPC-INPUT]` | Not verified | — | No IPC handler tests exist. The provider validator is now a zod schema shared with the engine, so a typo diverging from `ProviderName` is a compile error — but the ID and message validators are still unexercised. |
+| `[HC-VALIDATE-IPC-INPUT]` | Partial | `desktop/scripts/smoke-packaged.mjs` — "an invalid profile edit is refused", "a traversing mentor ID is refused"; `desktop/tests/engine/mentors.test.ts` (13 cases on the ID guard and its containment check); `desktop/tests/engine/documents.test.ts` — "accepts the five user files and rejects anything else", "accepts the three mentor files and rejects anything else" | The arguments that became file paths are now exercised through the real bridge in a packaged launch. `requireId` and `requireMessage` on the chat channels are still unexercised, and the smoke test only runs when someone runs it. |
 | `[HC-NO-RENDERER-URL-FROM-ENV]` | Not verified | — | Requires a packaged build with the environment variable set. Not covered. |
 | `[HC-ATOMIC-SERIALIZED-WRITES]` | Partial | `desktop/tests/store.test.ts` — "serializes concurrent mutations without losing conversations" | Serialization is covered. Atomicity — temp file, `fsync`, `rename` — is not directly asserted; a regression to a plain in-place write would pass. |
 | `[HC-EVIDENCE]` | Not verified | — | Adversarial review only. This is structural: nothing mechanical can distinguish captured output from convincing prose. |
@@ -60,7 +60,7 @@ work, or state plainly that the change rests on review alone.
 
 ## Summary
 
-Of 32 bars: 9 automated, 11 partial, 12 not verified.
+Of 32 bars: 9 automated, 12 partial, 11 not verified.
 
 The shape of that is expected rather than alarming. The verified end is the
 engine's grounding and attribution logic — the part that is pure functions over
@@ -77,6 +77,16 @@ outside the repository, launches it, and drives the real preload bridge. That
 script was written because the Copilot runtime failed three different ways in
 the packaged app while every other check stayed green, which is also why
 `[HC-PACKAGED-RUNTIME]` now exists.
+
+In-app configuration editing moved `[HC-VALIDATE-IPC-INPUT]` off *Not verified*.
+That bar had been the largest standing gap in the registry, and the feature
+that closed it is also the one that would have exploited it: a mentor ID now
+crosses the boundary and becomes a directory name. The guard is a pattern check
+plus a resolved-prefix containment check, tested in both the suite and a
+packaged launch. The same work extended `[HC-SECRETS-ENV-ONLY]`, whose bar was
+amended to permit an encrypted in-app credential, and `[HC-MENTOR-IDENTITY-INTEGRITY]`,
+which now covers profile duplication rewriting attribution rather than
+inheriting it.
 
 The gap worth closing next is `[HC-SDK-BOUNDARY]`'s import discipline — nothing
 fails if a module outside `providers/` imports a vendor SDK, and that is the

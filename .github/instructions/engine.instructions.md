@@ -21,6 +21,10 @@ import from `desktop/src/engine/` — it talks to the engine only through IPC.
 | `domain.ts` | Zod contracts. Every other module speaks these types. |
 | `errors.ts` | The project's error classes |
 | `config.ts` | Loading and validating user configuration from disk |
+| `writer.ts` | Validated atomic writes back to disk |
+| `documents.ts` | A config file as an editable document, for the UI |
+| `settings.ts` | Application settings (provider, model, active mentor) |
+| `mentors.ts` | Listing, duplicating, deleting, and ID validation |
 | `paths.ts` | userData resolution and first-launch seeding |
 | `selection.ts` | Deterministic choice of which goals/principles are relevant |
 | `prompting.ts` | Context assembly and response parsing |
@@ -66,6 +70,26 @@ pipeline. Do not concatenate them for rendering convenience.
 **Refuse rather than generalize.** When selection finds no relevant goal, throw.
 An answer with no grounding is worse than no answer, because it looks the same
 as a grounded one.
+
+**Writes are validated, then atomic.** `writer.ts` serializes, re-parses the
+result, and re-validates it against the same schema before any byte reaches the
+disk — a value that round-trips wrong is a bug we can catch here or a config the
+user cannot open later. Writes go through a per-path queue and land by
+`rename`, so an interrupted save leaves the previous file intact.
+
+**A document that fails to load still opens.** `documents.ts` returns
+`{ file, text, data, problem }` rather than throwing, because a file the user
+broke by hand is exactly the file they need to see in order to fix it. Only
+`data` is absent when `problem` is set.
+
+**Seeding is eager and idempotent.** Every bundled mentor is seeded at startup,
+not just the active one, and `seedDirectory` no-ops when the destination
+exists. Lazy seeding meant the editors had nothing to show until the user had
+already sent a message.
+
+**A mentor ID is a filesystem path.** Validate it with `assertValidMentorId`
+and confirm containment with `mentorDirectoryFor`. Never build a mentor path by
+string concatenation.
 
 ## Style
 
