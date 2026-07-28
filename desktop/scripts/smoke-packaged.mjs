@@ -127,17 +127,26 @@ function askExpression(provider, content) {
   return `
     (async () => {
       const conversation = await window.trajectory.createConversation();
+      const requestId = crypto.randomUUID();
+      const deltas = [];
+      const unsubscribe = window.trajectory.onChatStream((delta) => {
+        if (delta.requestId === requestId) deltas.push(delta.content);
+      });
       try {
         const updated = await window.trajectory.sendMessage({
+          requestId,
           conversationId: conversation.id,
           content: ${JSON.stringify(content)},
           provider: ${JSON.stringify(provider)},
         });
+        unsubscribe();
         return JSON.stringify({
           ok: true,
           message: updated.messages[updated.messages.length - 1],
+          deltas,
         });
       } catch (error) {
+        unsubscribe();
         return JSON.stringify({ ok: false, error: String(error.message ?? error) });
       }
     })()
@@ -204,8 +213,15 @@ try {
     "the engine answers in-process, outside the repository",
     demo.ok === true &&
       demo.message?.role === "assistant" &&
-      demo.message?.grounding?.sourceIds?.length > 0,
-    demo.ok ? JSON.stringify(demo.message.grounding) : demo.error,
+      demo.message?.grounding?.sourceIds?.length > 0 &&
+      demo.deltas.length > 1 &&
+      demo.deltas.join("") === demo.message.content,
+    demo.ok
+      ? JSON.stringify({
+          grounding: demo.message.grounding,
+          deltas: demo.deltas.length,
+        })
+      : demo.error,
   );
 
   const ungrounded = JSON.parse(
@@ -444,6 +460,7 @@ try {
       const c = await window.trajectory.createConversation();
       try {
         await window.trajectory.sendMessage({
+          requestId: crypto.randomUUID(),
           conversationId: c.id,
           content: "Should I spend another two hours polishing this low-risk pull request?",
           provider: "copilot",

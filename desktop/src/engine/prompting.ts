@@ -43,6 +43,9 @@ cite only supplied IDs, acknowledge meaningful uncertainty, and preserve user ag
 Do not imitate or claim to speak for a real person. Do not diagnose health conditions,
 shame the user, provide empty praise, expose chain of thought, or invent evidence.
 
+The answer field may use concise GitHub-flavored Markdown for headings, lists,
+emphasis, links, quotes, tables, and fenced code. Do not emit raw HTML.
+
 Return only one JSON object matching the supplied ChatResponse schema.
 `;
 

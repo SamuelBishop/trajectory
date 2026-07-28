@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 import type {
   AppSettings,
+  ChatStreamDelta,
   DesktopApi,
   MentorConfigFile,
   SendMessageInput,
@@ -15,6 +16,17 @@ const api: DesktopApi = {
   deleteConversation: (id: string) => ipcRenderer.invoke("chat:delete", id),
   sendMessage: (input: SendMessageInput) =>
     ipcRenderer.invoke("chat:send", input),
+  onChatStream: (listener: (delta: ChatStreamDelta) => void) => {
+    const channel = "chat:stream";
+    const wrapped = (
+      _event: Electron.IpcRendererEvent,
+      delta: ChatStreamDelta,
+    ): void => listener(delta);
+    ipcRenderer.on(channel, wrapped);
+    return () => {
+      ipcRenderer.removeListener(channel, wrapped);
+    };
+  },
 
   readUserConfig: (file: UserConfigFile) =>
     ipcRenderer.invoke("config:readUser", file),

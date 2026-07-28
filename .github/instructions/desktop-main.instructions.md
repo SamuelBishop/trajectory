@@ -93,6 +93,18 @@ from Finder inherits no shell environment, so the value typed into the window is
 the only one the user can see or change; preferring a stale exported variable
 makes Settings look broken.
 
+## Streaming replies
+
+Providers return structured JSON, not a safe answer token stream. Reveal only
+`response.answer` after the full response has passed schema and attribution
+validation; streaming raw provider bytes would expose partial JSON and
+unvalidated claims.
+
+Send deltas only through the `WebContents` that invoked `chat:send`. Never
+broadcast a private answer to every renderer. Every delta carries both the
+validated request ID and conversation ID, and the final complete message is
+still written once through the encrypted store.
+
 ## Renderer URL
 
 ```ts

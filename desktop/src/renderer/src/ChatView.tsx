@@ -6,6 +6,8 @@ import {
   useRef,
   useState,
 } from "react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import type {
   ChatMessage,
@@ -31,7 +33,27 @@ function Message({ message }: { message: ChatMessage }): React.JSX.Element {
         <div className="message-label">
           {message.role === "assistant" ? "Trajectory" : "You"}
         </div>
-        <div className="message-content">{message.content}</div>
+        <div className="message-content">
+          {message.role === "assistant" ? (
+            <Markdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                // Main-process navigation policy denies new windows and
+                // renderer navigation. Keep links visibly useful without
+                // pretending they can navigate this privileged window.
+                a: ({ children, href }) => (
+                  <a href={href} target="_blank" rel="noreferrer">
+                    {children}
+                  </a>
+                ),
+              }}
+            >
+              {message.content}
+            </Markdown>
+          ) : (
+            message.content
+          )}
+        </div>
         {message.grounding && (
           <details className="grounding">
             <summary>
@@ -72,6 +94,7 @@ export function ChatView({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const activeRequestRef = useRef<string | null>(null);
   const initializationRef = useRef<Promise<{
     conversation: Conversation;
     summaries: ConversationSummary[];
@@ -133,6 +156,26 @@ export function ChatView({
     };
   }, []);
 
+  useEffect(
+    () =>
+      window.trajectory.onChatStream((delta) => {
+        if (activeRequestRef.current !== delta.requestId) return;
+        setActive((current) => {
+          if (!current || current.id !== delta.conversationId) return current;
+          const streamId = `stream-${delta.requestId}`;
+          return {
+            ...current,
+            messages: current.messages.map((item) =>
+              item.id === streamId
+                ? { ...item, content: item.content + delta.content }
+                : item,
+            ),
+          };
+        });
+      }),
+    [],
+  );
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [active?.messages, sending]);
@@ -150,15 +193,27 @@ export function ChatView({
     setDraft("");
     setError(null);
     setSending(true);
+    const requestId = crypto.randomUUID();
+    activeRequestRef.current = requestId;
     const optimistic: ChatMessage = {
       id: `pending-${Date.now().toString()}`,
       role: "user",
       content: message,
       createdAt: new Date().toISOString(),
     };
-    setActive({ ...active, messages: [...active.messages, optimistic] });
+    const streaming: ChatMessage = {
+      id: `stream-${requestId}`,
+      role: "assistant",
+      content: "",
+      createdAt: new Date().toISOString(),
+    };
+    setActive({
+      ...active,
+      messages: [...active.messages, optimistic, streaming],
+    });
     try {
       const conversation = await window.trajectory.sendMessage({
+        requestId,
         conversationId: active.id,
         content: message,
         provider,
@@ -179,6 +234,9 @@ export function ChatView({
         setError(toErrorMessage(reloadError));
       }
     } finally {
+      if (activeRequestRef.current === requestId) {
+        activeRequestRef.current = null;
+      }
       setSending(false);
     }
   };
@@ -288,13 +346,14 @@ export function ChatView({
               {active.messages.map((message) => (
                 <Message key={message.id} message={message} />
               ))}
-              {sending && (
+              {sending &&
+                active?.messages.at(-1)?.content.length === 0 && (
                 <div className="thinking">
                   <span />
                   <span />
                   <span />
                 </div>
-              )}
+                )}
             </>
           ) : (
             <div className="welcome">

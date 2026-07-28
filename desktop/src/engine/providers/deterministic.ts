@@ -103,11 +103,12 @@ export class DeterministicProvider implements MentorProvider {
     }
     return {
       answer:
-        "I would stop after a short correctness check. The pull request is " +
-        "functionally complete, while the postponed design proposal more directly " +
-        "supports your architectural-ownership goal. Write a brief material-risk " +
-        "checklist, submit the pull request, and use the remaining time to outline " +
-        "the proposal.",
+        "**Recommendation:** stop after a short correctness check.\n\n" +
+        "The pull request is functionally complete, while the postponed design " +
+        "proposal more directly supports your architectural-ownership goal.\n\n" +
+        "1. Write a brief material-risk checklist.\n" +
+        "2. Submit the pull request.\n" +
+        "3. Use the remaining time to outline the proposal.",
       goal_ids: [goal.id],
       principle_ids: [principle.id],
       source_ids: [source.id],

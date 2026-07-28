@@ -333,6 +333,83 @@ button {
   white-space: pre-wrap;
 }
 
+.message-assistant .message-content {
+  white-space: normal;
+}
+
+.message-content > :first-child {
+  margin-top: 0;
+}
+
+.message-content > :last-child {
+  margin-bottom: 0;
+}
+
+.message-content p,
+.message-content ul,
+.message-content ol,
+.message-content blockquote,
+.message-content pre,
+.message-content table {
+  margin: 0.7em 0;
+}
+
+.message-content ul,
+.message-content ol {
+  padding-left: 1.5em;
+}
+
+.message-content li + li {
+  margin-top: 0.25em;
+}
+
+.message-content a {
+  color: #b9d39f;
+  text-decoration-color: #647653;
+  text-underline-offset: 3px;
+}
+
+.message-content blockquote {
+  border-left: 3px solid #4d5d40;
+  padding-left: 1em;
+  color: #a9a69b;
+}
+
+.message-content code {
+  border: 1px solid #35342e;
+  border-radius: 5px;
+  background: #171714;
+  padding: 0.12em 0.35em;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.9em;
+}
+
+.message-content pre {
+  overflow-x: auto;
+  border: 1px solid #35342e;
+  border-radius: 8px;
+  background: #141412;
+  padding: 12px 14px;
+}
+
+.message-content pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.message-content table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.message-content th,
+.message-content td {
+  border: 1px solid #3d3c35;
+  padding: 6px 8px;
+  text-align: left;
+}
+
 .grounding {
   margin-top: 18px;
   color: #88867e;

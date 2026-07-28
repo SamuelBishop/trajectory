@@ -33,6 +33,7 @@ import { createProvider } from "../engine/providers/factory";
 import { loadSettings, saveSettings } from "../engine/settings";
 import type { ProviderName, SendMessageInput } from "../shared/types";
 import { CopilotLogin } from "./copilot-login";
+import { revealChatAnswer } from "./chat-stream";
 import { SecretStore } from "./secrets";
 import { EncryptedChatStore } from "./store";
 
@@ -219,6 +220,7 @@ export function registerIpcHandlers(): void {
       throw new Error("Invalid message request.");
     }
     const input = raw as Partial<SendMessageInput>;
+    const requestId = requireId(input.requestId);
     const conversationId = requireId(input.conversationId);
     const content = requireMessage(input.content);
     const provider = requireProvider(input.provider);
@@ -247,6 +249,16 @@ export function registerIpcHandlers(): void {
       console.error(`Chat failed via "${provider}":`, describeCauseChain(error));
       throw error;
     }
+
+    await revealChatAnswer(response.answer, (chunk) => {
+      // Reply only to the window that initiated this request. Broadcasting
+      // would leak a private answer to any other open renderer.
+      _event.sender.send("chat:stream", {
+        requestId,
+        conversationId,
+        content: chunk,
+      });
+    });
 
     return await store.append(conversationId, "assistant", response.answer, {
       goalIds: response.goal_ids,

@@ -82,6 +82,19 @@ schemas the loader uses.
 
 ## Presenting grounded output
 
+Assistant messages render GitHub-flavored Markdown with `react-markdown`.
+Do not add `rehype-raw`: raw HTML must remain escaped and inert. The main
+window denies both navigation and new windows, so a Markdown link may be
+visible without granting the renderer authority to navigate the privileged
+page.
+
+Streaming events are request-scoped and conversation-scoped. The renderer
+creates one optimistic assistant message named by the request ID, accepts only
+deltas for the active request and matching conversation, and replaces that
+temporary message with the persisted conversation returned by `chat:send`.
+Changing conversations while a request runs must never append its private text
+to the newly selected conversation.
+
 Observations and inferences arrive in separate fields and stay visually
 separate. Do not merge them into one paragraph — the user needs to be able to
 disagree with the model's reasoning without doubting what it read.

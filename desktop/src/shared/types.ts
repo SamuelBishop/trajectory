@@ -34,9 +34,17 @@ export interface ConversationSummary {
 }
 
 export interface SendMessageInput {
+  /** Correlates sender-scoped stream events with this request. */
+  requestId: string;
   conversationId: string;
   content: string;
   provider: ProviderName;
+}
+
+export interface ChatStreamDelta {
+  requestId: string;
+  conversationId: string;
+  content: string;
 }
 
 export interface DesktopApi {
@@ -45,6 +53,7 @@ export interface DesktopApi {
   createConversation(): Promise<Conversation>;
   deleteConversation(id: string): Promise<void>;
   sendMessage(input: SendMessageInput): Promise<Conversation>;
+  onChatStream(listener: (delta: ChatStreamDelta) => void): () => void;
 
   readUserConfig(file: UserConfigFile): Promise<ConfigDocument>;
   writeUserConfig(file: UserConfigFile, data: unknown): Promise<ConfigDocument>;
