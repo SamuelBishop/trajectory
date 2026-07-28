@@ -2,6 +2,29 @@
 
 This backlog preserves ideas intentionally excluded from the decision-review MVP. Every item is pending until it is deliberately selected, scoped, implemented, and validated. The ordering is directional rather than a commitment.
 
+## Deferred quality gates
+
+The repository is in **prototype mode** (section 0 of
+`docs/methodology/CONSTITUTION.md`). Gates costing minutes are suspended so the
+app can be made usable first. This section is the record of what that trades
+away, so re-enabling is a checklist rather than an archaeology project.
+
+Work through these **before anyone other than the author uses this**, then
+delete section 0 of the constitution.
+
+- [ ] Re-enable adversarial `review` on every change. It is on demand while prototyping. It has found twelve real defects across two rounds — six in the desktop build, six in the TypeScript migration — so the backlog of unreviewed diffs is the main thing this trades away. Run it once over the accumulated diff before turning it back on per-change.
+- [ ] Re-enable `npm run package && npm run smoke` as a per-change gate for packaging, preload, and provider-runtime edits. It is the only check that catches a build green everywhere else and broken once installed.
+- [ ] Restore loop steps 3–4 (signal, then BEFORE evidence) for all changes, not just bug fixes.
+- [ ] Reconcile `docs/methodology/coverage-gaps.md` with reality. Row-by-row upkeep is relaxed while prototyping, so its counts will drift.
+- [ ] Backfill tests for UI and wiring changes shipped under the relaxed `[HC-TEST-WITH-BEHAVIOR]`, and replace any stubs left under the relaxed `[SC-NO-PLACEHOLDERS]`.
+- [ ] Audit for drive-by changes that slipped in under the relaxed `[HC-NARROW-DIFF]`.
+
+Not suspended, and not to be suspended: `[HC-NO-PLAINTEXT-HISTORY]`,
+`[HC-NO-PRIVATE-DATA-COMMITS]`, `[HC-SECRETS-ENV-ONLY]`, `[HC-NO-EXFILTRATION]`,
+and `./scripts/verify.sh`. The first four are constraints rather than gates, so
+they cost nothing, and each protects something that cannot be undone once it has
+happened. The chain takes 2.7 seconds.
+
 ## Current desktop roadmap
 
 The TypeScript migration is complete: the mentorship engine now runs in the

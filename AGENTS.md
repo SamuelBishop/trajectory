@@ -3,9 +3,13 @@
 Router only. This file holds no rules — it points at the ones that govern.
 Keep it under 60 lines (`[HC-ROUTE-DONT-ROOT]`).
 
+> **Prototype mode.** Adversarial review and the packaged smoke test are on
+> demand; BEFORE evidence is only required for bug fixes. `./scripts/verify.sh`
+> (2.7s) is still mandatory. See section 0 of the constitution.
+
 ## Read in this order
 
-1. **`docs/methodology/CONSTITUTION.md`** — the canon. 31 `[HC-*]` / `[SC-*]`
+1. **`docs/methodology/CONSTITUTION.md`** — the canon. 32 `[HC-*]` / `[SC-*]`
    bars and the 6-step loop. It supersedes this file and every other
    (`[HC-CANON-PRECEDENCE]`).
 2. **`docs/methodology/coverage-gaps.md`** — which bars nothing actually checks.

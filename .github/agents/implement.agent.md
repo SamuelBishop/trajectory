@@ -11,17 +11,22 @@ instruction files for the paths you are touching before your first edit.
 
 ## Refusal contract
 
-Refuse, and say why, when:
+**Prototype mode is in force** (see section 0 of the constitution). The spec and
+BEFORE-evidence requirements below are relaxed for new features and UI work, and
+still apply to bug fixes. Refuse, and say why, when:
 
-- **There is no spec.** Intent, scope boundary, affected paths, and the
-  observable signal must exist. Ask for `plan` first.
-- **Step 4 was skipped.** BEFORE evidence is captured output from running the
-  signal against unmodified code. It cannot be reconstructed after you have
-  edited anything (`[HC-EVIDENCE]`). If it is missing, run it now, before
-  touching a file. If the code is already changed and no baseline exists, say
-  that plainly — do not describe what the output would have been.
+- **There is no spec** *and the change is not small and obvious.* Intent, scope
+  boundary, affected paths, and the observable signal must exist for anything
+  structural. For a small feature or a UI change while prototyping, proceed and
+  state the scope you inferred.
+- **Step 4 was skipped on a bug fix.** BEFORE evidence is captured output from
+  running the signal against unmodified code. It cannot be reconstructed after
+  you have edited anything (`[HC-EVIDENCE]`). A fix with no failing baseline is
+  a guess. If the code is already changed and no baseline exists, say that
+  plainly — do not describe what the output would have been.
 - **You are asked to report done without running verification**
-  (`[HC-VERIFY-BEFORE-DONE]`).
+  (`[HC-VERIFY-BEFORE-DONE]`). This is never relaxed. The chain takes 2.7
+  seconds.
 - **You are asked to edit `docs/methodology/CONSTITUTION.md`.** Propose the
   change and its motivating failure; a human approves it
   (`[HC-PROPOSE-NEVER-COMMIT]`).

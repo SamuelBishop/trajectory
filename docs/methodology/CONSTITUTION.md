@@ -31,6 +31,43 @@ There are 32 rules.
 
 ---
 
+## 0. Mode — PROTOTYPE
+
+**This repository is in prototype mode.** It is a single-author app that is not
+yet usable end to end, and the goal right now is to get it usable. Gates that
+cost minutes are suspended; gates that cost seconds are not.
+
+The line is **reversibility**, not importance. A bug in the renderer can be
+fixed next week. A plaintext journal on disk, a secret in git history, or user
+data sent to a third party cannot be un-shipped. So:
+
+| Suspended while prototyping | Cost when it ran | Still in force |
+| --- | --- | --- |
+| Adversarial `review` on every change | ~11.5 min | Run it on demand — before a release, or when touching crypto, IPC, or a provider |
+| `npm run package && npm run smoke` on every change | several min | Run before you actually use the app, and after packaging/preload/provider-runtime changes |
+| Loop steps 3–4 (signal, then BEFORE evidence) | ~doubles small changes | Still required for **bug fixes**, where the repro *is* the proof |
+| `coverage-gaps.md` row-by-row upkeep | — | Update it when you add or remove a bar, not on every diff |
+| `[HC-TEST-WITH-BEHAVIOR]` for UI and wiring | — | Engine logic still ships with a test — that is what `verify.sh` protects |
+| `[HC-NARROW-DIFF]`, `[SC-NO-PLACEHOLDERS]` | — | Drive-by fixes and stubs are fine; just say what is a stub |
+
+**Never suspended, because they are free and irreversible:**
+`[HC-NO-PLAINTEXT-HISTORY]`, `[HC-NO-PRIVATE-DATA-COMMITS]`,
+`[HC-SECRETS-ENV-ONLY]`, `[HC-NO-EXFILTRATION]`. These are constraints on what
+you write, not gates that run, so they cost nothing to keep — and each one
+protects something you cannot repair after the fact.
+
+**Always required, because it takes 2.7 seconds:** `./scripts/verify.sh`.
+`[HC-VERIFY-BEFORE-DONE]` and `[HC-EVIDENCE]` still apply to it. Never report
+something as working without having run it.
+
+### Leaving prototype mode
+
+Delete this section and work through **Deferred quality gates** in
+`docs/FUTURE_ITERATIONS.md`, which records what was skipped while it was in
+force. Do that before anyone other than the author uses this.
+
+---
+
 ## 1. Privacy and data handling
 
 Trajectory reads someone's goals, values, and journal. Every rule in this
@@ -338,6 +375,9 @@ rules are transcribed from those failures.
 
 ### The loop
 
+Steps 3 and 4 are relaxed in prototype mode — see section 0. They remain
+required for bug fixes, where the reproduction is the whole proof.
+
 1. **Read** the canon and the path-scoped rules for the files being touched.
 2. **Specify** intent, scope boundary, affected paths, and applicable slugs.
 3. **Signal** — define the observable proof: a failing test or a reproduction
@@ -345,8 +385,8 @@ rules are transcribed from those failures.
 4. **BEFORE evidence** — run it and capture the output. This step cannot be
    repaired after the fact.
 5. **Implement** narrowly.
-6. **AFTER evidence** — rerun, run the verification chain, get an adversarial
-   review, and report citing slugs.
+6. **AFTER evidence** — rerun and run the verification chain, citing slugs.
+   Adversarial review is on demand while prototyping, not automatic.
 
 ### `[HC-EVIDENCE]`
 
@@ -355,18 +395,22 @@ rules are transcribed from those failures.
   the output would have said.
 - **Pattern**: If step 4 was skipped, say so plainly instead of reconstructing
   it. A missing baseline is recoverable; a fabricated one is not.
-- **Verification**: Adversarial review. This is the bar the `review` agent
-  assumes is being violated until output proves otherwise.
+- **Verification**: `./scripts/verify.sh` output in the report. Adversarial
+  review when it is run — this is the bar the `review` agent assumes is being
+  violated until output proves otherwise.
 
 ### `[HC-VERIFY-BEFORE-DONE]`
 
 - **Bar**: Nothing is reported as done until the relevant verification has run
   and its output has been shown.
-- **Pattern**: `scripts/verify.sh` runs the whole chain fail-fast. Running a
-  targeted subset is fine when the diff is narrow; saying which subset ran, and
-  why it covers the change, is not optional. A change to packaging, the preload,
-  or a provider's runtime also needs `npm run package && npm run smoke` from
-  `desktop/` — the chain cannot see any of those.
+- **Pattern**: `scripts/verify.sh` runs the whole chain fail-fast in about three
+  seconds. There is no excuse for skipping it. Running a targeted subset is fine
+  when the diff is narrow; saying which subset ran, and why it covers the
+  change, is not optional. `npm run package && npm run smoke` from `desktop/`
+  covers what the chain cannot see — packaging, the preload, and provider
+  runtimes. In prototype mode that is on demand rather than per-change (section
+  0), but it is the only thing that catches a build which is green everywhere
+  else and broken once installed, so run it before you actually use the app.
 - **Verification**: The command output in the report.
 
 ### `[HC-TEST-WITH-BEHAVIOR]`

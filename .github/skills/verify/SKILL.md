@@ -21,7 +21,8 @@ Run the verification chain and report exactly what happened.
    why they cover the change. A partial run reported as a full one is the
    failure this exists to prevent (`[HC-VERIFY-BEFORE-DONE]`).
 
-3. Run the packaged smoke test when the change touched
+3. **Prototype mode:** the packaged smoke test is on demand, not per-change.
+   Run it before you actually use the app, and when the change touched
    `desktop/electron.vite.config.ts`, `desktop/src/preload/**`, window creation,
    packaging configuration, or a provider's runtime resolution:
 
@@ -29,6 +30,7 @@ Run the verification chain and report exactly what happened.
    cd desktop && npm run package && npm run smoke
    ```
 
+   If you skip it, say so — do not imply the app was verified as packaged.
    Packaging alone is necessary but not sufficient — `electron-builder --dir`
    builds without ever launching the app, so a clean package says nothing about
    the preload bridge (`[HC-PRELOAD-CJS]`) or whether a bundled SDK can run
