@@ -265,10 +265,30 @@ try {
           const profile = await click("Profile");
           const fields = document.querySelectorAll(".field").length;
           const mentors = await click("Mentors");
+          document.querySelector(".new-chat")?.click();
+          await settle();
+          const mentorName = document.querySelector("#mentor-name");
+          if (!(mentorName instanceof HTMLInputElement)) {
+            throw new Error("the duplicate form did not open");
+          }
+          const valueSetter = Object.getOwnPropertyDescriptor(
+            HTMLInputElement.prototype,
+            "value",
+          )?.set;
+          valueSetter?.call(mentorName, "UI Mentor");
+          mentorName.dispatchEvent(new Event("input", { bubbles: true }));
+          mentorName.form?.requestSubmit();
+          await settle();
+          await settle();
+          const duplicate = document.querySelector("h1")?.textContent ?? "";
+          const duplicateListed = [...document.querySelectorAll(".conversation-title")]
+            .some((node) => node.textContent?.includes("UI Mentor"));
+          await window.trajectory.deleteMentor("ui_mentor");
           const settings = await click("Settings");
           const chat = await click("Chat");
           return JSON.stringify({
-            ok: true, rail, profile, fields, mentors, settings,
+            ok: true, rail, profile, fields, mentors, duplicate,
+            duplicateListed, settings,
             chat: chat.length > 0,
             composer: Boolean(document.querySelector(".composer textarea")),
           });
@@ -285,6 +305,8 @@ try {
       ui.profile === "Goals" &&
       ui.fields > 0 &&
       ui.mentors.length > 0 &&
+      ui.duplicate === "UI Mentor" &&
+      ui.duplicateListed === true &&
       ui.settings === "Settings" &&
       ui.chat === true &&
       ui.composer === true,

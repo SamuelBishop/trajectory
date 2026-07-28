@@ -21,6 +21,13 @@ import { toErrorMessage } from "./errors";
 import { Field, SaveBar, TagInput, TextArea, TextInput } from "./FormKit";
 import { useDocument } from "./useDocument";
 
+function mentorIdFromName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
 interface Profile {
   id: string;
   name: string;
@@ -211,6 +218,8 @@ export function MentorsView({
   const [file, setFile] = useState<MentorConfigFile>("profile");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newMentorName, setNewMentorName] = useState("");
 
   useEffect(() => {
     void window.trajectory
@@ -223,31 +232,39 @@ export function MentorsView({
 
   const run = async (
     action: () => Promise<MentorSummary[]>,
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     setBusy(true);
     setError(null);
     try {
       setMentors(await action());
+      return true;
     } catch (actionError) {
       setError(toErrorMessage(actionError));
+      return false;
     } finally {
       setBusy(false);
     }
   };
 
   const duplicate = async (): Promise<void> => {
-    const name = window.prompt("Name for the new mentor?");
-    if (!name) {
+    const name = newMentorName.trim();
+    const id = mentorIdFromName(name);
+    if (!name || !/^[a-z][a-z0-9_]{1,63}$/.test(id)) {
+      setError(
+        "Enter a name that produces an ID of 2–64 lowercase letters, digits, or underscores.",
+      );
       return;
     }
-    // Derive the ID from the name so the user never has to learn the rules,
-    // but the engine still checks it.
-    const id = name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "");
-    await run(() => window.trajectory.duplicateMentor(selected, id, name));
+    if (
+      !(await run(() =>
+        window.trajectory.duplicateMentor(selected, id, name),
+      ))
+    ) {
+      return;
+    }
     setSelected(id);
+    setNewMentorName("");
+    setCreating(false);
   };
 
   const remove = async (id: string): Promise<void> => {
@@ -269,10 +286,47 @@ export function MentorsView({
         <button
           className="new-chat"
           disabled={busy || !current}
-          onClick={() => void duplicate()}
+          onClick={() => {
+            setCreating((open) => !open);
+            setError(null);
+          }}
         >
-          <span>+</span> Duplicate selected
+          <span>{creating ? "×" : "+"}</span>
+          {creating ? "Cancel" : "Duplicate selected"}
         </button>
+        {creating && current && (
+          <form
+            className="mentor-create"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void duplicate();
+            }}
+          >
+            <label htmlFor="mentor-name">Name for your mentor</label>
+            <input
+              id="mentor-name"
+              className="text-input"
+              value={newMentorName}
+              maxLength={120}
+              placeholder="For example, Samuel"
+              autoFocus
+              disabled={busy}
+              onChange={(event) => setNewMentorName(event.target.value)}
+            />
+            {newMentorName.trim() && (
+              <span className="mentor-id-preview">
+                ID: {mentorIdFromName(newMentorName) || "—"}
+              </span>
+            )}
+            <button
+              type="submit"
+              className="primary"
+              disabled={busy || newMentorName.trim().length === 0}
+            >
+              {busy ? "Creating…" : `Create from ${current.name}`}
+            </button>
+          </form>
+        )}
         <div className="conversation-list">
           {mentors.map((mentor) => (
             <div

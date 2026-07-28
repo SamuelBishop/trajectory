@@ -116,6 +116,35 @@ button {
   line-height: 14px;
 }
 
+.mentor-create {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  border: 1px solid #35342e;
+  border-radius: 10px;
+  background: #191916;
+  padding: 12px;
+}
+
+.mentor-create label,
+.mentor-id-preview {
+  color: #8d8a7e;
+  font-size: 11px;
+}
+
+.mentor-id-preview {
+  overflow: hidden;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mentor-create .primary {
+  width: 100%;
+  margin-top: 2px;
+}
+
 .conversation-list {
   display: flex;
   min-height: 0;
