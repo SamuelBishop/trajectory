@@ -242,6 +242,166 @@ try {
     `user=[${user}] mentor=[${mentor}]`,
   );
 
+  // ---- Editing surface ----
+
+  // The IPC checks below would all pass on a build whose React tree crashed on
+  // mount, because the bridge lives in preload. Drive the actual UI too.
+  const ui = JSON.parse(
+    await session.evaluate(`
+      (async () => {
+        const settle = () => new Promise((r) => setTimeout(r, 400));
+        const click = async (label) => {
+          const button = [...document.querySelectorAll(".rail-button")]
+            .find((node) => node.getAttribute("aria-label") === label);
+          if (!button) throw new Error("no rail button for " + label);
+          button.click();
+          await settle();
+          return document.querySelector("h1")?.textContent ?? "";
+        };
+        try {
+          await settle();
+          const rail = [...document.querySelectorAll(".rail-button")]
+            .map((node) => node.getAttribute("aria-label"));
+          const profile = await click("Profile");
+          const fields = document.querySelectorAll(".field").length;
+          const mentors = await click("Mentors");
+          const settings = await click("Settings");
+          const chat = await click("Chat");
+          return JSON.stringify({
+            ok: true, rail, profile, fields, mentors, settings,
+            chat: chat.length > 0,
+            composer: Boolean(document.querySelector(".composer textarea")),
+          });
+        } catch (error) {
+          return JSON.stringify({ ok: false, error: String(error.message ?? error) });
+        }
+      })()
+    `),
+  );
+  check(
+    "every view renders and the rail switches between them",
+    ui.ok === true &&
+      ui.rail.join() === "Chat,Profile,Mentors,Settings" &&
+      ui.profile === "Goals" &&
+      ui.fields > 0 &&
+      ui.mentors.length > 0 &&
+      ui.settings === "Settings" &&
+      ui.chat === true &&
+      ui.composer === true,
+    JSON.stringify(ui),
+  );
+
+  const editing = JSON.parse(
+    await session.evaluate(`
+      (async () => {
+        try {
+          const before = await window.trajectory.readUserConfig("goals");
+          const model = before.data;
+          model.goals[0].description = "Smoke-edited goal";
+          const after = await window.trajectory.writeUserConfig("goals", model);
+          const reread = await window.trajectory.readUserConfig("goals");
+          let refused = null;
+          try {
+            await window.trajectory.writeUserConfig("goals", { goals: "nope" });
+          } catch (error) { refused = String(error.message ?? error); }
+          let traversal = null;
+          try {
+            await window.trajectory.readMentorConfig("../../etc", "profile");
+          } catch (error) { traversal = String(error.message ?? error); }
+          return JSON.stringify({
+            ok: true,
+            savedText: after.text.includes("Smoke-edited goal"),
+            persisted: reread.data.goals[0].description === "Smoke-edited goal",
+            refused,
+            traversal,
+          });
+        } catch (error) {
+          return JSON.stringify({ ok: false, error: String(error.message ?? error) });
+        }
+      })()
+    `),
+  );
+  check(
+    "a profile edit is written and reads back",
+    editing.ok === true && editing.savedText && editing.persisted,
+    JSON.stringify(editing),
+  );
+  check(
+    "an invalid profile edit is refused [HC-VALIDATE-IPC-INPUT]",
+    typeof editing.refused === "string" && editing.refused.length > 0,
+    String(editing.refused),
+  );
+  check(
+    "a traversing mentor ID is refused [HC-VALIDATE-IPC-INPUT]",
+    typeof editing.traversal === "string" && editing.traversal.length > 0,
+    String(editing.traversal),
+  );
+
+  const mentorFlow = JSON.parse(
+    await session.evaluate(`
+      (async () => {
+        try {
+          const listed = await window.trajectory.listMentors();
+          const copied = await window.trajectory.duplicateMentor(
+            "demo_mentor", "smoke_mentor", "Smoke Mentor",
+          );
+          await window.trajectory.saveSettings({
+            provider: "deterministic", model: "", activeMentorId: "smoke_mentor",
+          });
+          const settings = await window.trajectory.getSettings();
+          const removed = await window.trajectory.deleteMentor("smoke_mentor");
+          return JSON.stringify({
+            ok: true,
+            listed: listed.map((m) => m.id),
+            copiedLoads: copied.find((m) => m.id === "smoke_mentor")?.loadable,
+            activeMentorId: settings.activeMentorId,
+            afterDelete: removed.map((m) => m.id),
+          });
+        } catch (error) {
+          return JSON.stringify({ ok: false, error: String(error.message ?? error) });
+        }
+      })()
+    `),
+  );
+  check(
+    "a mentor can be duplicated, activated, and deleted",
+    mentorFlow.ok === true &&
+      mentorFlow.copiedLoads === true &&
+      mentorFlow.activeMentorId === "smoke_mentor" &&
+      !mentorFlow.afterDelete.includes("smoke_mentor"),
+    JSON.stringify(mentorFlow),
+  );
+
+  const secretFlow = JSON.parse(
+    await session.evaluate(`
+      (async () => {
+        try {
+          const before = await window.trajectory.getSecretStatus();
+          const stored = await window.trajectory.setOpenAiKey("sk-smoke-not-a-real-credential");
+          const cleared = await window.trajectory.clearOpenAiKey();
+          return JSON.stringify({
+            ok: true,
+            before: before.hasOpenAiKey,
+            stored: stored.hasOpenAiKey,
+            cleared: cleared.hasOpenAiKey,
+            surface: Object.keys(window.trajectory),
+          });
+        } catch (error) {
+          return JSON.stringify({ ok: false, error: String(error.message ?? error) });
+        }
+      })()
+    `),
+  );
+  check(
+    "a credential can be stored and removed but never read back [HC-SECRETS-ENV-ONLY]",
+    secretFlow.ok === true &&
+      secretFlow.before === false &&
+      secretFlow.stored === true &&
+      secretFlow.cleared === false &&
+      !secretFlow.surface.some((name) => /^(get|read|fetch).*(Key|Secret|Token)$/.test(name)),
+    JSON.stringify(secretFlow),
+  );
+
   const history = await readFile(
     path.join(userDataDir, "trajectory-chats.enc.json"),
     "utf8",
@@ -250,6 +410,16 @@ try {
     "history is encrypted at rest [HC-NO-PLAINTEXT-HISTORY]",
     history.length > 0 && !history.includes("polishing this low-risk"),
     `${history.length} bytes`,
+  );
+
+  const secretsFile = await readFile(
+    path.join(userDataDir, "trajectory-secrets.enc.json"),
+    "utf8",
+  ).catch(() => "");
+  check(
+    "the credential was never written in the clear [HC-SECRETS-ENV-ONLY]",
+    secretsFile.length > 0 && !secretsFile.includes("sk-smoke-not-a-real"),
+    `${secretsFile.length} bytes`,
   );
 } finally {
   session?.close();

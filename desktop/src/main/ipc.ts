@@ -151,8 +151,15 @@ export function registerIpcHandlers(): void {
   };
 
   // Seed at startup rather than on the first message, so the editor has files
-  // to open before the user has said anything.
-  void localConfig().catch(() => undefined);
+  // to open before the user has said anything. A failure here is not fatal —
+  // the next call retries — but it must be visible, because a silent failure
+  // shows up later as an empty editor with no explanation.
+  void localConfig().catch((error: unknown) => {
+    console.error(
+      "Could not prepare local configuration:",
+      error instanceof Error ? error.message : error,
+    );
+  });
 
   const secretStatus = async (): Promise<{
     hasOpenAiKey: boolean;
