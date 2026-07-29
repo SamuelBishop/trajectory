@@ -19,6 +19,7 @@ import {
   mentorProfileSchema,
   principlesConfigSchema,
   sourcesConfigSchema,
+  voiceConfigSchema,
 } from "./domain";
 import { ConfigurationError } from "./errors";
 import { writeMentorProfile, writeYamlConfig } from "./writer";
@@ -32,6 +33,7 @@ export interface MentorSummary {
   readonly description: string;
   readonly domains: readonly string[];
   readonly fictional: boolean;
+  readonly disclaimer: string;
   /** False when the profile is present but fails to load, so the UI can say so. */
   readonly loadable: boolean;
   readonly problem?: string;
@@ -99,6 +101,7 @@ export async function listMentors(
           description: profile.description,
           domains: profile.domains,
           fictional: profile.fictional,
+          disclaimer: profile.disclaimer,
           loadable: true,
         };
       } catch (error) {
@@ -108,6 +111,7 @@ export async function listMentors(
           description: "",
           domains: [],
           fictional: true,
+          disclaimer: "",
           loadable: false,
           problem: error instanceof Error ? error.message : String(error),
         };
@@ -162,6 +166,16 @@ export async function duplicateMentor(
         })),
       },
     );
+    if (resources.voice) {
+      await writeYamlConfig(
+        path.join(to, "voice.yaml"),
+        voiceConfigSchema,
+        {
+          ...resources.voice,
+          mentor_id: targetId,
+        },
+      );
+    }
   } catch (error) {
     // A half-written mentor directory fails to load and would strand the user
     // with a profile they cannot open or delete cleanly.

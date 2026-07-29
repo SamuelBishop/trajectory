@@ -254,7 +254,7 @@ try {
   ).catch(() => []);
   check(
     "first launch seeds editable configuration [HC-EXPLICIT-CONFIG-PATHS]",
-    user.length === 5 && mentor.length === 3,
+    user.length === 5 && mentor.length === 4,
     `user=[${user}] mentor=[${mentor}]`,
   );
 
@@ -281,6 +281,17 @@ try {
           const profile = await click("Profile");
           const fields = document.querySelectorAll(".field").length;
           const mentors = await click("Mentors");
+          const voiceButton = [...document.querySelectorAll(".segmented button")]
+            .find((node) => node.textContent?.trim() === "Voice");
+          if (!(voiceButton instanceof HTMLButtonElement)) {
+            throw new Error("the Voice editor tab is missing");
+          }
+          voiceButton.click();
+          await settle();
+          const voiceEditor = document.querySelector(".yaml-editor");
+          const voiceLoaded =
+            voiceEditor instanceof HTMLTextAreaElement &&
+            voiceEditor.value.includes("version: 2");
           document.querySelector(".new-chat")?.click();
           await settle();
           const mentorName = document.querySelector("#mentor-name");
@@ -302,9 +313,11 @@ try {
           await window.trajectory.deleteMentor("ui_mentor");
           const settings = await click("Settings");
           const chat = await click("Chat");
+          const disclosure =
+            document.querySelector(".mentor-disclaimer")?.textContent ?? "";
           return JSON.stringify({
             ok: true, rail, profile, fields, mentors, duplicate,
-            duplicateListed, settings,
+            duplicateListed, settings, voiceLoaded, disclosure,
             chat: chat.length > 0,
             composer: Boolean(document.querySelector(".composer textarea")),
           });
@@ -323,6 +336,8 @@ try {
       ui.mentors.length > 0 &&
       ui.duplicate === "UI Mentor" &&
       ui.duplicateListed === true &&
+      ui.voiceLoaded === true &&
+      ui.disclosure.includes("fictional") &&
       ui.settings === "Settings" &&
       ui.chat === true &&
       ui.composer === true,
@@ -338,6 +353,18 @@ try {
           model.goals[0].description = "Smoke-edited goal";
           const after = await window.trajectory.writeUserConfig("goals", model);
           const reread = await window.trajectory.readUserConfig("goals");
+          const voiceBefore = await window.trajectory.readMentorConfig(
+            "demo_mentor", "voice",
+          );
+          const voiceModel = voiceBefore.data;
+          voiceModel.chat[0] =
+            "Keep the synthetic demo concise in packaged smoke.";
+          const voiceAfter = await window.trajectory.writeMentorConfig(
+            "demo_mentor", "voice", voiceModel,
+          );
+          const voiceReread = await window.trajectory.readMentorConfig(
+            "demo_mentor", "voice",
+          );
           let refused = null;
           try {
             await window.trajectory.writeUserConfig("goals", { goals: "nope" });
@@ -350,6 +377,9 @@ try {
             ok: true,
             savedText: after.text.includes("Smoke-edited goal"),
             persisted: reread.data.goals[0].description === "Smoke-edited goal",
+            voiceSaved: voiceAfter.text.includes("packaged smoke"),
+            voicePersisted:
+              voiceReread.data.chat[0].includes("packaged smoke"),
             refused,
             traversal,
           });
@@ -362,6 +392,11 @@ try {
   check(
     "a profile edit is written and reads back",
     editing.ok === true && editing.savedText && editing.persisted,
+    JSON.stringify(editing),
+  );
+  check(
+    "a voice edit crosses the packaged bridge and reads back",
+    editing.ok === true && editing.voiceSaved && editing.voicePersisted,
     JSON.stringify(editing),
   );
   check(

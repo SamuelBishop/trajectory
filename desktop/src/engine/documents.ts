@@ -19,6 +19,8 @@ import {
   MENTOR_PROFILE_FILE,
   parseMentorProfileText,
   readConfigText,
+  readOptionalConfigText,
+  validateVoiceConfig,
 } from "./config";
 import {
   communicationConfigSchema,
@@ -29,6 +31,7 @@ import {
   principlesConfigSchema,
   sourcesConfigSchema,
   valuesConfigSchema,
+  voiceConfigSchema,
 } from "./domain";
 import { mentorDirectoryFor, mentorsRoot } from "./mentors";
 import {
@@ -43,6 +46,7 @@ export interface ConfigDocument {
   readonly text: string;
   readonly data: unknown;
   readonly problem?: string;
+  readonly missing?: boolean;
 }
 
 const USER_DOCUMENTS = {
@@ -63,6 +67,7 @@ const MENTOR_DOCUMENTS = {
   profile: { file: MENTOR_PROFILE_FILE, schema: mentorProfileSchema },
   principles: { file: "principles.yaml", schema: principlesConfigSchema },
   sources: { file: "sources.yaml", schema: sourcesConfigSchema },
+  voice: { file: "voice.yaml", schema: voiceConfigSchema },
 } as const;
 
 export type UserDocumentName = keyof typeof USER_DOCUMENTS;
@@ -109,8 +114,38 @@ async function readDocument(
   }
 }
 
+async function readOptionalDocument(
+  filePath: string,
+  parse: (text: string) => unknown,
+): Promise<ConfigDocument> {
+  const file = path.basename(filePath);
+  const text = await readOptionalConfigText(filePath);
+  if (text === undefined) {
+    return { file, text: "", data: undefined, missing: true };
+  }
+  try {
+    return { file, text, data: parse(text) };
+  } catch (error) {
+    return { file, text, data: undefined, problem: describe(error) };
+  }
+}
+
 function parseYamlWith(schema: z.ZodType): (text: string) => unknown {
   return (text) => schema.parse(YAML.parse(text));
+}
+
+async function validateVoiceDocument(
+  configDirectory: string,
+  mentorId: string,
+  data: unknown,
+): Promise<void> {
+  const profileDocument = await readMentorDocument(
+    configDirectory,
+    mentorId,
+    "profile",
+  );
+  const profile = mentorProfileSchema.parse(profileDocument.data);
+  validateVoiceConfig(profile, voiceConfigSchema.parse(data));
 }
 
 export function userDocumentPath(
@@ -173,6 +208,12 @@ export async function readMentorDocument(
       parseMentorProfileText(filePath, text),
     );
   }
+  if (name === "voice") {
+    return await readOptionalDocument(
+      filePath,
+      parseYamlWith(MENTOR_DOCUMENTS[name].schema),
+    );
+  }
   return await readDocument(
     filePath,
     parseYamlWith(MENTOR_DOCUMENTS[name].schema),
@@ -189,6 +230,9 @@ export async function writeMentorDocument(
   if (name === "profile") {
     await writeMentorProfile(filePath, mentorProfileSchema, data);
   } else {
+    if (name === "voice") {
+      await validateVoiceDocument(configDirectory, mentorId, data);
+    }
     await writeYamlConfig(filePath, MENTOR_DOCUMENTS[name].schema, data);
   }
   return await readMentorDocument(configDirectory, mentorId, name);
@@ -207,6 +251,13 @@ export async function writeMentorDocumentText(
     parseMentorProfileText(filePath, text);
     await writeFileAtomic(filePath, text);
   } else {
+    if (name === "voice") {
+      await validateVoiceDocument(
+        configDirectory,
+        mentorId,
+        parseYamlWith(voiceConfigSchema)(text),
+      );
+    }
     await writeYamlText(filePath, MENTOR_DOCUMENTS[name].schema, text);
   }
   return await readMentorDocument(configDirectory, mentorId, name);

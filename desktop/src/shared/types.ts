@@ -103,7 +103,7 @@ export type UserConfigFile =
   | "constraints"
   | "communication";
 
-export type MentorConfigFile = "profile" | "principles" | "sources";
+export type MentorConfigFile = "profile" | "principles" | "sources" | "voice";
 
 /**
  * A config file as the editor sees it: the parsed value drives the form, the
@@ -116,6 +116,8 @@ export interface ConfigDocument {
   data: unknown;
   /** Set when the file on disk fails validation, so the form can step aside. */
   problem?: string;
+  /** True only for an optional file that has not been created yet. */
+  missing?: boolean;
 }
 
 export interface MentorSummary {
@@ -124,6 +126,7 @@ export interface MentorSummary {
   description: string;
   domains: string[];
   fictional: boolean;
+  disclaimer: string;
   loadable: boolean;
   problem?: string;
 }

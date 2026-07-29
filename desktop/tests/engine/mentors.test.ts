@@ -4,6 +4,7 @@ import {
   mkdtemp,
   readdir,
   readFile,
+  rm,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -18,6 +19,7 @@ import {
   listMentors,
   mentorDirectoryFor,
 } from "../../src/engine/mentors";
+import { loadMentorResources } from "../../src/engine/config";
 import { ensureLocalConfig } from "../../src/engine/paths";
 
 const BUNDLED = {
@@ -169,6 +171,28 @@ describe("duplicateMentor", () => {
     expect(copy).toBeDefined();
     expect(copy?.loadable).toBe(true);
     expect(copy?.name).toBe("Patient Mentor");
+    const copiedResources = await loadMentorResources(
+      path.join(local.mentorsDirectory, "patient_mentor"),
+    );
+    expect(copiedResources.voice?.mentor_id).toBe("patient_mentor");
+  });
+
+  it("preserves the absence of an optional voice profile", async () => {
+    const userData = await scratch();
+    const local = await ensureLocalConfig(BUNDLED, userData);
+    await rm(path.join(local.mentorDirectory, "voice.yaml"));
+
+    await duplicateMentor(
+      local.configDirectory,
+      "demo_mentor",
+      "quiet_mentor",
+      "Quiet Mentor",
+    );
+
+    const copiedResources = await loadMentorResources(
+      path.join(local.mentorsDirectory, "quiet_mentor"),
+    );
+    expect(copiedResources.voice).toBeUndefined();
   });
 
   it("refuses to overwrite an existing mentor", async () => {

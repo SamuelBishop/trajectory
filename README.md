@@ -480,6 +480,14 @@ edit; nothing writes them back and nothing commits them.
 | Windows | `%APPDATA%\Trajectory\config\` |
 | Linux | `~/.config/Trajectory/config/` |
 
+Each mentor directory contains a profile, grounded principles, and approved
+source records. An optional `voice.yaml` adds tone, cadence, selective patterns,
+avoidance rules, and response-construction guidance without changing what the
+mentor believes. At
+runtime Trajectory sends only the compact chat guidance and one or two relevant
+synthetic examples. Real-person simulations remain independent, disclosed, and
+not endorsed by the person they model.
+
 The deterministic provider answers only the committed synthetic pull-request
 scenario. Choose Copilot or an OpenAI-compatible provider for anything else.
 

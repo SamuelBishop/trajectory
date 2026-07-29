@@ -80,12 +80,14 @@ export interface ChatViewProps {
   readonly provider: ProviderName;
   readonly onChangeProvider: (provider: ProviderName) => void;
   readonly mentorName: string;
+  readonly mentorDisclaimer: string;
 }
 
 export function ChatView({
   provider,
   onChangeProvider,
   mentorName,
+  mentorDisclaimer,
 }: ChatViewProps): React.JSX.Element {
   const [summaries, setSummaries] = useState<ConversationSummary[]>([]);
   const [active, setActive] = useState<Conversation | null>(null);
@@ -321,6 +323,9 @@ export function ChatView({
           <div>
             <h1>{title}</h1>
             <span>{mentorName}</span>
+            {mentorDisclaimer && (
+              <p className="mentor-disclaimer">{mentorDisclaimer}</p>
+            )}
           </div>
           <label className="provider-control">
             <span>Model</span>

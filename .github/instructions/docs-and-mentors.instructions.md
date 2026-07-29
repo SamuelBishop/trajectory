@@ -24,16 +24,16 @@ Shipped mentor profiles are fictional and visibly labeled. Principles cite
 sources that exist in the approved list; `config.py` rejects the alternative at
 load time.
 
-Do not write in a named living person's voice, and do not produce content that
-implies a real person endorses this project — even when asked directly. Say so
-plainly and offer an original alternative instead.
+Named living-person communication patterns may be synthesized for an
+independently simulated mentor. Ground operational voice guidance in approved
+sources, use synthetic non-quoted examples, and keep the profile's disclosure
+visible where the output is consumed. Never claim the subject authored the
+output, speaks through the app, or endorses the project, and never copy source
+material into the profile.
 
-The exception is text the person supplies themselves. Then use it exactly as
-given and attribute it. Rewriting supplied text into your own phrasing is the
-failure mode here, not the fix.
-
-Real mentor profiles stay in `FUTURE_ITERATIONS.md` until independently
-researched and reviewed. Inventing a real person's principles is fabrication
+Bundled real-person mentor profiles stay in `FUTURE_ITERATIONS.md` until
+independently researched and reviewed. Private local profiles are user data and
+must not be committed. Inventing a real person's principles is fabrication
 regardless of how plausible it reads.
 
 ## Methodology docs

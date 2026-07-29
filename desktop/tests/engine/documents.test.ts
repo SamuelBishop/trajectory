@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -56,8 +56,8 @@ describe("document names", () => {
     }
   });
 
-  it("accepts the three mentor files and rejects anything else", () => {
-    for (const name of ["profile", "principles", "sources"]) {
+  it("accepts the four mentor files and rejects anything else", () => {
+    for (const name of ["profile", "principles", "sources", "voice"]) {
       expect(isMentorDocumentName(name)).toBe(true);
     }
     for (const name of ["profile.md", "../profile", "toString", ""]) {
@@ -232,5 +232,75 @@ describe("mentor documents", () => {
     await expect(
       readMentorDocument(configDirectory, "../../../etc", "profile"),
     ).rejects.toThrow();
+  });
+
+  it("reports an optional missing voice without treating it as malformed", async () => {
+    const { configDirectory } = await seeded();
+    await rm(
+      path.join(configDirectory, "mentors", "demo_mentor", "voice.yaml"),
+    );
+
+    const document = await readMentorDocument(
+      configDirectory,
+      "demo_mentor",
+      "voice",
+    );
+
+    expect(document.missing).toBe(true);
+    expect(document.problem).toBeUndefined();
+    expect(document.text).toBe("");
+  });
+
+  it("round-trips voice YAML through the validated document writer", async () => {
+    const { configDirectory } = await seeded();
+    const document = await readMentorDocument(
+      configDirectory,
+      "demo_mentor",
+      "voice",
+    );
+    const text = document.text.replace(
+      "Keep the synthetic demo concise",
+      "Keep the synthetic demo direct",
+    );
+
+    const after = await writeMentorDocumentText(
+      configDirectory,
+      "demo_mentor",
+      "voice",
+      text,
+    );
+
+    expect(after.problem).toBeUndefined();
+    expect(after.text).toContain("Keep the synthetic demo direct");
+  });
+
+  it("refuses invalid voice references and leaves the file untouched", async () => {
+    const { configDirectory } = await seeded();
+    const filePath = path.join(
+      configDirectory,
+      "mentors",
+      "demo_mentor",
+      "voice.yaml",
+    );
+    const original = await readFile(filePath, "utf8");
+    const document = await readMentorDocument(
+      configDirectory,
+      "demo_mentor",
+      "voice",
+    );
+    const model = structuredClone(document.data) as {
+      examples: { items: { pattern_ids: string[] }[] };
+    };
+    const example = model.examples.items[0];
+    expect(example).toBeDefined();
+    if (!example) {
+      throw new Error("The demo voice example is missing.");
+    }
+    example.pattern_ids = ["missing_pattern"];
+
+    await expect(
+      writeMentorDocument(configDirectory, "demo_mentor", "voice", model),
+    ).rejects.toThrow(/unknown patterns: missing_pattern/);
+    expect(await readFile(filePath, "utf8")).toBe(original);
   });
 });

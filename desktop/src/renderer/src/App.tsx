@@ -120,6 +120,7 @@ export function App(): React.JSX.Element {
         <ChatView
           provider={settings.provider}
           mentorName={activeMentor?.name ?? "Context-aware mentorship"}
+          mentorDisclaimer={activeMentor?.disclaimer ?? ""}
           onChangeProvider={(provider: ProviderName) => {
             persist({ ...settings, provider });
           }}

@@ -82,12 +82,14 @@ Keep the vendor inside the module:
   Denial means the SDK's actual refusal decision. Copilot's
   `{ kind: "no-result" }` sends no decision at all and leaves the request
   hanging; `{ kind: "reject", feedback }` is the denial.
-- Give the runtime nothing ambient to read. Copilot's default `copilot-cli` mode
-  loads `AGENTS.md`, `.github/copilot-instructions.md` and `CLAUDE.md` from its
-  working directory — `process.cwd()` by default — into the prompt. Use
-  `mode: "empty"` with an application-owned `baseDirectory` and
-  `workingDirectory`, `skipCustomInstructions: true`, and
-  `enableSessionTelemetry: false`. The main process chooses that directory; the
+- Give the runtime nothing ambient to read. Copilot's `copilot-cli` mode can
+  load repository instructions and environment context, while `empty` mode
+  disables the OS credential store. Use `empty` mode when an explicit token is
+  present. Device-login sessions require `copilot-cli` mode, with the empty-mode
+  privacy defaults supplied explicitly: an application-owned `baseDirectory`
+  and `workingDirectory`, custom instructions and discovery disabled, no tools,
+  no skills or memory, telemetry and persistence disabled, and the environment
+  context system section removed. The main process chooses the directory; the
   provider never defaults it.
 - Clean up in `finally`, so an exception mid-request still deletes the session —
   and never let teardown throw over the original error. Attach
@@ -120,16 +122,15 @@ check is on trimmed content, not on `undefined`.
 ## `baseDirectory` is COPILOT_HOME, not isolation
 
 The Copilot SDK turns `baseDirectory` into `COPILOT_HOME` on the spawned
-runtime, and `COPILOT_HOME` is where the runtime looks for a stored login.
-Pointing it at an app-owned directory therefore guarantees that
-`useLoggedInUser: true` finds nothing, and every request fails with `Session was
-not created with authentication info or custom provider` — surfaced to the user
-as a generic error, with the real reason written only to a log inside that same
-directory.
+runtime. Device login and provider requests must receive the same app-owned
+directory so the runtime selects the same logged-in account. The OAuth token
+itself stays in the OS credential store.
 
-Isolation from the launch directory is `workingDirectory`. Set that. Set
-`baseDirectory` only when an explicit token has already made `COPILOT_HOME`
-irrelevant.
+The SDK's `empty` mode also forces `COPILOT_DISABLE_KEYTAR=1`; a device login can
+succeed and then remain invisible to every request if the provider uses that
+mode. Use keychain-capable `copilot-cli` mode only for the stored-login path and
+reapply the empty-mode privacy defaults at session creation. Isolation from the
+launch directory is still `workingDirectory`; always set it.
 
 ## The packaged app is a different environment
 

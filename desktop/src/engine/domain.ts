@@ -172,10 +172,88 @@ export const principlesConfigSchema = z.strictObject({
   principles: z.array(mentorPrincipleSchema).min(1),
 });
 
+export const voicePatternSchema = z.strictObject({
+  id: identifier,
+  strength: z.enum(["low", "moderate", "high", "very_high"]),
+  instruction: text,
+});
+
+export const voiceExampleSchema = z.strictObject({
+  id: identifier,
+  purpose: identifier,
+  tags: z.array(identifier).min(1),
+  pattern_ids: z.array(identifier).min(1),
+  text,
+});
+
+export const voiceSelectionCountSchema = z.union([
+  z.number().int().min(0),
+  z.string().regex(/^\d+-\d+$/, "must be a count or range such as 1-2"),
+]);
+
+export const voiceSelectionTierSchema = z.strictObject({
+  pattern_count: voiceSelectionCountSchema,
+  example_count: voiceSelectionCountSchema,
+});
+
+export const voiceConfigSchema = z.strictObject({
+  version: z.literal(2),
+  mentor_id: identifier,
+  purpose: text,
+  voice: z.strictObject({
+    tone: z.array(text).min(1),
+    reader_relationship: text,
+    prose: z.array(text).min(1),
+    cadence: z.strictObject({
+      default_arc: z.array(text).min(1),
+      instruction: text,
+    }),
+  }),
+  patterns: z.array(voicePatternSchema).min(1),
+  selection: z.strictObject({
+    brief: voiceSelectionTierSchema,
+    standard: voiceSelectionTierSchema,
+    deep: voiceSelectionTierSchema,
+    instruction: text,
+  }),
+  chat: z.array(text).min(1),
+  avoid: z.array(text).min(1),
+  examples: z.strictObject({
+    usage: text,
+    items: z.array(voiceExampleSchema).min(1),
+  }),
+});
+
+export const voiceRuntimePatternSchema = voicePatternSchema;
+
+export const voiceRuntimeExampleSchema = z.strictObject({
+  purpose: identifier,
+  text,
+});
+
+export const voiceRuntimeContextSchema = z.strictObject({
+  purpose: text,
+  tone: z.array(text).min(1),
+  reader_relationship: text,
+  prose: z.array(text).min(1),
+  cadence: z.strictObject({
+    default_arc: z.array(text).min(1),
+    instruction: text,
+  }),
+  depth: z.enum(["brief", "standard", "deep"]),
+  selection_instruction: text,
+  patterns: z.array(voiceRuntimePatternSchema).min(1),
+  chat: z.array(text).min(1),
+  avoid: z.array(text).min(1),
+  example_usage: text,
+  examples: z.array(voiceRuntimeExampleSchema).max(2),
+});
+
 export const mentorResourcesSchema = z.strictObject({
   profile: mentorProfileSchema,
   sources: z.array(sourceRecordSchema),
   principles: z.array(mentorPrincipleSchema),
+  voice: voiceConfigSchema.optional(),
 });
 
 export const chatMessageSchema = z.strictObject({
@@ -193,6 +271,7 @@ export const decisionRequestSchema = z.strictObject({
   mentor_profile: mentorProfileSchema,
   principles: z.array(mentorPrincipleSchema).min(1),
   sources: z.array(sourceRecordSchema).min(1),
+  voice_context: voiceRuntimeContextSchema.nullable(),
   provider: identifier,
   prompt_version: identifier,
 });
@@ -208,6 +287,7 @@ export const chatRequestSchema = z.strictObject({
   mentor_profile: mentorProfileSchema,
   principles: z.array(mentorPrincipleSchema).min(1),
   sources: z.array(sourceRecordSchema).min(1),
+  voice_context: voiceRuntimeContextSchema.nullable(),
   provider: identifier,
   prompt_version: identifier,
 });
@@ -271,6 +351,12 @@ export type SourceRecord = z.infer<typeof sourceRecordSchema>;
 export type SourcesConfig = z.infer<typeof sourcesConfigSchema>;
 export type MentorPrinciple = z.infer<typeof mentorPrincipleSchema>;
 export type PrinciplesConfig = z.infer<typeof principlesConfigSchema>;
+export type VoicePattern = z.infer<typeof voicePatternSchema>;
+export type VoiceExample = z.infer<typeof voiceExampleSchema>;
+export type VoiceSelectionCount = z.infer<typeof voiceSelectionCountSchema>;
+export type VoiceSelectionTier = z.infer<typeof voiceSelectionTierSchema>;
+export type VoiceConfig = z.infer<typeof voiceConfigSchema>;
+export type VoiceRuntimeContext = z.infer<typeof voiceRuntimeContextSchema>;
 export type MentorResources = z.infer<typeof mentorResourcesSchema>;
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
 export type DecisionRequest = z.infer<typeof decisionRequestSchema>;

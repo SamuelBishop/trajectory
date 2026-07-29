@@ -1,7 +1,7 @@
 /**
  * Editing state for one configuration file.
  *
- * Implements: [HC-RENDERER-IS-UNTRUSTED]
+ * Implements: [HC-RENDERER-LEAST-PRIVILEGE]
  *
  * The form and the YAML tab edit the same file two ways, so this hook keeps
  * one rule: whichever surface you saved from, the document is re-read from
@@ -29,6 +29,7 @@ export interface DocumentEditor<ModelT> {
   readonly saving: boolean;
   readonly status: string | null;
   readonly problem: string | null;
+  readonly missing: boolean;
   readonly save: () => void;
   readonly revert: () => void;
   readonly reload: () => void;
@@ -43,9 +44,10 @@ export interface DocumentSource<ModelT> {
 export function useDocument<ModelT>(
   source: DocumentSource<ModelT>,
   dependencies: readonly unknown[],
+  initialMode: EditorMode = "form",
 ): DocumentEditor<ModelT> {
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState<EditorMode>("form");
+  const [mode, setMode] = useState<EditorMode>(initialMode);
   const [model, setModelState] = useState<ModelT | undefined>(undefined);
   const [text, setTextState] = useState("");
   const [saved, setSaved] = useState<ConfigDocument | null>(null);
@@ -154,6 +156,7 @@ export function useDocument<ModelT>(
     saving,
     status,
     problem,
+    missing: saved?.missing === true,
     save,
     revert,
     reload: load,

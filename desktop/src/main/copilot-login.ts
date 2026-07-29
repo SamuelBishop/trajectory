@@ -5,12 +5,12 @@
  *
  * The SDK has no login call, but the runtime binary it ships with does:
  * `copilot login` runs an OAuth device flow and stores the credential in the
- * system keychain. This module spawns it, reads the user code and URL off
+ * system credential store. This module spawns it, reads the user code and URL off
  * stdout, and reports completion — so the token itself is only ever handled by
  * the runtime, and never passes through this process or the renderer.
  *
- * COPILOT_HOME is pinned to the application's runtime directory so the
- * credential lands exactly where the provider will look for it.
+ * COPILOT_HOME is pinned to the application's runtime directory so login and
+ * provider requests select the same account. The token remains in the OS store.
  */
 
 import { spawn, type ChildProcessByStdio } from "node:child_process";

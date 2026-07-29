@@ -13,6 +13,11 @@ import type {
   MentorResources,
   SourceRecord,
   UserConfig,
+  VoiceConfig,
+  VoiceExample,
+  VoicePattern,
+  VoiceRuntimeContext,
+  VoiceSelectionCount,
 } from "./domain";
 import { InsufficientContextError } from "./errors";
 
@@ -139,4 +144,185 @@ export function selectSources(
     );
   }
   return selected;
+}
+
+export function selectVoiceExamples(
+  message: string,
+  goals: Goal[],
+  principles: MentorPrinciple[],
+  voice: VoiceConfig,
+  limit = 2,
+  minimum = 0,
+): VoiceExample[] {
+  if (limit <= 0) {
+    return [];
+  }
+  const queryTokens = voiceQueryTokens(message, goals, principles);
+
+  const cappedLimit = Math.min(limit, 2);
+  const ranked = voice.examples.items
+    .map((example) => ({
+      example,
+      score: score(queryTokens, [example.purpose, ...example.tags]),
+    }))
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.example.id.localeCompare(right.example.id),
+    );
+  const relevant = ranked
+    .filter((entry) => entry.score > 0)
+    .slice(0, cappedLimit)
+    .map((entry) => entry.example);
+
+  if (relevant.length >= minimum) {
+    return relevant;
+  }
+
+  const selectedIds = new Set(relevant.map((example) => example.id));
+  return [
+    ...relevant,
+    ...ranked
+      .map((entry) => entry.example)
+      .filter((example) => !selectedIds.has(example.id))
+      .slice(0, minimum - relevant.length),
+  ].slice(0, cappedLimit);
+}
+
+export function selectVoiceDepth(
+  message: string,
+): "brief" | "standard" | "deep" {
+  const messageTokens = tokens(message);
+  const deepSignals = [
+    "architecture",
+    "compare",
+    "detailed",
+    "evidence",
+    "research",
+    "strategy",
+    "tradeoff",
+  ];
+  if (
+    messageTokens.size >= 35 ||
+    deepSignals.some((signal) => messageTokens.has(signal))
+  ) {
+    return "deep";
+  }
+  if (messageTokens.size <= 12) {
+    return "brief";
+  }
+  return "standard";
+}
+
+export function selectVoicePatterns(
+  message: string,
+  goals: Goal[],
+  principles: MentorPrinciple[],
+  voice: VoiceConfig,
+  examples: VoiceExample[],
+  limit: number,
+): VoicePattern[] {
+  const queryTokens = voiceQueryTokens(message, goals, principles);
+  const examplePatternIds = new Set(
+    examples.flatMap((example) => example.pattern_ids),
+  );
+  const strengthScores: Record<VoicePattern["strength"], number> = {
+    low: 1,
+    moderate: 2,
+    high: 3,
+    very_high: 4,
+  };
+
+  return voice.patterns
+    .map((pattern) => ({
+      pattern,
+      score:
+        score(queryTokens, [pattern.id, pattern.instruction]) +
+        strengthScores[pattern.strength] +
+        (examplePatternIds.has(pattern.id) ? 3 : 0),
+    }))
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.pattern.id.localeCompare(right.pattern.id),
+    )
+    .slice(0, limit)
+    .map((entry) => entry.pattern);
+}
+
+export function buildVoiceContext(
+  message: string,
+  goals: Goal[],
+  principles: MentorPrinciple[],
+  voice: VoiceConfig,
+): VoiceRuntimeContext {
+  const depth = selectVoiceDepth(message);
+  const tier = voice.selection[depth];
+  const patternRange = countBounds(tier.pattern_count);
+  const exampleRange = countBounds(tier.example_count);
+  const examples = selectVoiceExamples(
+    message,
+    goals,
+    principles,
+    voice,
+    exampleRange.maximum,
+    exampleRange.minimum,
+  );
+  const patterns = selectVoicePatterns(
+    message,
+    goals,
+    principles,
+    voice,
+    examples,
+    patternRange.maximum,
+  );
+
+  return {
+    purpose: voice.purpose,
+    tone: voice.voice.tone,
+    reader_relationship: voice.voice.reader_relationship,
+    prose: voice.voice.prose,
+    cadence: voice.voice.cadence,
+    depth,
+    selection_instruction: voice.selection.instruction,
+    patterns,
+    chat: voice.chat,
+    avoid: voice.avoid,
+    example_usage: voice.examples.usage,
+    examples: examples.map((example) => ({
+      purpose: example.purpose,
+      text: example.text,
+    })),
+  };
+}
+
+function voiceQueryTokens(
+  message: string,
+  goals: Goal[],
+  principles: MentorPrinciple[],
+): Set<string> {
+  const queryTokens = tokens(message);
+  for (const token of tokens(
+    [
+      ...goals.flatMap((goal) => [goal.domain, ...goal.tags]),
+      ...principles.flatMap((principle) => [
+        ...principle.domains,
+        ...principle.tags,
+      ]),
+    ].join(" "),
+  )) {
+    queryTokens.add(token);
+  }
+  return queryTokens;
+}
+
+function countBounds(value: VoiceSelectionCount): {
+  minimum: number;
+  maximum: number;
+} {
+  if (typeof value === "number") {
+    return { minimum: value, maximum: value };
+  }
+  const [minimum, maximum] = value.split("-").map(Number) as [number, number];
+  return { minimum, maximum };
 }

@@ -287,17 +287,20 @@ claim.
 ### `[HC-MENTOR-IDENTITY-INTEGRITY]`
 
 - **Bar**: Mentor sources must be real and pre-approved, demo mentors must be
-  visibly fictional, and no output may imitate a living person's voice or imply
-  their endorsement.
+  visibly fictional, and a real-person simulation must be clearly disclosed
+  without implying the person's endorsement.
 - **Pattern**: Configuration loading rejects principles pointing at unapproved
-  or unknown sources. Shipped mentor content is synthetic and labeled. Writing
-  in a named living person's style is a refusal, even when asked directly —
-  unless the person supplies the text themselves, in which case use it verbatim
-  and attribute it.
+  or unknown sources. Shipped mentor content is synthetic and labeled.
+  Communication-pattern synthesis for a named living person is permitted when
+  it is grounded in approved sources and stored as compact operational analysis
+  with synthetic examples. It must not claim to be or speak for the subject,
+  imply endorsement, or reproduce the source material.
 - **Verification**: `desktop/tests/engine/config.test.ts` —
   "rejects an unapproved source", "rejects an unknown principle source", and
-  "rejects a non-synthetic source on a fictional profile". The voice and
-  endorsement clauses are manual.
+  "rejects a non-synthetic source on a fictional profile". Voice structure and
+  internal pattern references are covered there too; provenance, fidelity,
+  disclosure quality, verbatim similarity, and implied endorsement remain
+  manual.
 
 ### `[HC-REFUSE-UNGROUNDED]`
 

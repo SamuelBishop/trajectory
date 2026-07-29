@@ -1,8 +1,8 @@
 /**
  * GitHub Copilot SDK provider.
  *
- * Implements: [HC-SDK-BOUNDARY], [HC-NO-SILENT-FALLBACK], [HC-SECRETS-FROM-ENV],
- * [HC-PRIVATE-INPUT-STDIN], [HC-NEVER-PRINT-SECRETS]
+ * Implements: [HC-SDK-BOUNDARY], [HC-NO-PROVIDER-FALLBACK],
+ * [HC-SECRETS-ENV-ONLY], [HC-PRIVATE-INPUT-STDIN], [HC-NO-EXFILTRATION]
  *
  * The SDK spawns the Copilot runtime and talks JSON-RPC over stdio, so the
  * user's message never appears in a process argument list. Tools are disabled
@@ -246,33 +246,29 @@ export class CopilotProvider implements MentorProvider {
       new sdk.CopilotClient(options) as unknown as CopilotClientLike;
   }
 
+  private clientOptions(): Record<string, unknown> {
+    const usesStoredLogin = this.githubToken === undefined;
+    return {
+      // Empty mode disables the OS credential store inside the SDK. Keep its
+      // safer defaults for explicit tokens, but permit Keychain access when a
+      // device login is the selected authentication path.
+      mode: usesStoredLogin ? "copilot-cli" : "empty",
+      baseDirectory: this.baseDirectory,
+      workingDirectory: this.baseDirectory,
+      logLevel: "error",
+      useLoggedInUser: usesStoredLogin,
+      env: this.runtimeEnv(),
+      ...(this.githubToken ? { gitHubToken: this.githubToken } : {}),
+    };
+  }
+
   private async generateStructured<SchemaT extends z.ZodType>(
     systemPrompt: string,
     userMessage: string,
     schema: SchemaT,
   ): Promise<z.infer<SchemaT>> {
     const factory = await this.resolveFactory();
-    const client = factory({
-      // `copilot-cli` is the SDK default and it is the wrong default here: it
-      // loads ambient instruction files (`AGENTS.md`, `.github/copilot-
-      // instructions.md`, `CLAUDE.md`) from the working directory into the
-      // prompt. Trajectory promises that only the selected user and mentor
-      // context leaves the machine, so opt out of ambient behaviour entirely
-      // and run in a directory the application owns.
-      mode: "empty",
-      // `baseDirectory` is two things at once: the persistence location that
-      // `mode: "empty"` refuses to start without, and the value the SDK
-      // exports as COPILOT_HOME — where the runtime keeps, and looks for, a
-      // stored login. Both point at the application's own directory, so
-      // signing in through Settings writes the credential exactly where this
-      // provider will look for it.
-      baseDirectory: this.baseDirectory,
-      workingDirectory: this.baseDirectory,
-      logLevel: "error",
-      useLoggedInUser: this.githubToken === undefined,
-      env: this.runtimeEnv(),
-      ...(this.githubToken ? { gitHubToken: this.githubToken } : {}),
-    });
+    const client = factory(this.clientOptions());
 
     let session: CopilotSessionLike | undefined;
     try {
@@ -280,7 +276,14 @@ export class CopilotProvider implements MentorProvider {
       session = await client.createSession({
         clientName: "trajectory",
         model: this.model,
-        systemMessage: { mode: "append", content: systemPrompt },
+        // CLI mode is required to read a device-login credential from the OS
+        // store. Reproduce empty mode's privacy defaults explicitly so that
+        // enabling authentication does not enable ambient context.
+        systemMessage: {
+          mode: "customize",
+          content: systemPrompt,
+          sections: { environment_context: { action: "remove" } },
+        },
         availableTools: [],
         // `no-result` sends no decision at all and leaves the request pending.
         // Refusing is the point: this session may only produce text.
@@ -290,6 +293,18 @@ export class CopilotProvider implements MentorProvider {
         }),
         skipCustomInstructions: true,
         enableSessionTelemetry: false,
+        mcpOAuthTokenStorage: "in-memory",
+        skipEmbeddingRetrieval: true,
+        embeddingCacheStorage: "in-memory",
+        enableOnDemandInstructionDiscovery: false,
+        enableFileHooks: false,
+        enableHostGitOperations: false,
+        enableSessionStore: false,
+        enableSkills: false,
+        memory: { enabled: false },
+        customAgentsLocalOnly: true,
+        coauthorEnabled: false,
+        manageScheduleEnabled: false,
         streaming: false,
         infiniteSessions: { enabled: false },
       });
@@ -364,15 +379,7 @@ export class CopilotProvider implements MentorProvider {
    */
   async authStatus(): Promise<CopilotAuthStatus> {
     const factory = await this.resolveFactory();
-    const client = factory({
-      mode: "empty",
-      baseDirectory: this.baseDirectory,
-      workingDirectory: this.baseDirectory,
-      logLevel: "error",
-      useLoggedInUser: this.githubToken === undefined,
-      env: this.runtimeEnv(),
-      ...(this.githubToken ? { gitHubToken: this.githubToken } : {}),
-    });
+    const client = factory(this.clientOptions());
     try {
       await client.start();
       const status = await client.getAuthStatus?.();

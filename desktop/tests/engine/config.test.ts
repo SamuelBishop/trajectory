@@ -1,5 +1,5 @@
 import path from "node:path";
-import { writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 
 import { describe, expect, it } from "vitest";
 
@@ -25,6 +25,11 @@ describe("configuration loading", () => {
     expect(resources.profile.body).not.toHaveLength(0);
     expect(resources.sources[0]?.synthetic).toBe(true);
     expect(resources.principles[0]?.source_ids).toEqual(["demo_source_001"]);
+    expect(resources.voice?.version).toBe(2);
+    expect(resources.voice?.voice.tone).toContain("direct");
+    expect(
+      resources.voice?.examples.items.map((example) => example.purpose),
+    ).toEqual(["respectful_disagreement", "practical_ending"]);
   });
 
   it("rejects duplicate goal IDs", async () => {
@@ -84,5 +89,87 @@ describe("configuration loading", () => {
     });
 
     await expect(loadMentorResources(copied)).rejects.toThrow(AttributionError);
+  });
+
+  it("loads an existing mentor without an optional voice profile", async () => {
+    const copied = await copyFixture(mentorDirectory, "mentor");
+    await rm(path.join(copied, "voice.yaml"));
+
+    const resources = await loadMentorResources(copied);
+
+    expect(resources.voice).toBeUndefined();
+  });
+
+  it("reports malformed voice configuration by file path", async () => {
+    const copied = await copyFixture(mentorDirectory, "mentor");
+    await writeFile(path.join(copied, "voice.yaml"), "writing: [broken\n", "utf8");
+
+    await expect(loadMentorResources(copied)).rejects.toThrow(/voice\.yaml/);
+  });
+
+  it("rejects a voice profile for another mentor", async () => {
+    const copied = await copyFixture(mentorDirectory, "mentor");
+    await editYaml(path.join(copied, "voice.yaml"), (raw) => {
+      raw.mentor_id = "another_mentor";
+    });
+
+    await expect(loadMentorResources(copied)).rejects.toThrow(
+      /Voice profile belongs to another_mentor/,
+    );
+  });
+
+  it("rejects an unknown pattern reference in a voice example", async () => {
+    const copied = await copyFixture(mentorDirectory, "mentor");
+    await editYaml(path.join(copied, "voice.yaml"), (raw) => {
+      raw.examples.items[0].pattern_ids = ["missing_pattern"];
+    });
+
+    await expect(loadMentorResources(copied)).rejects.toThrow(
+      /Voice example .* unknown patterns: missing_pattern/,
+    );
+  });
+
+  it("rejects duplicate voice pattern IDs", async () => {
+    const copied = await copyFixture(mentorDirectory, "mentor");
+    await editYaml(path.join(copied, "voice.yaml"), (raw) => {
+      raw.patterns.push(raw.patterns[0]);
+    });
+
+    await expect(loadMentorResources(copied)).rejects.toThrow(
+      /Duplicate voice pattern IDs/,
+    );
+  });
+
+  it("rejects an inverted selection range", async () => {
+    const copied = await copyFixture(mentorDirectory, "mentor");
+    await editYaml(path.join(copied, "voice.yaml"), (raw) => {
+      raw.selection.standard.pattern_count = "3-2";
+    });
+
+    await expect(loadMentorResources(copied)).rejects.toThrow(
+      /selection range 3-2 must be ordered/,
+    );
+  });
+
+  it("rejects selection counts larger than the profile", async () => {
+    const copied = await copyFixture(mentorDirectory, "mentor");
+    await editYaml(path.join(copied, "voice.yaml"), (raw) => {
+      raw.selection.deep.pattern_count = 4;
+    });
+
+    await expect(loadMentorResources(copied)).rejects.toThrow(
+      /requests 4, but only 3 patterns exist/,
+    );
+  });
+
+  it("caps configured example selection at two", async () => {
+    const copied = await copyFixture(mentorDirectory, "mentor");
+    await editYaml(path.join(copied, "voice.yaml"), (raw) => {
+      raw.selection.deep.example_count = "1-3";
+    });
+
+    await expect(loadMentorResources(copied)).rejects.toThrow(
+      /example_count may not exceed 2/,
+    );
   });
 });

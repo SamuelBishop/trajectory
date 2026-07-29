@@ -18,7 +18,12 @@ import type {
 import { InsufficientContextError } from "./errors";
 import { CHAT_PROMPT_VERSION, PROMPT_VERSION } from "./prompting";
 import type { MentorProvider } from "./providers/types";
-import { selectGoals, selectPrinciples, selectSources } from "./selection";
+import {
+  buildVoiceContext,
+  selectGoals,
+  selectPrinciples,
+  selectSources,
+} from "./selection";
 import {
   validateChatResponse,
   validateDemoGrounding,
@@ -43,6 +48,9 @@ export async function reviewDecision(
   const goals = selectGoals(question, user);
   const principles = selectPrinciples(question, goals, resources);
   const sources = selectSources(principles, resources);
+  const voiceContext = resources.voice
+    ? buildVoiceContext(question, goals, principles, resources.voice)
+    : null;
 
   const request: DecisionRequest = {
     question,
@@ -54,6 +62,7 @@ export async function reviewDecision(
     mentor_profile: resources.profile,
     principles,
     sources,
+    voice_context: voiceContext,
     provider: provider.name,
     prompt_version: PROMPT_VERSION,
   };
@@ -110,6 +119,9 @@ export async function chatWithMentor(
       .slice(0, FALLBACK_LIMIT);
   }
   const sources = selectSources(principles, resources);
+  const voiceContext = resources.voice
+    ? buildVoiceContext(message, goals, principles, resources.voice)
+    : null;
 
   const request: ChatRequest = {
     message,
@@ -122,6 +134,7 @@ export async function chatWithMentor(
     mentor_profile: resources.profile,
     principles,
     sources,
+    voice_context: voiceContext,
     provider: provider.name,
     prompt_version: CHAT_PROMPT_VERSION,
   };

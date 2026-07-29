@@ -260,6 +260,14 @@ button {
   font-size: 11px;
 }
 
+.mentor-disclaimer {
+  max-width: 640px;
+  margin: 3px 0 0;
+  color: #77766f;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
 .provider-control {
   display: flex;
   align-items: center;

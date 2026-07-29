@@ -19,9 +19,12 @@ import {
   principlesConfigSchema,
   sourcesConfigSchema,
   valuesConfigSchema,
+  voiceConfigSchema,
   type MentorProfile,
   type MentorResources,
   type UserConfig,
+  type VoiceConfig,
+  type VoiceSelectionCount,
 } from "./domain";
 import { AttributionError, ConfigurationError } from "./errors";
 
@@ -89,6 +92,21 @@ async function readYamlModel<SchemaT extends z.ZodType>(
   schema: SchemaT,
 ): Promise<z.infer<SchemaT>> {
   const raw = parseYaml(filePath, await readText(filePath));
+  if (!isMapping(raw)) {
+    throw new ConfigurationError(`Expected a YAML mapping in ${filePath}`);
+  }
+  return validate(filePath, schema, raw);
+}
+
+async function readOptionalYamlModel<SchemaT extends z.ZodType>(
+  filePath: string,
+  schema: SchemaT,
+): Promise<z.infer<SchemaT> | undefined> {
+  const text = await readOptionalConfigText(filePath);
+  if (text === undefined) {
+    return undefined;
+  }
+  const raw = parseYaml(filePath, text);
   if (!isMapping(raw)) {
     throw new ConfigurationError(`Expected a YAML mapping in ${filePath}`);
   }
@@ -183,6 +201,7 @@ export const USER_CONFIG_FILES = {
 export const MENTOR_CONFIG_FILES = {
   "sources.yaml": sourcesConfigSchema,
   "principles.yaml": principlesConfigSchema,
+  "voice.yaml": voiceConfigSchema,
 } as const;
 
 export const MENTOR_PROFILE_FILE = "profile.md";
@@ -201,6 +220,22 @@ export function isMentorConfigFile(name: string): name is MentorConfigFileName {
 /** Raw file text for the advanced YAML editor, which must show what is on disk. */
 export async function readConfigText(filePath: string): Promise<string> {
   return await readText(filePath);
+}
+
+export async function readOptionalConfigText(
+  filePath: string,
+): Promise<string | undefined> {
+  try {
+    return await readFile(filePath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return undefined;
+    }
+    throw new ConfigurationError(
+      `Could not read configuration file ${filePath}: ${String(error)}`,
+      { cause: error },
+    );
+  }
 }
 
 export async function loadUserConfig(directory: string): Promise<UserConfig> {
@@ -228,9 +263,10 @@ export async function loadMentorResources(
 ): Promise<MentorResources> {
   const at = (name: string): string => path.join(directory, name);
   const profile = await readMarkdownProfile(at("profile.md"));
-  const [sourcesConfig, principlesConfig] = await Promise.all([
+  const [sourcesConfig, principlesConfig, voice] = await Promise.all([
     readYamlModel(at("sources.yaml"), sourcesConfigSchema),
     readYamlModel(at("principles.yaml"), principlesConfigSchema),
+    readOptionalYamlModel(at("voice.yaml"), voiceConfigSchema),
   ]);
   const { sources } = sourcesConfig;
   const { principles } = principlesConfig;
@@ -275,5 +311,77 @@ export async function loadMentorResources(
     }
   }
 
-  return { profile, sources, principles };
+  if (voice) {
+    validateVoiceConfig(profile, voice);
+  }
+
+  return { profile, sources, principles, ...(voice ? { voice } : {}) };
+}
+
+export function validateVoiceConfig(
+  profile: MentorProfile,
+  voice: VoiceConfig,
+): void {
+  if (voice.mentor_id !== profile.id) {
+    throw new AttributionError(
+      `Voice profile belongs to ${voice.mentor_id}, not profile ${profile.id}`,
+    );
+  }
+
+  assertUniqueIds(voice.patterns, "voice pattern");
+  assertUniqueIds(voice.examples.items, "voice example");
+  const patternIds = new Set(voice.patterns.map((pattern) => pattern.id));
+
+  for (const example of voice.examples.items) {
+    const missingPatterns = example.pattern_ids
+      .filter((id) => !patternIds.has(id))
+      .sort();
+    if (missingPatterns.length > 0) {
+      throw new ConfigurationError(
+        `Voice example ${example.id} references unknown patterns: ${missingPatterns.join(", ")}`,
+      );
+    }
+  }
+
+  for (const [depth, selection] of Object.entries({
+    brief: voice.selection.brief,
+    standard: voice.selection.standard,
+    deep: voice.selection.deep,
+  })) {
+    const patternRange = selectionBounds(selection.pattern_count);
+    const exampleRange = selectionBounds(selection.example_count);
+    if (patternRange.maximum > voice.patterns.length) {
+      throw new ConfigurationError(
+        `Voice ${depth} pattern_count requests ${patternRange.maximum}, but only ${voice.patterns.length} patterns exist`,
+      );
+    }
+    if (exampleRange.maximum > 2) {
+      throw new ConfigurationError(
+        `Voice ${depth} example_count may not exceed 2`,
+      );
+    }
+    if (exampleRange.minimum > voice.examples.items.length) {
+      throw new ConfigurationError(
+        `Voice ${depth} example_count requires ${exampleRange.minimum}, but only ${voice.examples.items.length} examples exist`,
+      );
+    }
+  }
+}
+
+function selectionBounds(value: VoiceSelectionCount): {
+  minimum: number;
+  maximum: number;
+} {
+  if (typeof value === "number") {
+    return { minimum: value, maximum: value };
+  }
+  const [minimumText, maximumText] = value.split("-");
+  const minimum = Number(minimumText);
+  const maximum = Number(maximumText);
+  if (minimum > maximum) {
+    throw new ConfigurationError(
+      `Voice selection range ${value} must be ordered from low to high`,
+    );
+  }
+  return { minimum, maximum };
 }

@@ -247,6 +247,28 @@ describe("OpenAI-compatible provider", () => {
 const RUNTIME_DIRECTORY = join(sep, "userdata", "runtime");
 
 describe("Copilot provider", () => {
+  it("keeps the macOS credential store enabled for a device-login session", async () => {
+    const request = await demoRequest();
+    const created: FakeCopilotClient[] = [];
+
+    await new CopilotProvider({
+      model: "test-model",
+      baseDirectory: RUNTIME_DIRECTORY,
+      clientFactory: (options) => {
+        const client = new FakeCopilotClient(
+          [recommendationJson(request)],
+          options,
+        );
+        created.push(client);
+        return client;
+      },
+    }).generate(request);
+
+    // The SDK's empty mode forces COPILOT_DISABLE_KEYTAR=1. Device login stores
+    // its OAuth credential in Keychain, so logged-in auth must use CLI mode.
+    expect(created[0]!.options.mode).toBe("copilot-cli");
+  });
+
   it("disables tools, denies permissions, and cleans up the session", async () => {
     const request = await demoRequest();
     const created: FakeCopilotClient[] = [];
@@ -270,7 +292,8 @@ describe("Copilot provider", () => {
     expect(client.stopped).toBe(true);
     expect(client.sessionConfig?.availableTools).toEqual([]);
     expect(client.sessionConfig?.systemMessage).toMatchObject({
-      mode: "append",
+      mode: "customize",
+      sections: { environment_context: { action: "remove" } },
     });
     expect(typeof client.sessionConfig?.onPermissionRequest).toBe("function");
   });
@@ -281,6 +304,7 @@ describe("Copilot provider", () => {
 
     await new CopilotProvider({
       model: "test-model",
+      githubToken: "test-token",
       baseDirectory: RUNTIME_DIRECTORY,
       clientFactory: (options) => {
         const client = new FakeCopilotClient(
@@ -293,10 +317,8 @@ describe("Copilot provider", () => {
     }).generate(request);
 
     const options = created[0]!.options;
-    // The SDK's default mode loads AGENTS.md, .github/copilot-instructions.md
-    // and CLAUDE.md from its working directory into the prompt, and defaults
-    // that directory to process.cwd(). For a desktop app that means whatever
-    // folder the user launched from silently steers the mentor.
+    // Explicit-token requests can retain empty mode's deny-by-default
+    // behavior because they do not need the OS credential store.
     expect(options.mode).toBe("empty");
     expect(options.workingDirectory).toBe(RUNTIME_DIRECTORY);
     // Also the persistence location `mode: "empty"` refuses to start without,
@@ -305,6 +327,20 @@ describe("Copilot provider", () => {
     const session = created[0]!.sessionConfig;
     expect(session?.skipCustomInstructions).toBe(true);
     expect(session?.enableSessionTelemetry).toBe(false);
+    expect(session).toMatchObject({
+      mcpOAuthTokenStorage: "in-memory",
+      skipEmbeddingRetrieval: true,
+      embeddingCacheStorage: "in-memory",
+      enableOnDemandInstructionDiscovery: false,
+      enableFileHooks: false,
+      enableHostGitOperations: false,
+      enableSessionStore: false,
+      enableSkills: false,
+      memory: { enabled: false },
+      customAgentsLocalOnly: true,
+      coauthorEnabled: false,
+      manageScheduleEnabled: false,
+    });
   });
 
   it("keeps COPILOT_HOME isolated once a token makes the stored login moot", async () => {
@@ -328,6 +364,7 @@ describe("Copilot provider", () => {
     const options = created[0]!.options;
     expect(options.gitHubToken).toBe("test-token");
     expect(options.useLoggedInUser).toBe(false);
+    expect(options.mode).toBe("empty");
     expect(options.baseDirectory).toBe(RUNTIME_DIRECTORY);
   });
 
