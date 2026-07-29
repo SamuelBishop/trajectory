@@ -73,6 +73,39 @@ function chatJson(request: ChatRequest): string {
   });
 }
 
+function chatRequestWithIndependentPrinciples(request: ChatRequest): ChatRequest {
+  return {
+    ...request,
+    principles: [
+      ...request.principles,
+      {
+        ...request.principles[0]!,
+        id: "demo_opportunity_cost_002",
+        source_ids: ["demo_source_002"],
+      },
+    ],
+    sources: [
+      ...request.sources,
+      { ...request.sources[0]!, id: "demo_source_002" },
+    ],
+  };
+}
+
+function chatJsonWithUncoveredPrinciple(
+  request: ChatRequest,
+  corrected = false,
+): string {
+  const response = JSON.parse(chatJson(request)) as Record<string, unknown>;
+  response.answer = corrected
+    ? "Focus on the design proposal after a short correctness check."
+    : "This answer has incomplete attribution.";
+  response.principle_ids = request.principles.map((principle) => principle.id);
+  response.source_ids = corrected
+    ? request.sources.map((source) => source.id)
+    : [request.sources[0]!.id];
+  return JSON.stringify(response);
+}
+
 class FakeOpenAIClient implements CompletionClient {
   readonly calls: Record<string, unknown>[] = [];
 
@@ -200,6 +233,22 @@ describe("OpenAI-compatible provider", () => {
     expect(format.json_schema.schema.required).toEqual(
       Object.keys(format.json_schema.schema.properties),
     );
+  });
+
+  it("retries schema-valid chat with uncovered principles", async () => {
+    const request = chatRequestWithIndependentPrinciples(await demoChatRequest());
+    const client = new FakeOpenAIClient([
+      chatJsonWithUncoveredPrinciple(request),
+      chatJsonWithUncoveredPrinciple(request, true),
+    ]);
+
+    const response = await new OpenAICompatibleProvider({
+      model: "test-model",
+      client,
+    }).chat(request);
+
+    expect(response.answer).toMatch(/^Focus on the design proposal/);
+    expect(client.calls).toHaveLength(2);
   });
 
   it("does not fall back after a second invalid response", async () => {
@@ -456,6 +505,25 @@ describe("Copilot provider", () => {
       baseDirectory: RUNTIME_DIRECTORY,
       clientFactory: (options) =>
         new FakeCopilotClient([chatJson(request)], options),
+    }).chat(request);
+
+    expect(response.answer).toMatch(/^Focus on the design proposal/);
+  });
+
+  it("retries schema-valid chat with uncovered principles", async () => {
+    const request = chatRequestWithIndependentPrinciples(await demoChatRequest());
+
+    const response = await new CopilotProvider({
+      model: "test-model",
+      baseDirectory: RUNTIME_DIRECTORY,
+      clientFactory: (options) =>
+        new FakeCopilotClient(
+          [
+            chatJsonWithUncoveredPrinciple(request),
+            chatJsonWithUncoveredPrinciple(request, true),
+          ],
+          options,
+        ),
     }).chat(request);
 
     expect(response.answer).toMatch(/^Focus on the design proposal/);

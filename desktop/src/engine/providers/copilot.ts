@@ -23,7 +23,11 @@ import {
   type DecisionRequest,
   type Recommendation,
 } from "../domain";
-import { ProviderError, ProviderResponseError } from "../errors";
+import {
+  AttributionError,
+  ProviderError,
+  ProviderResponseError,
+} from "../errors";
 import {
   CHAT_SYSTEM_PROMPT,
   SYSTEM_PROMPT,
@@ -31,6 +35,10 @@ import {
   buildUserMessage,
   parseStructuredResponse,
 } from "../prompting";
+import {
+  validateChatResponse,
+  validateRecommendation,
+} from "../validation";
 import type { MentorProvider } from "./types";
 
 /**
@@ -60,8 +68,9 @@ function isAuthenticationFailure(error: unknown): boolean {
 }
 
 const RETRY_INSTRUCTION =
-  "Your response was not valid against the supplied schema. " +
-  "Return only a corrected JSON object.";
+  "Your response failed schema or attribution validation. Return only a corrected " +
+  "JSON object. Every principle_id must have at least one cited source_id from " +
+  "that principle's source_ids, and every source_id must link to a cited principle.";
 
 export interface CopilotSessionLike {
   readonly sessionId: string;
@@ -266,6 +275,7 @@ export class CopilotProvider implements MentorProvider {
     systemPrompt: string,
     userMessage: string,
     schema: SchemaT,
+    validate: (value: z.infer<SchemaT>) => void,
   ): Promise<z.infer<SchemaT>> {
     const factory = await this.resolveFactory();
     const client = factory(this.clientOptions());
@@ -310,7 +320,7 @@ export class CopilotProvider implements MentorProvider {
       });
 
       let prompt = userMessage;
-      let lastError: ProviderResponseError | undefined;
+      let lastError: ProviderResponseError | AttributionError | undefined;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const reply = await session.sendAndWait({ prompt });
         const content = reply?.data?.content;
@@ -320,9 +330,14 @@ export class CopilotProvider implements MentorProvider {
           );
         } else {
           try {
-            return parseStructuredResponse(content, schema);
+            const parsed = parseStructuredResponse(content, schema);
+            validate(parsed);
+            return parsed;
           } catch (error) {
-            if (!(error instanceof ProviderResponseError)) {
+            if (
+              !(error instanceof ProviderResponseError) &&
+              !(error instanceof AttributionError)
+            ) {
               throw error;
             }
             lastError = error;
@@ -335,7 +350,10 @@ export class CopilotProvider implements MentorProvider {
         new ProviderResponseError("Copilot SDK did not return a recommendation")
       );
     } catch (error) {
-      if (error instanceof ProviderResponseError) {
+      if (
+        error instanceof ProviderResponseError ||
+        error instanceof AttributionError
+      ) {
         throw error;
       }
       if (isAuthenticationFailure(error)) {
@@ -399,6 +417,7 @@ export class CopilotProvider implements MentorProvider {
       SYSTEM_PROMPT,
       buildUserMessage(request),
       recommendationSchema,
+      (recommendation) => validateRecommendation(recommendation, request),
     );
   }
 
@@ -407,6 +426,7 @@ export class CopilotProvider implements MentorProvider {
       CHAT_SYSTEM_PROMPT,
       buildChatUserMessage(request),
       chatResponseSchema,
+      (response) => validateChatResponse(response, request),
     );
   }
 }

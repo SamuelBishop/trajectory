@@ -15,7 +15,11 @@ import {
   type DecisionRequest,
   type Recommendation,
 } from "../domain";
-import { ProviderError, ProviderResponseError } from "../errors";
+import {
+  AttributionError,
+  ProviderError,
+  ProviderResponseError,
+} from "../errors";
 import {
   CHAT_SYSTEM_PROMPT,
   SYSTEM_PROMPT,
@@ -23,11 +27,16 @@ import {
   buildUserMessage,
   parseStructuredResponse,
 } from "../prompting";
+import {
+  validateChatResponse,
+  validateRecommendation,
+} from "../validation";
 import type { MentorProvider } from "./types";
 
 const RETRY_INSTRUCTION =
-  "Your response was not valid against the supplied schema. " +
-  "Return only a corrected JSON object.";
+  "Your response failed schema or attribution validation. Return only a corrected " +
+  "JSON object. Every principle_id must have at least one cited source_id from " +
+  "that principle's source_ids, and every source_id must link to a cited principle.";
 
 interface Message {
   readonly role: "system" | "user";
@@ -134,6 +143,7 @@ export class OpenAICompatibleProvider implements MentorProvider {
     userMessage: string,
     schema: SchemaT,
     schemaName: string,
+    validate: (value: z.infer<SchemaT>) => void,
   ): Promise<z.infer<SchemaT>> {
     const client = await this.resolveClient();
     const responseFormat = await this.responseFormat(schema, schemaName);
@@ -142,7 +152,7 @@ export class OpenAICompatibleProvider implements MentorProvider {
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },
     ];
-    let lastError: ProviderResponseError | undefined;
+    let lastError: ProviderResponseError | AttributionError | undefined;
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
       let response: { readonly choices: readonly CompletionChoice[] };
@@ -174,9 +184,14 @@ export class OpenAICompatibleProvider implements MentorProvider {
         );
       } else {
         try {
-          return parseStructuredResponse(content, schema);
+          const parsed = parseStructuredResponse(content, schema);
+          validate(parsed);
+          return parsed;
         } catch (error) {
-          if (!(error instanceof ProviderResponseError)) {
+          if (
+            !(error instanceof ProviderResponseError) &&
+            !(error instanceof AttributionError)
+          ) {
             throw error;
           }
           lastError = error;
@@ -201,6 +216,7 @@ export class OpenAICompatibleProvider implements MentorProvider {
       buildUserMessage(request),
       recommendationSchema,
       "trajectory_recommendation",
+      (recommendation) => validateRecommendation(recommendation, request),
     );
   }
 
@@ -210,6 +226,7 @@ export class OpenAICompatibleProvider implements MentorProvider {
       buildChatUserMessage(request),
       chatResponseSchema,
       "trajectory_chat_response",
+      (response) => validateChatResponse(response, request),
     );
   }
 }
