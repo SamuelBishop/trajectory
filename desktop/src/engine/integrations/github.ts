@@ -151,10 +151,10 @@ export class GitHubCommitsAdapter {
   readonly label = "GitHub commits";
   readonly requiresCredential = true;
   readonly credentialHint =
-    "Store a GitHub token in Settings, under GitHub credential, with read " +
-    "access to the repositories you want counted. Signing in with GitHub for " +
-    "the model is a separate thing: that credential is held by the Copilot " +
-    "runtime and carries no permission to read your commits.";
+    "Store a token in Settings, under GitHub activity token, with read access " +
+    "to the repositories you want counted. This is not the Copilot credential " +
+    "and not the GitHub sign-in above: answering as your mentor and reading " +
+    "your commits are separate permissions, held separately.";
 
   constructor(
     private readonly readConfig: () => Promise<GitHubConfig>,

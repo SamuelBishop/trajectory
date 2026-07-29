@@ -101,6 +101,8 @@ export interface DesktopApi {
   clearOpenAiKey(): Promise<SecretStatus>;
   setGithubToken(value: string): Promise<SecretStatus>;
   clearGithubToken(): Promise<SecretStatus>;
+  setGithubActivityToken(value: string): Promise<SecretStatus>;
+  clearGithubActivityToken(): Promise<SecretStatus>;
   startSignIn(): Promise<LoginPrompt>;
   waitForSignIn(): Promise<LoginResult>;
   cancelSignIn(): Promise<LoginResult>;
@@ -172,6 +174,8 @@ export interface CopilotAuthStatus {
 export interface SecretStatus {
   hasOpenAiKey: boolean;
   hasGithubToken: boolean;
+  /** Read-only repository access. Distinct from the model's credential. */
+  hasGithubActivityToken: boolean;
   encryptionAvailable: boolean;
 }
 

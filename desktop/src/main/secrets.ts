@@ -29,7 +29,19 @@ interface SecretEnvelope {
 
 export const SECRETS_FILE = "trajectory-secrets.enc.json";
 
-export type SecretName = "openaiApiKey" | "githubToken";
+/**
+ * `githubToken` authenticates the model; `githubActivityToken` reads commits.
+ *
+ * Separate slots because they are separate grants. Storing one token for both
+ * meant reading commit history required handing repository access to the
+ * credential that talks to the model — and worse, setting it switched the
+ * provider off a working device login onto a token that had no Copilot access,
+ * so turning on an integration broke chat.
+ */
+export type SecretName =
+  | "openaiApiKey"
+  | "githubToken"
+  | "githubActivityToken";
 
 export class SecretStore {
   constructor(

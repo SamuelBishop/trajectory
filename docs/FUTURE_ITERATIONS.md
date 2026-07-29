@@ -171,15 +171,14 @@ requirements those prompts satisfy; each prompt ticks its own.
 - [x] Add GitHub activity ingestion using explicit token authorization. — P3.
       Commit search scoped to repositories the user names, using the stored
       token. Individual commits only; see the aggregate item below.
-- [ ] Split the GitHub credential into one slot per purpose. One stored
-      `githubToken` currently serves both the Copilot model and the commits
-      adapter, so reading commit history requires granting repository access to
-      the same secret that talks to the model, and a token stored for Copilot
-      alone fails the integration at request time rather than at the point the
-      user chose it. Separate slots would let each purpose ask for exactly what
-      it needs, and would let the user revoke one without losing the other. The
-      Settings copy now states the sharing plainly, which is honest but is not
-      the same as fixing it.
+- [x] Split the GitHub credential into one slot per purpose. Filed as a nicety
+      and fixed immediately, because it was worse than it looked: the provider
+      treats a stored `githubToken` as a decision to stop using the device
+      login (`useLoggedInUser: false`), so storing a repository-scoped token to
+      read commits would have handed the model a credential with no Copilot
+      access and broken chat. `githubActivityToken` is now its own slot with
+      its own Settings field, and either can be revoked without losing the
+      other.
 - [ ] Decide whether GitHub's `contributionsCollection` is worth adding. P3
       specified it and P3 deliberately did not build it, for two reasons worth
       re-examining rather than inheriting. It reports contribution counts across

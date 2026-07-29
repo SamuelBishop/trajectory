@@ -172,9 +172,12 @@ export function registerIpcHandlers(): void {
     userData,
     encryption,
     (id) =>
-      // Only GitHub reuses an existing credential today; every other adapter
-      // arrives with its own secret key in a later change.
-      id === "github" ? secrets.read("githubToken") : Promise.resolve(undefined),
+      // Deliberately not `githubToken`. That one authenticates the model, and
+      // setting it switches the provider off a device login, so sharing it
+      // would mean turning on commit reading could break chat.
+      id === "github"
+        ? secrets.read("githubActivityToken")
+        : Promise.resolve(undefined),
     // Lazy on purpose: `localConfig` is declared below and this runs only when
     // Settings asks for the view, long after both exist.
     async () => {
@@ -232,10 +235,12 @@ export function registerIpcHandlers(): void {
   const secretStatus = async (): Promise<{
     hasOpenAiKey: boolean;
     hasGithubToken: boolean;
+    hasGithubActivityToken: boolean;
     encryptionAvailable: boolean;
   }> => ({
     hasOpenAiKey: await secrets.has("openaiApiKey"),
     hasGithubToken: await secrets.has("githubToken"),
+    hasGithubActivityToken: await secrets.has("githubActivityToken"),
     encryptionAvailable: encryption.isAvailable(),
   });
 
@@ -463,6 +468,17 @@ export function registerIpcHandlers(): void {
       throw new Error("The credential must be text.");
     }
     await secrets.set("openaiApiKey", value);
+    return await secretStatus();
+  });
+  ipcMain.handle("secrets:setGithubActivity", async (_event, value: unknown) => {
+    if (typeof value !== "string") {
+      throw new Error("The credential must be text.");
+    }
+    await secrets.set("githubActivityToken", value);
+    return await secretStatus();
+  });
+  ipcMain.handle("secrets:clearGithubActivity", async () => {
+    await secrets.clear("githubActivityToken");
     return await secretStatus();
   });
   ipcMain.handle("secrets:clearOpenAi", async () => {

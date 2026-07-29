@@ -77,6 +77,10 @@ const api: DesktopApi = {
   // Sign-in is started and observed from here, but the credential it produces
   // is written by the Copilot runtime into the system keychain. No channel
   // carries it ([HC-SECRETS-ENV-ONLY]).
+  setGithubActivityToken: (value: string) =>
+    ipcRenderer.invoke("secrets:setGithubActivity", value),
+  clearGithubActivityToken: () =>
+    ipcRenderer.invoke("secrets:clearGithubActivity"),
   startSignIn: () => ipcRenderer.invoke("auth:start"),
   waitForSignIn: () => ipcRenderer.invoke("auth:wait"),
   cancelSignIn: () => ipcRenderer.invoke("auth:cancel"),

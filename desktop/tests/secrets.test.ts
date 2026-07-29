@@ -32,6 +32,22 @@ describe("SecretStore", () => {
     expect(await store.has("openaiApiKey")).toBe(true);
   });
 
+  it("keeps the model credential and the activity token apart", async () => {
+    const store = new SecretStore(await storePath(), fakeEncryption());
+    await store.set("githubActivityToken", "ghp-reads-commits");
+
+    // The provider treats a stored `githubToken` as a decision to stop using
+    // the device login, so a shared slot meant turning on commit reading could
+    // sign the user out of the model. Storing one must not imply the other.
+    expect(await store.has("githubToken")).toBe(false);
+    expect(await store.read("githubActivityToken")).toBe("ghp-reads-commits");
+
+    await store.set("githubToken", "ghp-talks-to-the-model");
+    await store.clear("githubToken");
+    // Revoking one leaves the other, which is the point of separating them.
+    expect(await store.read("githubActivityToken")).toBe("ghp-reads-commits");
+  });
+
   it("never writes the credential in a readable form", async () => {
     const file = await storePath();
     const store = new SecretStore(file, fakeEncryption());
