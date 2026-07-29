@@ -182,19 +182,61 @@ describe("activity selection", () => {
     ]);
   });
 
-  it("summarizes the whole window, not only the signals it selected", () => {
-    // Selection caps at a dozen; the rollup still counts everything stored, or
-    // a streak would become an artifact of selection rather than of behavior.
-    const many = Array.from({ length: 20 }, (_, index) =>
+  function manySignals(count: number): ActivitySignal[] {
+    return Array.from({ length: count }, (_, index) =>
       signal({
-        id: `fixture_${String(index).padStart(2, "0")}`,
+        id: `fixture_${String(index).padStart(3, "0")}`,
         domain: "career",
         occurred_at: `2026-03-${String((index % 10) + 1).padStart(2, "0")}`,
       }),
     );
+  }
+
+  it("summarizes the whole window, not only the signals it selected", () => {
+    // The rollup counts everything stored, or a streak would become an artifact
+    // of selection rather than of behavior.
+    const many = manySignals(ACTIVITY_SIGNAL_LIMIT + 8);
     const context = buildActivityContext(question, goals, many, today);
     expect(context?.signals).toHaveLength(ACTIVITY_SIGNAL_LIMIT);
-    expect(context?.rollups[0]?.signal_count).toBe(20);
+    expect(context?.rollups[0]?.signal_count).toBe(ACTIVITY_SIGNAL_LIMIT + 8);
+  });
+
+  it("says how many signals qualified when the cap truncates them", () => {
+    // The bug this exists to prevent: shown twelve of thirty-six commits with
+    // no indication of the cut, the model reported the twelve as the total —
+    // a false statement about the user's own week, stated confidently.
+    const many = manySignals(ACTIVITY_SIGNAL_LIMIT + 8);
+    const context = buildActivityContext(question, goals, many, today);
+    expect(context?.signals).toHaveLength(ACTIVITY_SIGNAL_LIMIT);
+    expect(context?.signals_available).toBe(ACTIVITY_SIGNAL_LIMIT + 8);
+  });
+
+  it("says how many qualified when nothing was truncated", () => {
+    // Reported even when the numbers agree. A field that appeared only on
+    // truncation would teach the model to read its absence as a census, which
+    // is the same silence in a different shape.
+    const context = buildActivityContext(question, goals, manySignals(3), today);
+    expect(context?.signals).toHaveLength(3);
+    expect(context?.signals_available).toBe(3);
+  });
+
+  it("counts only what qualified, not everything stored", () => {
+    // `signals_available` reports the gap selection opened, so a signal the
+    // filter rejected must not inflate it into a phantom the model is told
+    // exists but cannot see.
+    const stale = signal({
+      id: "fixture_stale",
+      domain: "gardening",
+      summary: "Repotted the seedlings",
+      occurred_at: "2025-01-01",
+    });
+    const context = buildActivityContext(
+      question,
+      goals,
+      [...manySignals(3), stale],
+      today,
+    );
+    expect(context?.signals_available).toBe(3);
   });
 
   it("emits one rollup per contributing integration", () => {
@@ -232,7 +274,7 @@ describe("activity on the request", () => {
 
   it("bumps the prompt version so a cached older prompt cannot be reused", async () => {
     const { request } = await demoResult();
-    expect(request.prompt_version).toBe("decision_v5");
+    expect(request.prompt_version).toBe("decision_v6");
   });
 
   it("keeps measured activity out of the user's own claims", async () => {
@@ -384,7 +426,7 @@ describe("activity in chat", () => {
     expect(JSON.stringify(request.current_state)).not.toContain(
       "fixture_career",
     );
-    expect(request.prompt_version).toBe("chat_v5");
+    expect(request.prompt_version).toBe("chat_v6");
   });
 
   it("rejects a reply citing an activity ID that was not in the request", async () => {

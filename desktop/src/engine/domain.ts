@@ -344,6 +344,19 @@ export const activityRollupSchema = z.strictObject({
  */
 export const activityContextSchema = z.strictObject({
   signals: z.array(activitySignalSchema),
+  /**
+   * How many signals qualified before the cap was applied.
+   *
+   * Sent always, not only when truncated, because a field that appears only on
+   * truncation teaches the model to read its absence as a census — and silence
+   * is exactly what went wrong. A model shown twelve of thirty-six commits
+   * reported the twelve as the total, then, asked to explain a missing one,
+   * offered three causes without knowing that "I was shown a third of them"
+   * was among them. A count asserted from a sample is a false statement about
+   * the user's own behavior, which is the one thing this context must never
+   * produce.
+   */
+  signals_available: z.number().int().min(0),
   /** One per integration that contributed a selected signal. */
   rollups: z.array(activityRollupSchema),
 });

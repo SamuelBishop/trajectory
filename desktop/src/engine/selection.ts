@@ -336,8 +336,15 @@ function countBounds(value: VoiceSelectionCount): {
  * A budget, not a starting point. The mentor's own principles and voice share
  * this context window, and a wall of commits would crowd out the reasoning that
  * makes the answer worth reading.
+ *
+ * Raised from twelve once the cost was measured rather than guessed: a signal
+ * serializes to about 118 tokens, so this is roughly 4.7k — affordable beside
+ * the principles and voice, and enough that an ordinary week of commits arrives
+ * whole. Twelve silently cut a real week of thirty-six down to a third, and the
+ * model counted what it was given. The cap still exists, so `signals_available`
+ * still has to travel with the signals.
  */
-export const ACTIVITY_SIGNAL_LIMIT = 12;
+export const ACTIVITY_SIGNAL_LIMIT = 40;
 
 /** How far back a rollup looks. */
 const ACTIVITY_WINDOW_DAYS = 30;
@@ -367,26 +374,20 @@ const ACTIVITY_RECENT_DAYS = 14;
  * message's own words, or simply being recent. Score orders them, so a directly
  * relevant older signal still outranks yesterday's unrelated one.
  */
-export function selectActivitySignals(
+function qualifyingSignals(
   message: string,
-  // Only the domain is read. Saying so keeps the function callable without
-  // fabricating a whole Goal, and makes the coupling to `Goal.domain` explicit.
   goals: readonly Pick<Goal, "domain">[],
   signals: readonly ActivitySignal[],
-  options: { readonly today?: string; readonly limit?: number } = {},
+  today: string | undefined,
 ): ActivitySignal[] {
-  const limit = options.limit ?? ACTIVITY_SIGNAL_LIMIT;
-  if (limit <= 0 || signals.length === 0) {
-    return [];
-  }
   const queryTokens = tokens(message);
   const goalDomains = new Set(goals.map((goal) => goal.domain));
   // Without a date there is no way to tell recent from old, so fall back to the
   // stricter match-only rule rather than admitting everything.
   const recentFrom =
-    options.today === undefined
+    today === undefined
       ? null
-      : windowEndingToday(ACTIVITY_RECENT_DAYS, options.today).start;
+      : windowEndingToday(ACTIVITY_RECENT_DAYS, today).start;
 
   return signals
     .map((signal) => ({
@@ -403,8 +404,25 @@ export function selectActivitySignals(
         right.signal.occurred_at.localeCompare(left.signal.occurred_at) ||
         left.signal.id.localeCompare(right.signal.id),
     )
-    .slice(0, limit)
     .map((entry) => entry.signal);
+}
+
+export function selectActivitySignals(
+  message: string,
+  // Only the domain is read. Saying so keeps the function callable without
+  // fabricating a whole Goal, and makes the coupling to `Goal.domain` explicit.
+  goals: readonly Pick<Goal, "domain">[],
+  signals: readonly ActivitySignal[],
+  options: { readonly today?: string; readonly limit?: number } = {},
+): ActivitySignal[] {
+  const limit = options.limit ?? ACTIVITY_SIGNAL_LIMIT;
+  if (limit <= 0 || signals.length === 0) {
+    return [];
+  }
+  return qualifyingSignals(message, goals, signals, options.today).slice(
+    0,
+    limit,
+  );
 }
 
 /**
@@ -437,6 +455,9 @@ export function buildActivityContext(
 
   return {
     signals: selected,
+    // Everything that qualified, not everything stored: the gap this reports is
+    // the one between what selection admitted and what the model was handed.
+    signals_available: qualifyingSignals(message, goals, signals, today).length,
     rollups: integrationIds.map((integrationId) =>
       buildRollup(integrationId, signals, window.start, window.end),
     ),
