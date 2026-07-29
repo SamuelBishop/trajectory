@@ -40,7 +40,7 @@ coverage.
 - [x] Store provider credentials in the app using Electron `safeStorage` and an in-app settings screen. Shipped as `desktop/src/main/secrets.ts` plus the Settings view. Required amending `[HC-SECRETS-ENV-ONLY]`, which the repository owner approved: an in-app key is permitted only when encrypted at rest, refused rather than downgraded when encryption is unavailable, and write-only across IPC.
 - [x] Add in-app mentor management for one or more editable personalities, principles, communication preferences, and source-linked grounding resources. Shipped as the Mentors view: list, duplicate, delete, switch active, and edit all three files per mentor. Duplication rewrites `mentor_id` on every record, because copying it verbatim produces a profile that cites another mentor's sources.
 - [x] Add a validated goals editor in the app with stable goal identifiers and safe local persistence. Shipped as the Profile view over all five user files, with a structured form and a raw YAML tab. Writes are atomic and guarded by a serialize-reparse-revalidate round trip.
-- [ ] Add permission-scoped Notion, calendar, screen-time, and related task integrations so Trajectory can understand current commitments and activity without silently expanding its privacy boundary.
+- [ ] Add permission-scoped Notion, calendar, screen-time, and related task integrations so Trajectory can understand current commitments and activity without silently expanding its privacy boundary. Now scoped and sequenced as eight prompts in `docs/prompts/` — see that directory's README. Azure DevOps deliberately ships as a reviewed manual import rather than an API client, and Screen Time as an interface with no adapter. Requires amending `[HC-NO-EXFILTRATION]`, **proposed and awaiting the repository owner's approval**. The motivating failure is concrete: the mentor advises from `current_state.yaml` alone, which is self-reported and stale within a week, so it cannot see the drift between stated priorities and actual behavior that the product exists to surface. The amendment permits a second outbound directory, `desktop/src/engine/integrations/`, on ingress-only terms — read-only methods, a declared three-host allowlist, no user content in any request, and no call at all when the integration is disabled.
 - [x] Add a packaged smoke test that launches the built app and asserts the preload bridge is present. Closes the highest-risk row in `docs/methodology/coverage-gaps.md`. Shipped as `desktop/scripts/smoke-packaged.mjs` (`npm run smoke`); it also covers renderer privilege, first-launch seeding, encrypted history, and that the bundled OpenAI SDK actually runs.
 - [ ] Offer an interactive GitHub sign-in instead of asking for a pasted token. The SDK exposes `getAuthStatus` but no login flow, so today the app can only accept a token or use a login the Copilot CLI already stored.
 - [ ] Preserve YAML comments when saving from the structured form. The raw YAML tab writes the user's text verbatim, so comments survive there; the form serializes from the model and drops them. Round-tripping needs the `yaml` package's Document AST rather than `parse`/`stringify`. Recorded as a stated trade-off rather than an oversight.
@@ -153,6 +153,9 @@ coverage.
 - [ ] Add question-driven follow-up only when missing information could materially change the recommendation.
 
 ## Data ingestion and adapters
+
+Sequenced into runnable prompts in `docs/prompts/`. The items below are the
+requirements those prompts satisfy; each prompt ticks its own.
 
 - [ ] Define a stable task-provider interface.
 - [ ] Define a stable calendar-provider interface.

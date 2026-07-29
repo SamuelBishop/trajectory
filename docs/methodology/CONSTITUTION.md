@@ -126,11 +126,26 @@ section exists because that data must not leak.
 
 - **Bar**: User data leaves the machine only via the model provider the user
   explicitly configured. No telemetry, analytics, crash reporting, or update
-  pings.
-- **Pattern**: The only outbound network calls live in
-  `desktop/src/engine/providers/`. Nothing else in the app makes a network call.
-  Adding an outbound call anywhere else is a constitution change, not an
-  implementation detail. An SDK's *defaults* count as outbound behaviour: the
+  pings. An integration may read from a third party; it may never write user
+  data to one.
+- **Pattern**: Outbound network calls live in exactly two directories, and they
+  are not the same risk. `desktop/src/engine/providers/` sends user content —
+  goals, values, constraints, message text — to the model the user chose. That
+  is exfiltration in the literal sense, accepted because it is the product.
+  `desktop/src/engine/integrations/` is **ingress-only** and sends none of it:
+  read-only HTTP methods carrying credentials, query parameters, and pagination
+  cursors, and nothing else. The single permitted exception is an OAuth token
+  exchange, which posts client credentials and an authorization code and no user
+  content. An adapter that transmits goals, values, constraints, journal text,
+  chat history, or mentor content has left the exemption and is a violation.
+  Each adapter declares the exact hosts it contacts — the full list is
+  `api.github.com`, `api.notion.com`, and `www.strava.com` — and runs only when
+  the user has enabled it and supplied its credential. Disabled means no call.
+  Adding an outbound call in a third directory, or a fourth host, is a
+  constitution change rather than an implementation detail. Employer systems are
+  out of scope for network adapters: that data enters through the reviewed
+  manual import lane, where a human approves each batch before it is stored.
+  An SDK's *defaults* count as outbound behaviour: the
   Copilot SDK's default mode reads `AGENTS.md`, `.github/copilot-instructions.md`
   and `CLAUDE.md` from its working directory — which defaults to
   `process.cwd()` — into every prompt. Providers therefore opt out explicitly
@@ -138,7 +153,8 @@ section exists because that data must not leak.
   and run in an application-owned directory chosen by the main process.
 - **Verification**: `desktop/tests/engine/providers.test.ts` —
   "gives the runtime no ambient context to read". Manual review of new network
-  calls and dependencies.
+  calls and dependencies. Nothing asserts the host allowlist or the ingress-only
+  restriction; `coverage-gaps.md` records what closing that would take.
 
 ### `[HC-NO-PRIVATE-DATA-COMMITS]`
 

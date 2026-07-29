@@ -10,8 +10,7 @@ Keep it under 60 lines (`[HC-ROUTE-DONT-ROOT]`).
 ## Read in this order
 
 1. **`docs/methodology/CONSTITUTION.md`** — the canon. 32 `[HC-*]` / `[SC-*]`
-   bars and the 6-step loop. It supersedes this file and every other
-   (`[HC-CANON-PRECEDENCE]`).
+   bars and the 6-step loop. It supersedes everything (`[HC-CANON-PRECEDENCE]`).
 2. **`docs/methodology/coverage-gaps.md`** — which bars nothing actually checks.
    Read before implementing in an area marked *Not verified*.
 3. The path rules below, for the files you are touching.
@@ -21,6 +20,7 @@ Keep it under 60 lines (`[HC-ROUTE-DONT-ROOT]`).
 | Touching | Read |
 | --- | --- |
 | `desktop/src/engine/providers/**` | `.github/instructions/providers.instructions.md` |
+| `desktop/src/engine/integrations/**` | `.github/instructions/integrations.instructions.md` |
 | `desktop/src/engine/**`, `desktop/tests/engine/**` | `.github/instructions/engine.instructions.md` |
 | `desktop/src/main/**`, `desktop/src/preload/**`, `desktop/electron.vite.config.ts` | `.github/instructions/desktop-main.instructions.md` |
 | `desktop/src/renderer/**` | `.github/instructions/desktop-renderer.instructions.md` |
