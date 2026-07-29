@@ -30,11 +30,11 @@ const identifier = z
 
 /**
  * YAML has no timestamp type in its core schema, so dates arrive as strings.
- * Accept a real ISO calendar date or an explicit null. The shape check alone is
- * not enough: Python's `date` rejected `2026-99-99` and so must this, or an
- * impossible date reaches the provider as grounded context.
+ * Accept a real ISO calendar date. The shape check alone is not enough:
+ * Python's `date` rejected `2026-99-99` and so must this, or an impossible date
+ * reaches the provider as grounded context.
  */
-const isoDate = z
+const calendarDate = z
   .string()
   .trim()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "must be an ISO date (YYYY-MM-DD)")
@@ -50,9 +50,22 @@ const isoDate = z
       parsed.getUTCMonth() === month - 1 &&
       parsed.getUTCDate() === day
     );
-  }, "must be a real calendar date")
-  .nullable()
-  .default(null);
+  }, "must be a real calendar date");
+
+/** The same date, where absent is a legitimate answer. */
+const isoDate = calendarDate.nullable().default(null);
+
+/**
+ * A moment rather than a day. Used for provenance, where "which sync produced
+ * this" needs more resolution than a date can carry.
+ */
+const isoTimestamp = z
+  .string()
+  .trim()
+  .refine(
+    (value) => !Number.isNaN(Date.parse(value)),
+    "must be an ISO timestamp",
+  );
 
 const confidence = z.number().min(0).max(1);
 
@@ -256,6 +269,67 @@ export const mentorResourcesSchema = z.strictObject({
   voice: voiceConfigSchema.optional(),
 });
 
+/**
+ * Observed activity, normalized by an integration adapter.
+ *
+ * Implements: [HC-OBSERVATION-VS-INFERENCE]
+ *
+ * A signal is evidence about the *user*, which makes it a different kind of
+ * record from a `SourceRecord` — that is evidence about the mentor's beliefs.
+ * The two are cited through separate fields and must never be merged, or a
+ * commit would start counting as support for a principle.
+ *
+ * Adapters normalize into this shape and never pass raw API payloads outward.
+ * `summary` is bounded at the adapter because a commit body or task description
+ * is unbounded and occasionally contains a pasted credential.
+ */
+export const activitySignalKindSchema = z.enum([
+  "code_commit",
+  "pull_request",
+  "task",
+  "workout",
+  "attention",
+]);
+
+export const activityProvenanceSchema = z.strictObject({
+  fetched_at: isoTimestamp,
+  adapter_version: text,
+  account_label: text,
+  /** True when a human approved this record through the manual import lane. */
+  manually_reviewed: z.boolean().default(false),
+});
+
+export const activitySignalSchema = z.strictObject({
+  id: identifier,
+  integration_id: identifier,
+  kind: activitySignalKindSchema,
+  occurred_at: calendarDate,
+  summary: z.string().trim().min(1).max(280),
+  /** Matches `Goal.domain`, which is how selection connects the two. */
+  domain: identifier,
+  metrics: z.record(z.string(), z.number()).default({}),
+  url: text.nullable().default(null),
+  provenance: activityProvenanceSchema,
+});
+
+/**
+ * The shape of a window of activity, so the model can see volume and streaks
+ * without receiving every record. Signals are the detail; this is the summary.
+ */
+export const activityRollupSchema = z.strictObject({
+  integration_id: identifier,
+  window_start: calendarDate,
+  window_end: calendarDate,
+  signal_count: z.number().int().min(0),
+  /** Signal counts by domain, highest first. */
+  by_domain: z.array(
+    z.strictObject({ domain: identifier, count: z.number().int().min(0) }),
+  ),
+  totals: z.record(z.string(), z.number()).default({}),
+  /** Consecutive days ending at `window_end` that carry at least one signal. */
+  streak_days: z.number().int().min(0),
+});
+
 export const chatMessageSchema = z.strictObject({
   role: z.enum(["user", "assistant"]),
   content: chatText,
@@ -358,6 +432,10 @@ export type VoiceSelectionTier = z.infer<typeof voiceSelectionTierSchema>;
 export type VoiceConfig = z.infer<typeof voiceConfigSchema>;
 export type VoiceRuntimeContext = z.infer<typeof voiceRuntimeContextSchema>;
 export type MentorResources = z.infer<typeof mentorResourcesSchema>;
+export type ActivitySignalKind = z.infer<typeof activitySignalKindSchema>;
+export type ActivityProvenance = z.infer<typeof activityProvenanceSchema>;
+export type ActivitySignal = z.infer<typeof activitySignalSchema>;
+export type ActivityRollup = z.infer<typeof activityRollupSchema>;
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
 export type DecisionRequest = z.infer<typeof decisionRequestSchema>;
 export type ChatRequest = z.infer<typeof chatRequestSchema>;

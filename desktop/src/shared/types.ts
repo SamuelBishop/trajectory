@@ -84,6 +84,16 @@ export interface DesktopApi {
   getSettings(): Promise<AppSettings>;
   saveSettings(settings: AppSettings): Promise<AppSettings>;
 
+  listIntegrations(): Promise<IntegrationsView>;
+  refreshIntegration(id: string): Promise<IntegrationsView>;
+  saveIntegrationPolicy(
+    id: string,
+    policy: IntegrationPolicyView,
+  ): Promise<IntegrationsView>;
+  setIntegrationsPaused(paused: boolean): Promise<IntegrationsView>;
+  /** Erases stored activity for one integration. There is no undo. */
+  deleteIntegrationData(id: string): Promise<IntegrationsView>;
+
   /** Write-only. There is deliberately no getter for a credential. */
   getSecretStatus(): Promise<SecretStatus>;
   setOpenAiKey(value: string): Promise<SecretStatus>;
@@ -161,5 +171,45 @@ export interface CopilotAuthStatus {
 export interface SecretStatus {
   hasOpenAiKey: boolean;
   hasGithubToken: boolean;
+  encryptionAvailable: boolean;
+}
+
+/** Mirrors `integrationPolicySchema`, restated here so the renderer imports no engine code. */
+export interface IntegrationPolicyView {
+  enabled: boolean;
+  sync: {
+    on_app_load: boolean;
+    on_demand: boolean;
+    /** Zero disables the timer. */
+    timer_minutes: number;
+  };
+  /** `start === end` means no quiet window. */
+  quiet_hours: { start: number; end: number };
+  retention_days: number;
+}
+
+/**
+ * One integration as Settings sees it. `hosts` is shown to the user rather than
+ * kept internal: the promise in `[HC-NO-EXFILTRATION]` is that the outbound
+ * surface is declared, and a declaration nobody can read is not one.
+ */
+export interface IntegrationSummary {
+  id: string;
+  label: string;
+  /** Every host this adapter may contact. Empty means it makes no call. */
+  hosts: string[];
+  requiresCredential: boolean;
+  policy: IntegrationPolicyView;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+  signalCount: number;
+  /** Present when the most recent refresh chose not to run, with the reason. */
+  lastSkippedReason?: string;
+}
+
+export interface IntegrationsView {
+  paused: boolean;
+  integrations: IntegrationSummary[];
+  /** False when the OS cannot encrypt, which blocks storing activity at all. */
   encryptionAvailable: boolean;
 }

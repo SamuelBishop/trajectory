@@ -312,12 +312,24 @@ try {
             .some((node) => node.textContent?.includes("UI Mentor"));
           await window.trajectory.deleteMentor("ui_mentor");
           const settings = await click("Settings");
+          // The Activity pane loads its state asynchronously, so settle again
+          // before reading it. Checking only the heading would pass even if the
+          // pane never rendered a control.
+          await settle();
+          await settle();
+          const activityPane = {
+            heading: [...document.querySelectorAll(".section-title")]
+              .some((node) => node.textContent === "Activity"),
+            cards: document.querySelectorAll(".integration-card").length,
+            toggles: document.querySelectorAll(".integration-card .toggle").length,
+            text: document.querySelector(".integration-card")?.textContent ?? "",
+          };
           const chat = await click("Chat");
           const disclosure =
             document.querySelector(".mentor-disclaimer")?.textContent ?? "";
           return JSON.stringify({
             ok: true, rail, profile, fields, mentors, duplicate,
-            duplicateListed, settings, voiceLoaded, disclosure,
+            duplicateListed, settings, voiceLoaded, disclosure, activityPane,
             chat: chat.length > 0,
             composer: Boolean(document.querySelector(".composer textarea")),
           });
@@ -342,6 +354,15 @@ try {
       ui.chat === true &&
       ui.composer === true,
     JSON.stringify(ui),
+  );
+  check(
+    "the Activity pane renders its controls and says where it connects",
+    ui.ok === true &&
+      ui.activityPane.heading === true &&
+      ui.activityPane.cards > 0 &&
+      ui.activityPane.toggles >= 3 &&
+      ui.activityPane.text.includes("Makes no network connection"),
+    JSON.stringify(ui.activityPane),
   );
 
   const editing = JSON.parse(
@@ -483,6 +504,92 @@ try {
       secretFlow.ghCleared === false &&
       !secretFlow.surface.some((name) => /^(get|read|fetch).*(Key|Secret|Token)$/.test(name)),
     JSON.stringify(secretFlow),
+  );
+
+  // Activity is the most sensitive thing this app stores, so the smoke drives
+  // the whole lane through the real bridge: default off, collect only after the
+  // user enables it, encrypted on disk, and genuinely erased on request.
+  const activityFlow = JSON.parse(
+    await session.evaluate(`
+      (async () => {
+        try {
+          const initial = await window.trajectory.listIntegrations();
+          const target = initial.integrations[0];
+          const beforeEnable = await window.trajectory.refreshIntegration(target.id);
+          const enabled = await window.trajectory.saveIntegrationPolicy(target.id, {
+            ...target.policy,
+            enabled: true,
+          });
+          const synced = await window.trajectory.refreshIntegration(target.id);
+          return JSON.stringify({
+            ok: true,
+            id: target.id,
+            hosts: target.hosts,
+            defaultEnabled: target.policy.enabled,
+            defaultPaused: initial.paused,
+            countBeforeEnable: beforeEnable.integrations[0].signalCount,
+            enabledSaved: enabled.integrations[0].policy.enabled,
+            countAfterSync: synced.integrations[0].signalCount,
+          });
+        } catch (error) {
+          return JSON.stringify({ ok: false, error: String(error.message ?? error) });
+        }
+      })()
+    `),
+  );
+  check(
+    "activity is collected only after the user turns it on [HC-NO-EXFILTRATION]",
+    activityFlow.ok === true &&
+      activityFlow.defaultEnabled === false &&
+      activityFlow.countBeforeEnable === 0 &&
+      activityFlow.enabledSaved === true &&
+      activityFlow.countAfterSync > 0 &&
+      activityFlow.hosts.length === 0,
+    JSON.stringify(activityFlow),
+  );
+
+  // Read while the records are still there. Checking after the delete would
+  // pass against an empty file and prove nothing.
+  const activityAtRest = await readFile(
+    path.join(userDataDir, "trajectory-activity.enc.json"),
+    "utf8",
+  ).catch(() => "");
+  check(
+    "activity is encrypted at rest [HC-NO-PLAINTEXT-HISTORY]",
+    activityAtRest.length > 0 && !activityAtRest.includes("Interval session"),
+    `${activityAtRest.length} bytes`,
+  );
+
+  const activityDeleted = JSON.parse(
+    await session.evaluate(`
+      (async () => {
+        try {
+          const before = await window.trajectory.listIntegrations();
+          const after = await window.trajectory.deleteIntegrationData(before.integrations[0].id);
+          return JSON.stringify({
+            ok: true,
+            before: before.integrations[0].signalCount,
+            after: after.integrations[0].signalCount,
+            lastSyncedAt: after.integrations[0].lastSyncedAt,
+          });
+        } catch (error) {
+          return JSON.stringify({ ok: false, error: String(error.message ?? error) });
+        }
+      })()
+    `),
+  );
+  const activityAfterDelete = await readFile(
+    path.join(userDataDir, "trajectory-activity.enc.json"),
+    "utf8",
+  ).catch(() => "");
+  check(
+    "deleting activity erases it from disk, not just from the view",
+    activityDeleted.ok === true &&
+      activityDeleted.before > 0 &&
+      activityDeleted.after === 0 &&
+      activityDeleted.lastSyncedAt === null &&
+      activityAfterDelete.length < activityAtRest.length,
+    `${JSON.stringify(activityDeleted)} ${activityAtRest.length}->${activityAfterDelete.length} bytes`,
   );
 
   // The tokenless path is the one a first launch takes, and `mode: "empty"`

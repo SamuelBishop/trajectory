@@ -172,8 +172,11 @@ requirements those prompts satisfy; each prompt ticks its own.
 - [ ] Add exported or manually created screen-time data before attempting platform collectors.
 - [ ] Document future platform-specific collectors.
 - [ ] Add calendar ingestion with explicit scope selection.
-- [ ] Add synthetic fixtures for every importer.
-- [ ] Add import validation, duplicate handling, provenance, and deletion.
+- [x] Add synthetic fixtures for every importer. — P1 ships `FixtureAdapter` and
+      the pattern. Each later adapter still owes its own recorded fixture.
+- [x] Add import validation, duplicate handling, provenance, and deletion. — P1.
+      Signals are revalidated on read, merged by ID, carry `provenance`, and are
+      deleted per integration from Settings.
 - [ ] Never assume access to proprietary phone analytics APIs.
 - [ ] Never ingest employer-confidential data by default.
 

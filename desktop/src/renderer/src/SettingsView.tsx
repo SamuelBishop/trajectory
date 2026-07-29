@@ -20,6 +20,7 @@ import type {
 } from "../../shared/types";
 import { toErrorMessage } from "./errors";
 import { Field, SaveBar, Select, TextInput } from "./FormKit";
+import { IntegrationsSection } from "./IntegrationsSection";
 
 const PROVIDERS: readonly { value: ProviderName; label: string }[] = [
   { value: "copilot", label: "GitHub Copilot" },
@@ -149,6 +150,12 @@ export function SettingsView({
         <div className="editor">
 <div className="editor-body">
             <SignInSection />
+          </div>
+        </div>
+
+        <div className="editor">
+          <div className="editor-body">
+            <IntegrationsSection />
           </div>
         </div>
 

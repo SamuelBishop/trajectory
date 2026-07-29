@@ -4,6 +4,7 @@ import type {
   AppSettings,
   ChatStreamDelta,
   DesktopApi,
+  IntegrationPolicyView,
   MentorConfigFile,
   SendMessageInput,
   UserConfigFile,
@@ -49,6 +50,16 @@ const api: DesktopApi = {
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings: AppSettings) =>
     ipcRenderer.invoke("settings:save", settings),
+
+  listIntegrations: () => ipcRenderer.invoke("integrations:list"),
+  refreshIntegration: (id: string) =>
+    ipcRenderer.invoke("integrations:refresh", id),
+  saveIntegrationPolicy: (id: string, policy: IntegrationPolicyView) =>
+    ipcRenderer.invoke("integrations:savePolicy", id, policy),
+  setIntegrationsPaused: (paused: boolean) =>
+    ipcRenderer.invoke("integrations:setPaused", paused),
+  deleteIntegrationData: (id: string) =>
+    ipcRenderer.invoke("integrations:deleteData", id),
 
   // No getter for either credential. The renderer can learn that one exists
   // and can replace or remove it, but no channel returns a value

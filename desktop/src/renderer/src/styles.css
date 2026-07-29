@@ -1003,3 +1003,24 @@ button {
   text-align: center;
   user-select: all;
 }
+
+/* One integration's controls, boxed so several read as separate settings
+   rather than one long undifferentiated form. */
+.integration-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+  border: 1px solid #24241f;
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+
+.integration-card h3 {
+  margin: 0;
+}
+
+.integration-card .save-bar {
+  position: static;
+  background: transparent;
+}

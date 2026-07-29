@@ -16,6 +16,7 @@ import {
   type UserDocumentName,
 } from "../engine/documents";
 import { providerNameSchema } from "../engine/domain";
+import { integrationPolicySchema } from "../engine/integrations";
 import {
   assertValidMentorId,
   deleteMentor,
@@ -34,6 +35,7 @@ import { loadSettings, saveSettings } from "../engine/settings";
 import type { ProviderName, SendMessageInput } from "../shared/types";
 import { CopilotLogin } from "./copilot-login";
 import { revealChatAnswer } from "./chat-stream";
+import { IntegrationService } from "./integrations";
 import { SecretStore } from "./secrets";
 import { EncryptedChatStore } from "./store";
 
@@ -77,6 +79,18 @@ function requireMessage(value: unknown): string {
     throw new Error("Message must contain between 1 and 12,000 characters.");
   }
   return message;
+}
+
+/**
+ * Integration IDs come from the renderer, so they are constrained here before
+ * reaching a lookup. The service rejects unknown IDs too; this stops a
+ * malformed value earlier and keeps the error readable.
+ */
+function requireIntegrationId(value: unknown): string {
+  if (typeof value !== "string" || !/^[a-z][a-z0-9_]{0,63}$/.test(value)) {
+    throw new Error("Invalid integration ID.");
+  }
+  return value;
 }
 
 function requireProvider(value: unknown): ProviderName {
@@ -152,6 +166,11 @@ export function registerIpcHandlers(): void {
     encryption,
   );
   const secrets = new SecretStore(SecretStore.defaultPath(userData), encryption);
+  const integrations = new IntegrationService(userData, encryption, (id) =>
+    // Only GitHub reuses an existing credential today; every other adapter
+    // arrives with its own secret key in a later change.
+    id === "github" ? secrets.read("githubToken") : Promise.resolve(undefined),
+  );
 
   /**
    * Seeding is keyed on the active mentor, so switching mentors in Settings
@@ -184,6 +203,16 @@ export function registerIpcHandlers(): void {
   void localConfig().catch((error: unknown) => {
     console.error(
       "Could not prepare local configuration:",
+      error instanceof Error ? error.message : error,
+    );
+  });
+
+  // Sync enabled integrations once at launch. Awaiting this would delay the
+  // window, and a failing adapter must never be able to stop the app starting,
+  // so it runs alongside startup and reports failures onto the integration.
+  void integrations.syncOnLaunch().catch((error: unknown) => {
+    console.error(
+      "Launch sync failed:",
       error instanceof Error ? error.message : error,
     );
   });
@@ -374,6 +403,36 @@ export function registerIpcHandlers(): void {
     seeded = undefined;
     await localConfig();
     return saved;
+  });
+
+  // Activity integrations. Every verb returns the whole view so the renderer
+  // never assembles state from partial updates and cannot drift out of sync
+  // with what the main process actually stored.
+  ipcMain.handle("integrations:list", () => integrations.view());
+  ipcMain.handle("integrations:refresh", async (_event, id: unknown) => {
+    await integrations.sync(requireIntegrationId(id), "manual");
+    return await integrations.view();
+  });
+  ipcMain.handle(
+    "integrations:savePolicy",
+    async (_event, id: unknown, raw: unknown) => {
+      // Parsed rather than trusted: this value decides whether an adapter is
+      // allowed to reach the network at all ([HC-NO-EXFILTRATION]).
+      const policy = integrationPolicySchema.parse(raw);
+      await integrations.savePolicy(requireIntegrationId(id), policy);
+      return await integrations.view();
+    },
+  );
+  ipcMain.handle("integrations:setPaused", async (_event, paused: unknown) => {
+    if (typeof paused !== "boolean") {
+      throw new Error("Pause must be true or false.");
+    }
+    await integrations.setPaused(paused);
+    return await integrations.view();
+  });
+  ipcMain.handle("integrations:deleteData", async (_event, id: unknown) => {
+    await integrations.deleteData(requireIntegrationId(id));
+    return await integrations.view();
   });
 
   ipcMain.handle("secrets:status", () => secretStatus());
