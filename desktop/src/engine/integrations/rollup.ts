@@ -9,6 +9,24 @@
 
 import type { ActivityRollup, ActivitySignal } from "../domain";
 
+/**
+ * The calendar date in the user's own timezone.
+ *
+ * `toISOString().slice(0, 10)` is UTC, which is a different day from the user's
+ * for part of every evening west of Greenwich — six hours a night in Denver.
+ * That is exactly when someone reflects on their day, so "today" would name a
+ * day they have not lived yet: today's work would look like tomorrow's, and a
+ * streak would break on a day that had not ended.
+ *
+ * Local getters rather than a locale trick, so what it reads is obvious.
+ */
+export function localDate(value: Date): string {
+  const year = String(value.getFullYear()).padStart(4, "0");
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 /** Days between two ISO dates, treating both as UTC midnight. */
 function daysBetween(earlier: string, later: string): number {
   const from = Date.parse(`${earlier}T00:00:00Z`);

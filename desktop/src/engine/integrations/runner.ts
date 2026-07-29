@@ -19,6 +19,7 @@ import {
   type IntegrationPolicy,
   type SyncTrigger,
 } from "./policy";
+import { localDate } from "./rollup";
 import type { ActivityAdapter } from "./types";
 
 export interface SignalSink {
@@ -69,14 +70,14 @@ export async function runSync(input: {
   }
 
   if (adapter.requiresCredential && (credential ?? "").length === 0) {
-    const problem = `${adapter.label} needs a credential before it can sync.`;
+    const problem = `${adapter.label} needs a credential before it can sync. ${adapter.credentialHint}`;
     await sink.recordFailure(adapter.id, problem);
     return { status: "failed", integrationId: adapter.id, problem };
   }
 
   try {
     const signals = await adapter.fetch(lastSyncedAt, credential);
-    const today = now.toISOString().slice(0, 10);
+    const today = localDate(now);
     const signalCount = await sink.merge(adapter.id, signals, {
       retentionDays: policy.retention_days,
       today,

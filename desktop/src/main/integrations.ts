@@ -1,3 +1,4 @@
+import { z } from "zod";
 /**
  * Owns activity integrations in the main process.
  *
@@ -12,6 +13,7 @@
 
 import {
   createAdapters,
+  githubConfigSchema,
   loadIntegrationsConfig,
   policyFor,
   runSync,
@@ -27,6 +29,22 @@ import type {
   IntegrationsView,
 } from "../shared/types";
 import { EncryptedActivityStore } from "./activity-store";
+
+/**
+ * The renderer's shape for GitHub scope.
+ *
+ * Parsed rather than cast, because the renderer is a trust boundary and this
+ * arrives over IPC. Camel case here and snake case in stored config is a real
+ * seam, so the mapping is written out rather than spread.
+ */
+const githubScopeViewSchema = z.object({
+  login: z.string().default(""),
+  repositories: z.array(z.string()).default([]),
+  organizations: z.array(z.string()).default([]),
+  allRepositories: z.boolean().default(false),
+  lookbackDays: z.number().default(7),
+  domains: z.record(z.string(), z.string()).default({}),
+});
 
 interface Encryption {
   isAvailable(): boolean;
@@ -50,12 +68,30 @@ export class IntegrationService {
     private readonly readCredential: (
       integrationId: string,
     ) => Promise<string | undefined> = () => Promise.resolve(undefined),
+    /**
+     * The domains the user's goals actually use. Injected because the engine
+     * resolves no paths, and offered to Settings so the repository-to-domain
+     * map can propose real targets instead of inviting a typo that silently
+     * stops a commit from ever matching a goal.
+     */
+    private readonly readGoalDomains: () => Promise<string[]> = () =>
+      Promise.resolve([]),
+    /**
+     * Injected so tests drive adapters against recorded payloads. Without this
+     * seam a test that enables a network adapter reaches the real API, and a
+     * suite that needs the network and a live token is one that stops being run.
+     */
+    httpFetch: typeof fetch = globalThis.fetch,
   ) {
     this.store = new EncryptedActivityStore(
       EncryptedActivityStore.defaultPath(userDataPath),
       encryption,
     );
-    this.adapters = createAdapters();
+    this.adapters = createAdapters({
+      httpFetch,
+      githubConfig: async () =>
+        (await loadIntegrationsConfig(this.userDataPath)).github,
+    });
     this.encryptionAvailable = () => encryption.isAvailable();
   }
 
@@ -100,7 +136,40 @@ export class IntegrationService {
       paused: config.paused,
       integrations,
       encryptionAvailable: this.encryptionAvailable(),
+      github: {
+        login: config.github.login,
+        repositories: config.github.repositories,
+        organizations: config.github.organizations,
+        allRepositories: config.github.all_repositories,
+        lookbackDays: config.github.lookback_days,
+        domains: config.github.domains,
+      },
+      goalDomains: await this.readGoalDomains().catch(() => []),
     };
+  }
+
+  /**
+   * Replace the GitHub scope.
+   *
+   * Empty scope is a legitimate saved state, not an error: it is the default,
+   * and it means the adapter makes no request at all.
+   */
+  async saveGitHubScope(scope: unknown): Promise<void> {
+    const view = githubScopeViewSchema.parse(scope);
+    const config = await loadIntegrationsConfig(this.userDataPath);
+    await saveIntegrationsConfig(this.userDataPath, {
+      ...config,
+      // Rebuilt field by field rather than spread, so the renderer cannot smuggle
+      // an unexpected key into stored config. The schema then re-validates.
+      github: githubConfigSchema.parse({
+        login: view.login,
+        repositories: view.repositories,
+        organizations: view.organizations,
+        all_repositories: view.allRepositories,
+        lookback_days: view.lookbackDays,
+        domains: view.domains,
+      }),
+    });
   }
 
   async sync(integrationId: string, trigger: SyncTrigger): Promise<void> {
@@ -184,8 +253,11 @@ export class IntegrationService {
   ): Promise<void> {
     this.adapter(integrationId);
     const config = await loadIntegrationsConfig(this.userDataPath);
+    // Spread the whole config rather than rebuilding it. Naming each field here
+    // means every field added later is silently dropped the next time a user
+    // toggles a switch, which destroys their scope settings without a word.
     const next: IntegrationsConfig = {
-      paused: config.paused,
+      ...config,
       integrations: { ...config.integrations, [integrationId]: policy },
     };
     await saveIntegrationsConfig(this.userDataPath, next);

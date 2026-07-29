@@ -16,7 +16,7 @@
 
 import type { ActivitySignal } from "../domain";
 
-export interface ActivityAdapter {
+interface ActivityAdapterBase {
   /** Stable slug. Matches `ActivitySignal.integration_id`. */
   readonly id: string;
   /** Recorded in provenance, so a re-parse can be told from a re-fetch. */
@@ -25,8 +25,6 @@ export interface ActivityAdapter {
   readonly hosts: readonly string[];
   /** Human-readable name for the Settings pane. */
   readonly label: string;
-  /** True when the adapter cannot run until a credential is stored. */
-  readonly requiresCredential: boolean;
 
   /**
    * Return signals that occurred on or after `since`, or everything available
@@ -36,6 +34,25 @@ export interface ActivityAdapter {
    */
   fetch(since: string | null, credential?: string): Promise<ActivitySignal[]>;
 }
+
+/**
+ * Requiring a credential obliges an adapter to say where to get one.
+ *
+ * A union rather than an optional field, so "needs a credential" cannot be
+ * declared without the sentence that tells the user what to do about it. The
+ * generic message was actively misleading here: someone who had just signed in
+ * with GitHub for the model was told GitHub needed a credential, with nothing
+ * to suggest that a different token, with different permissions, was meant.
+ */
+type CredentialRequirement =
+  | { readonly requiresCredential: false }
+  | {
+      readonly requiresCredential: true;
+      /** Where to get the credential and what it must be allowed to do. */
+      readonly credentialHint: string;
+    };
+
+export type ActivityAdapter = ActivityAdapterBase & CredentialRequirement;
 
 /** What the Settings pane needs in order to describe an integration. */
 export interface AdapterDescription {

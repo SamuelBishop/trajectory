@@ -73,7 +73,11 @@ function shiftDate(date: string, days: number): string {
   return shifted.toISOString().slice(0, 10);
 }
 
-export class FixtureAdapter implements ActivityAdapter {
+// Not `implements ActivityAdapter`: that type is a union pairing
+// `requiresCredential` with `credentialHint`, and a class cannot implement a
+// union. `createAdapters` returns `ActivityAdapter[]`, so the pairing is still
+// checked — at registration, which is where the registry actually forms.
+export class FixtureAdapter {
   readonly id = FIXTURE_INTEGRATION_ID;
   readonly version = "fixture-1";
   readonly hosts: readonly string[] = [];

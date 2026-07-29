@@ -514,7 +514,10 @@ try {
       (async () => {
         try {
           const initial = await window.trajectory.listIntegrations();
-          const target = initial.integrations[0];
+          // By id, not by position. This drives the offline fixture on purpose:
+          // the smoke must never make a real network call.
+          const pick = (view) => view.integrations.find((entry) => entry.id === "fixture");
+          const target = pick(initial);
           const beforeEnable = await window.trajectory.refreshIntegration(target.id);
           const enabled = await window.trajectory.saveIntegrationPolicy(target.id, {
             ...target.policy,
@@ -527,9 +530,9 @@ try {
             hosts: target.hosts,
             defaultEnabled: target.policy.enabled,
             defaultPaused: initial.paused,
-            countBeforeEnable: beforeEnable.integrations[0].signalCount,
-            enabledSaved: enabled.integrations[0].policy.enabled,
-            countAfterSync: synced.integrations[0].signalCount,
+            countBeforeEnable: pick(beforeEnable).signalCount,
+            enabledSaved: pick(enabled).policy.enabled,
+            countAfterSync: pick(synced).signalCount,
           });
         } catch (error) {
           return JSON.stringify({ ok: false, error: String(error.message ?? error) });
@@ -565,12 +568,13 @@ try {
       (async () => {
         try {
           const before = await window.trajectory.listIntegrations();
-          const after = await window.trajectory.deleteIntegrationData(before.integrations[0].id);
+          const pick = (view) => view.integrations.find((entry) => entry.id === "fixture");
+          const after = await window.trajectory.deleteIntegrationData(pick(before).id);
           return JSON.stringify({
             ok: true,
-            before: before.integrations[0].signalCount,
-            after: after.integrations[0].signalCount,
-            lastSyncedAt: after.integrations[0].lastSyncedAt,
+            before: pick(before).signalCount,
+            after: pick(after).signalCount,
+            lastSyncedAt: pick(after).lastSyncedAt,
           });
         } catch (error) {
           return JSON.stringify({ ok: false, error: String(error.message ?? error) });

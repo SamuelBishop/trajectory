@@ -343,12 +343,29 @@ export const ACTIVITY_SIGNAL_LIMIT = 12;
 const ACTIVITY_WINDOW_DAYS = 30;
 
 /**
+ * How recent a signal must be to be shown without matching the question.
+ *
+ * Recent activity is admitted on its own. Relevance still decides the order,
+ * and the cap still decides how many survive, but matching is no longer the
+ * price of being seen at all.
+ *
+ * The earlier rule required a domain or word match to get in, which meant an
+ * unmapped repository was not merely hard to interpret — it was absent, and a
+ * model cannot reason about what it was never shown. That put the burden of
+ * classifying work on the user, in advance, via a hand-written domain map. The
+ * model reads the repository name and the commit message and can do that
+ * itself. Showing an unrelated commit costs a hundred tokens and is sometimes
+ * the point: asking about running while a week of commits sits in view is
+ * exactly the discrepancy this app exists to notice.
+ */
+const ACTIVITY_RECENT_DAYS = 14;
+
+/**
  * Pick the signals worth showing for one message.
  *
- * Two ways in, and recency is neither of them. A signal qualifies by sharing a
- * domain with a selected goal, or by overlapping the message's own words.
- * Recency only orders what already qualified — otherwise yesterday's unrelated
- * commit would displace last week's directly relevant one.
+ * Three ways in: sharing a domain with a selected goal, overlapping the
+ * message's own words, or simply being recent. Score orders them, so a directly
+ * relevant older signal still outranks yesterday's unrelated one.
  */
 export function selectActivitySignals(
   message: string,
@@ -356,13 +373,20 @@ export function selectActivitySignals(
   // fabricating a whole Goal, and makes the coupling to `Goal.domain` explicit.
   goals: readonly Pick<Goal, "domain">[],
   signals: readonly ActivitySignal[],
-  limit = ACTIVITY_SIGNAL_LIMIT,
+  options: { readonly today?: string; readonly limit?: number } = {},
 ): ActivitySignal[] {
+  const limit = options.limit ?? ACTIVITY_SIGNAL_LIMIT;
   if (limit <= 0 || signals.length === 0) {
     return [];
   }
   const queryTokens = tokens(message);
   const goalDomains = new Set(goals.map((goal) => goal.domain));
+  // Without a date there is no way to tell recent from old, so fall back to the
+  // stricter match-only rule rather than admitting everything.
+  const recentFrom =
+    options.today === undefined
+      ? null
+      : windowEndingToday(ACTIVITY_RECENT_DAYS, options.today).start;
 
   return signals
     .map((signal) => ({
@@ -370,8 +394,9 @@ export function selectActivitySignals(
       score:
         (goalDomains.has(signal.domain) ? 2 : 0) +
         score(queryTokens, [signal.summary, signal.domain, signal.kind]),
+      recent: recentFrom !== null && signal.occurred_at >= recentFrom,
     }))
-    .filter((entry) => entry.score > 0)
+    .filter((entry) => entry.score > 0 || entry.recent)
     .sort(
       (left, right) =>
         right.score - left.score ||
@@ -396,7 +421,7 @@ export function buildActivityContext(
   signals: readonly ActivitySignal[],
   today: string,
 ): ActivityContext | null {
-  const selected = selectActivitySignals(message, goals, signals);
+  const selected = selectActivitySignals(message, goals, signals, { today });
   if (selected.length === 0) {
     return null;
   }

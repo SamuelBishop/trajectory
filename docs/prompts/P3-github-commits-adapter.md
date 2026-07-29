@@ -40,22 +40,39 @@ One signal per commit:
 - `summary` — the first line of the commit message, truncated. Never the body;
   bodies contain issue links, internal identifiers, and occasionally pasted
   secrets.
-- `domain` — derived from a user-configured repository-to-domain map, so commits
-  to the work repo score against the promotion goal and commits to a side
-  project score against the side-project goal. Default to the repository name
-  when unmapped.
+- `domain` — a slug of the repository name, overridable by an optional
+  user-configured repository-to-domain map. (`domain` must match
+  `/^[a-z0-9][a-z0-9_-]*$/`, so `owner/name` cannot be used literally.)
 - `metrics` — additions, deletions, changed files.
 - `url` — the commit URL.
 
-The repository-to-domain map is the piece that makes discrepancy detection work.
-Without it every commit lands in one undifferentiated bucket and the mentor
-cannot tell you that goal one is getting a fifth of your commits.
+**Revised during implementation.** The map was originally specified as required,
+on the theory that discrepancy detection needs commits scored against goals. That
+was wrong, and it produced a real bug: selection admitted a signal only on a
+domain or word match, so an unmapped repository was not merely unlabelled but
+*invisible* — and a model cannot reason about what it was never shown. The map
+was doing two jobs, and only one of them needs a human:
+
+- *Retrieval*, deciding which commits to show. It only matters above the twelve
+  signal cap, and a bounded window rarely reaches it. Measured cost is ~118
+  tokens per signal, so a week of commits is affordable without any filtering.
+- *Attribution*, deciding which goal a commit serves. The model does this better
+  from the repository name and commit message, because one repository can serve
+  several goals at once.
+
+So recency admits a signal on its own, relevance only orders, and the map is an
+optional ranking aid for repositories whose names say nothing useful.
 
 ## Configuration
 
 Let the user choose which repositories or organizations are in scope, and default
 to none rather than all. Fetching everything the token can see is a privacy
-decision made on the user's behalf, and the wrong one.
+decision made on the user's behalf, and the wrong one — but an explicit
+`all_repositories` opt-in is that decision made by the user, so it is offered.
+
+Bound the window with `lookback_days`, defaulting to a week. The horizon applies
+to the first sync only; later syncs continue from the last one, or a fortnight
+away from the app would silently drop the commits in between.
 
 Sync incrementally from the last successful `fetched_at`, never a full refetch.
 

@@ -60,6 +60,8 @@ const api: DesktopApi = {
     ipcRenderer.invoke("integrations:setPaused", paused),
   deleteIntegrationData: (id: string) =>
     ipcRenderer.invoke("integrations:deleteData", id),
+  saveGitHubScope: (scope: unknown) =>
+    ipcRenderer.invoke("integrations:saveGitHubScope", scope),
 
   // No getter for either credential. The renderer can learn that one exists
   // and can replace or remove it, but no channel returns a value

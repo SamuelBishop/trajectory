@@ -46,15 +46,68 @@ export const integrationPolicySchema = z.strictObject({
   retention_days: z.number().int().min(1).max(3650).default(180),
 });
 
+/**
+ * What the GitHub adapter is allowed to look at.
+ *
+ * Implements: [HC-NO-EXFILTRATION]
+ *
+ * Scope defaults to empty and empty means fetch nothing. A token can usually
+ * see far more than the user wants mentored, so reading everything it permits
+ * would be a privacy decision made on their behalf.
+ *
+ * `domains` is the piece that makes discrepancy detection work. `ActivitySignal.domain`
+ * has to match a `Goal.domain` for selection to connect them, and a repository
+ * name almost never does — mapping `octocat/api-service` to `career` is what
+ * lets the mentor notice that the promotion goal is getting a fifth of the
+ * commits. Unmapped repositories fall back to a slug of the repository name,
+ * which is honest but rarely matches a goal.
+ */
+export const githubConfigSchema = z.strictObject({
+  /** The commit author to search for. Empty means the adapter cannot run. */
+  login: z.string().trim().default(""),
+  /** `owner/name` entries. */
+  repositories: z.array(z.string().trim()).default([]),
+  /** Organization logins, which widen scope to every repository within. */
+  organizations: z.array(z.string().trim()).default([]),
+  /**
+   * Read every repository the token can see, instead of a named list.
+   *
+   * Off by default, because reading everything a credential permits is a
+   * decision that must be the user's rather than the default. Turning it on is
+   * that decision, made explicitly.
+   */
+  all_repositories: z.boolean().default(false),
+  /**
+   * How far back to look.
+   *
+   * A mentor is for what you are doing now, so the default is a week. Without
+   * this the first sync reaches back across all of history and returns hundreds
+   * of commits, which floods storage and burns the search budget to tell the
+   * user about work they have long since finished.
+   */
+  lookback_days: z.number().int().min(1).max(365).default(7),
+  /**
+   * Optional `owner/name` (or organization) to goal domain.
+   *
+   * A ranking aid, not a requirement. The model reads the repository name and
+   * the commit message and can infer which goal the work serves — often better
+   * than a fixed map, since one repository can serve several goals. Mapping is
+   * worth doing when a repository's name says nothing useful about the goal.
+   */
+  domains: z.record(z.string(), z.string()).default({}),
+});
+
 export const integrationsConfigSchema = z.strictObject({
   /** Stops every automatic sync across every integration at once. */
   paused: z.boolean().default(false),
   integrations: z.record(z.string(), integrationPolicySchema).default({}),
+  github: githubConfigSchema.prefault({}),
 });
 
 export type QuietHours = z.infer<typeof quietHoursSchema>;
 export type SyncModes = z.infer<typeof syncModesSchema>;
 export type IntegrationPolicy = z.infer<typeof integrationPolicySchema>;
+export type GitHubConfig = z.infer<typeof githubConfigSchema>;
 export type IntegrationsConfig = z.infer<typeof integrationsConfigSchema>;
 
 export const DEFAULT_POLICY: IntegrationPolicy =

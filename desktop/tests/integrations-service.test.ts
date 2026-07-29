@@ -5,6 +5,33 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { IntegrationService } from "../src/main/integrations";
+import { buildActivityContext } from "../src/engine/selection";
+
+/** Invented commit payload. No test here touches the network. */
+const githubStub = ((url: string) =>
+  Promise.resolve(
+    new Response(
+      JSON.stringify(
+        String(url).includes("/search/commits")
+          ? {
+              items: [
+                {
+                  sha: "abc123def4567890",
+                  html_url:
+                    "https://github.com/octo-sample/api-service/commit/abc123d",
+                  commit: {
+                    message: "Add retry handling to the importer",
+                    committer: { date: "2026-03-09T18:22:11Z" },
+                  },
+                  repository: { full_name: "octo-sample/api-service" },
+                },
+              ],
+            }
+          : { stats: { additions: 12, deletions: 3 }, files: [1] },
+      ),
+      { status: 200 },
+    ),
+  )) as unknown as typeof fetch;
 
 const temporaryDirectories: string[] = [];
 
@@ -55,13 +82,23 @@ describe("IntegrationService", () => {
 
     expect(view.paused).toBe(false);
     expect(view.encryptionAvailable).toBe(true);
-    expect(view.integrations).toHaveLength(1);
-    expect(view.integrations[0]).toMatchObject({
-      id: "fixture",
-      policy: { enabled: false },
-      signalCount: 0,
-      lastSyncedAt: null,
-      lastError: null,
+    expect(view.integrations.map((entry) => entry.id)).toEqual([
+      "fixture",
+      "github",
+    ]);
+    for (const entry of view.integrations) {
+      expect(entry).toMatchObject({
+        policy: { enabled: false },
+        signalCount: 0,
+        lastSyncedAt: null,
+        lastError: null,
+      });
+    }
+    // Nothing is in scope until the user puts it there.
+    expect(view.github).toMatchObject({
+      login: "",
+      repositories: [],
+      organizations: [],
     });
   });
 
@@ -164,6 +201,131 @@ describe("IntegrationService", () => {
     expect(view.integrations[0]?.lastSyncedAt).toBeNull();
   });
 
+  it("carries a GitHub commit all the way to the mentor's context", async () => {
+    const service = new IntegrationService(
+      await userDataPath(),
+      testEncryption,
+      () => Promise.resolve("token-value"),
+      () => Promise.resolve(["career"]),
+      githubStub,
+    );
+    await service.saveGitHubScope({
+      login: "sample-user",
+      repositories: ["octo-sample/api-service"],
+      domains: { "octo-sample/api-service": "career" },
+    });
+    await service.savePolicy("github", enabledPolicy);
+    await service.sync("github", "manual");
+
+    const view = await service.view();
+    const github = view.integrations.find((entry) => entry.id === "github");
+    expect(github?.lastError).toBeNull();
+    expect(github?.signalCount).toBe(1);
+
+    // The whole point of the adapter: a commit becomes a signal, the domain map
+    // makes it match a goal, and selection admits it for a relevant question.
+    const signals = await service.signalsForPrompt();
+    const context = buildActivityContext(
+      "How is my career work going?",
+      [{ domain: "career" }],
+      signals,
+      "2026-03-10",
+    );
+    expect(context?.signals.map((signal) => signal.id)).toEqual([
+      "github_abc123def456",
+    ]);
+    expect(context?.signals[0]?.summary).toBe("Add retry handling to the importer");
+  });
+
+  it("reaches the mentor even when the repository is mapped to no goal", async () => {
+    const service = new IntegrationService(
+      await userDataPath(),
+      testEncryption,
+      () => Promise.resolve("token-value"),
+      () => Promise.resolve(["career"]),
+      githubStub,
+    );
+    await service.saveGitHubScope({
+      login: "sample-user",
+      repositories: ["octo-sample/api-service"],
+      domains: {},
+    });
+    await service.savePolicy("github", enabledPolicy);
+    await service.sync("github", "manual");
+
+    // With no mapping the domain is a slug of the repository, matching no goal.
+    // It reaches the mentor anyway, which is the point: the model reads the
+    // repository name and the commit message and works out which goal the work
+    // serves. Requiring a hand-written map first made unmapped work invisible
+    // rather than merely unlabelled.
+    const signals = await service.signalsForPrompt();
+    expect(signals).toHaveLength(1);
+    expect(signals[0]?.domain).toBe("api-service");
+
+    const context = buildActivityContext(
+      "How is my career work going?",
+      [{ domain: "career" }],
+      signals,
+      "2026-03-10",
+    );
+    expect(context?.signals.map((item) => item.domain)).toEqual([
+      "api-service",
+    ]);
+  });
+
+  it("defaults to a bounded window and to reading no repository", async () => {
+    const service = new IntegrationService(await userDataPath(), testEncryption);
+    const view = await service.view();
+
+    // Both defaults are decisions the user has not made yet, so they take the
+    // conservative side: a week rather than all of history, and nothing rather
+    // than everything the credential can reach.
+    expect(view.github.lookbackDays).toBe(7);
+    expect(view.github.allRepositories).toBe(false);
+  });
+
+  it("round-trips the window and the all-repositories opt-in", async () => {
+    const service = new IntegrationService(await userDataPath(), testEncryption);
+    await service.saveGitHubScope({
+      login: "sample-user",
+      repositories: [],
+      organizations: [],
+      allRepositories: true,
+      lookbackDays: 30,
+      domains: {},
+    });
+
+    const view = await service.view();
+    expect(view.github.allRepositories).toBe(true);
+    expect(view.github.lookbackDays).toBe(30);
+  });
+
+  it("keeps the GitHub scope when an unrelated policy is saved", async () => {
+    const directory = await userDataPath();
+    const service = new IntegrationService(directory, testEncryption);
+    await service.saveGitHubScope({
+      login: "sample-user",
+      repositories: ["octo-sample/api-service"],
+      domains: { "octo-sample/api-service": "career" },
+    });
+
+    // Toggling any integration rewrites integrations.json. Rebuilding that file
+    // field by field would silently erase the scope the user configured.
+    await service.savePolicy("fixture", enabledPolicy);
+
+    const view = await service.view();
+    expect(view.github.login).toBe("sample-user");
+    expect(view.github.repositories).toEqual(["octo-sample/api-service"]);
+    expect(view.github.domains).toEqual({ "octo-sample/api-service": "career" });
+  });
+
+  it("refuses a GitHub scope it cannot validate", async () => {
+    const service = new IntegrationService(await userDataPath(), testEncryption);
+    await expect(
+      service.saveGitHubScope({ login: 5, repositories: "not-a-list" }),
+    ).rejects.toThrow();
+  });
+
   it("only sends the model activity from integrations that are on", async () => {
     const directory = await userDataPath();
     const service = new IntegrationService(directory, testEncryption);
@@ -190,13 +352,13 @@ describe("IntegrationService", () => {
 
   it("refuses to act on an integration it does not have", async () => {
     const service = new IntegrationService(await userDataPath(), testEncryption);
-    await expect(service.sync("github", "manual")).rejects.toThrow(
+    await expect(service.sync("nonesuch", "manual")).rejects.toThrow(
       /Unknown integration/,
     );
-    await expect(service.deleteData("github")).rejects.toThrow(
+    await expect(service.deleteData("nonesuch")).rejects.toThrow(
       /Unknown integration/,
     );
-    await expect(service.savePolicy("github", enabledPolicy)).rejects.toThrow(
+    await expect(service.savePolicy("nonesuch", enabledPolicy)).rejects.toThrow(
       /Unknown integration/,
     );
   });

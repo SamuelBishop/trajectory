@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import type { ActivitySignal } from "../../../src/engine/domain";
 import {
   buildRollup,
+  localDate,
   windowEndingToday,
 } from "../../../src/engine/integrations/rollup";
 
@@ -138,5 +139,33 @@ describe("activity rollup", () => {
       start: "2026-03-04",
       end: "2026-03-10",
     });
+  });
+});
+
+describe("localDate", () => {
+  const original = process.env.TZ;
+  afterEach(() => {
+    process.env.TZ = original;
+  });
+
+  it("names the user's day, not UTC's, on a Denver evening", () => {
+    process.env.TZ = "America/Denver";
+    // 23:11 UTC is 17:11 the same afternoon in Denver. UTC agrees here.
+    expect(localDate(new Date("2026-07-29T23:11:00.000Z"))).toBe("2026-07-29");
+
+    // 01:00 UTC is 19:00 the *previous* evening in Denver. This is the case
+    // that matters: someone reflecting on their day after dinner would have
+    // been told "today" was a day they had not lived yet.
+    const evening = new Date("2026-07-30T01:00:00.000Z");
+    expect(evening.toISOString().slice(0, 10)).toBe("2026-07-30");
+    expect(localDate(evening)).toBe("2026-07-29");
+  });
+
+  it("names the user's day east of Greenwich too", () => {
+    process.env.TZ = "Asia/Tokyo";
+    // 22:00 UTC is 07:00 the next morning in Tokyo.
+    const morning = new Date("2026-07-29T22:00:00.000Z");
+    expect(morning.toISOString().slice(0, 10)).toBe("2026-07-29");
+    expect(localDate(morning)).toBe("2026-07-30");
   });
 });

@@ -15,8 +15,10 @@ import {
   type MentorDocumentName,
   type UserDocumentName,
 } from "../engine/documents";
+import { loadUserConfig } from "../engine/config";
 import { providerNameSchema } from "../engine/domain";
 import { integrationPolicySchema } from "../engine/integrations";
+import { localDate } from "../engine/integrations/rollup";
 import {
   assertValidMentorId,
   deleteMentor,
@@ -166,10 +168,20 @@ export function registerIpcHandlers(): void {
     encryption,
   );
   const secrets = new SecretStore(SecretStore.defaultPath(userData), encryption);
-  const integrations = new IntegrationService(userData, encryption, (id) =>
-    // Only GitHub reuses an existing credential today; every other adapter
-    // arrives with its own secret key in a later change.
-    id === "github" ? secrets.read("githubToken") : Promise.resolve(undefined),
+  const integrations = new IntegrationService(
+    userData,
+    encryption,
+    (id) =>
+      // Only GitHub reuses an existing credential today; every other adapter
+      // arrives with its own secret key in a later change.
+      id === "github" ? secrets.read("githubToken") : Promise.resolve(undefined),
+    // Lazy on purpose: `localConfig` is declared below and this runs only when
+    // Settings asks for the view, long after both exist.
+    async () => {
+      const { userDirectory } = await localConfig();
+      const user = await loadUserConfig(userDirectory);
+      return [...new Set(user.goals.map((goal) => goal.domain))].sort();
+    },
   );
 
   /**
@@ -275,7 +287,7 @@ export function registerIpcHandlers(): void {
         directories,
         {
           signals: await integrations.signalsForPrompt(),
-          today: new Date().toISOString().slice(0, 10),
+          today: localDate(new Date()),
         },
       ));
     } catch (error) {
@@ -436,6 +448,12 @@ export function registerIpcHandlers(): void {
   });
   ipcMain.handle("integrations:deleteData", async (_event, id: unknown) => {
     await integrations.deleteData(requireIntegrationId(id));
+    return await integrations.view();
+  });
+  ipcMain.handle("integrations:saveGitHubScope", async (_event, scope: unknown) => {
+    // Parsed against the schema inside the service, so a malformed payload from
+    // a compromised renderer cannot widen what the adapter reads.
+    await integrations.saveGitHubScope(scope);
     return await integrations.view();
   });
 

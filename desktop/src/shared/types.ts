@@ -91,6 +91,7 @@ export interface DesktopApi {
     policy: IntegrationPolicyView,
   ): Promise<IntegrationsView>;
   setIntegrationsPaused(paused: boolean): Promise<IntegrationsView>;
+  saveGitHubScope(scope: GitHubScopeView): Promise<IntegrationsView>;
   /** Erases stored activity for one integration. There is no undo. */
   deleteIntegrationData(id: string): Promise<IntegrationsView>;
 
@@ -207,9 +208,28 @@ export interface IntegrationSummary {
   lastSkippedReason?: string;
 }
 
+/**
+ * The GitHub adapter's scope, as Settings edits it.
+ *
+ * `domains` is the part that does the work: `ActivitySignal.domain` must equal a
+ * `Goal.domain` for the mentor to connect a commit to a goal, and a repository
+ * name almost never does.
+ */
+export interface GitHubScopeView {
+  login: string;
+  repositories: string[];
+  organizations: string[];
+  allRepositories: boolean;
+  lookbackDays: number;
+  domains: Record<string, string>;
+}
+
 export interface IntegrationsView {
   paused: boolean;
   integrations: IntegrationSummary[];
   /** False when the OS cannot encrypt, which blocks storing activity at all. */
   encryptionAvailable: boolean;
+  github: GitHubScopeView;
+  /** Goal domains the user actually has, so the UI can offer real targets. */
+  goalDomains: string[];
 }

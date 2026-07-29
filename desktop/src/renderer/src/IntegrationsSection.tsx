@@ -17,12 +17,13 @@
 import { useEffect, useState } from "react";
 
 import type {
+  GitHubScopeView,
   IntegrationPolicyView,
   IntegrationSummary,
   IntegrationsView,
 } from "../../shared/types";
 import { toErrorMessage } from "./errors";
-import { Field, NumberInput, Toggle } from "./FormKit";
+import { Field, NumberInput, TagInput, TextInput, Toggle } from "./FormKit";
 
 function formatSyncedAt(value: string | null): string {
   if (value === null) return "Never synced.";
@@ -103,7 +104,16 @@ export function IntegrationsSection(): React.JSX.Element {
               integration={integration}
               busy={busy}
               onRun={run}
-            />
+            >
+              {integration.id === "github" && (
+                <GitHubScopeEditor
+                  scope={view.github}
+                  goalDomains={view.goalDomains}
+                  busy={busy}
+                  onRun={run}
+                />
+              )}
+            </IntegrationCard>
           ))}
         </>
       )}
@@ -115,10 +125,12 @@ function IntegrationCard({
   integration,
   busy,
   onRun,
+  children,
 }: {
   readonly integration: IntegrationSummary;
   readonly busy: boolean;
   readonly onRun: (action: () => Promise<IntegrationsView>) => void;
+  readonly children?: React.ReactNode;
 }): React.JSX.Element {
   const [draft, setDraft] = useState<IntegrationPolicyView>(integration.policy);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -209,6 +221,8 @@ function IntegrationCard({
         />
       </Field>
 
+      {children}
+
       <Field
         label="Keep history for (days)"
         hint="Older records are deleted the next time this integration syncs."
@@ -280,5 +294,150 @@ function IntegrationCard({
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * Which repositories GitHub may be read from, and which goal each one serves.
+ *
+ * The domain map is the part that makes the mentor useful rather than merely
+ * informed. `ActivitySignal.domain` has to equal a `Goal.domain` before
+ * selection will connect a commit to a goal, and a repository name almost never
+ * does — so the goals you actually have are offered here as suggestions, and an
+ * unmapped repository is called out rather than left to fail quietly.
+ */
+function GitHubScopeEditor({
+  scope,
+  goalDomains,
+  busy,
+  onRun,
+}: {
+  readonly scope: GitHubScopeView;
+  readonly goalDomains: readonly string[];
+  readonly busy: boolean;
+  readonly onRun: (action: () => Promise<IntegrationsView>) => void;
+}): React.JSX.Element {
+  const [draft, setDraft] = useState<GitHubScopeView>(scope);
+
+  useEffect(() => {
+    setDraft(scope);
+  }, [scope]);
+
+  const targets = [...draft.repositories, ...draft.organizations].filter(
+    (entry) => entry.length > 0,
+  );
+  const unmapped = targets.filter(
+    (entry) => (draft.domains[entry] ?? "").length === 0,
+  );
+  const dirty = JSON.stringify(draft) !== JSON.stringify(scope);
+
+  return (
+    <>
+      <Field
+        label="GitHub username"
+        hint="Whose commits to read. Only commits you authored are collected."
+      >
+        <TextInput
+          value={draft.login}
+          disabled={busy}
+          placeholder="octocat"
+          onChange={(login) => setDraft({ ...draft, login })}
+        />
+      </Field>
+
+      <Field
+        label="Days to look back"
+        hint="How recent a commit must be. A week keeps the mentor on what you are doing now."
+      >
+        <NumberInput
+          value={draft.lookbackDays}
+          min={1}
+          max={365}
+          disabled={busy}
+          onChange={(lookbackDays) => setDraft({ ...draft, lookbackDays })}
+        />
+      </Field>
+
+      <Toggle
+        label="Read every repository I can access"
+        checked={draft.allRepositories}
+        disabled={busy}
+        onChange={(allRepositories) => setDraft({ ...draft, allRepositories })}
+      />
+
+      {!draft.allRepositories && (
+        <>
+          <Field
+            label="Repositories"
+            hint="Comma separated, as owner/name. Empty means nothing is read at all."
+          >
+            <TagInput
+              value={draft.repositories}
+              disabled={busy}
+              placeholder="octocat/api-service, octocat/side-project"
+              onChange={(repositories) => setDraft({ ...draft, repositories })}
+            />
+          </Field>
+
+          <Field
+            label="Organizations"
+            hint="Comma separated. Widens scope to every repository in the organization."
+          >
+            <TagInput
+              value={draft.organizations}
+              disabled={busy}
+              placeholder="my-org"
+              onChange={(organizations) => setDraft({ ...draft, organizations })}
+            />
+          </Field>
+        </>
+      )}
+
+      {!draft.allRepositories && targets.length > 0 && (
+        <>
+          <p className="field-hint">
+            Optional. Recent commits reach the mentor either way, and it reads
+            the repository name and commit message to work out which goal they
+            serve. Map one only when its name says nothing useful.
+          </p>
+          {targets.map((entry) => (
+            <Field key={entry} label={entry}>
+              <TextInput
+                value={draft.domains[entry] ?? ""}
+                disabled={busy}
+                placeholder={
+                  goalDomains.length > 0
+                    ? `e.g. ${goalDomains.join(", ")}`
+                    : "a goal domain"
+                }
+                onChange={(domain) =>
+                  setDraft({
+                    ...draft,
+                    domains: { ...draft.domains, [entry]: domain },
+                  })
+                }
+              />
+            </Field>
+          ))}
+        </>
+      )}
+
+      {unmapped.length > 0 && (
+        <p className="field-hint">
+          Not yet mapped to a goal: {unmapped.join(", ")}.
+        </p>
+      )}
+
+      <div className="save-bar">
+        <span className="save-status" />
+        <button
+          type="button"
+          disabled={busy || !dirty}
+          onClick={() => onRun(() => window.trajectory.saveGitHubScope(draft))}
+        >
+          Save scope
+        </button>
+      </div>
+    </>
   );
 }

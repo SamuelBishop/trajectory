@@ -162,12 +162,12 @@ export function SettingsView({
         <div className="editor">
           <div className="editor-body">
             <CredentialSection
-              title="GitHub Copilot credential"
+              title="GitHub credential"
               stored={secretStatus?.hasGithubToken === true}
               encryptionAvailable={secretStatus?.encryptionAvailable !== false}
               placeholder="ghp_…"
-              storedNote="A token is stored and encrypted on this device. It is never displayed again."
-              emptyNote="No token stored. Copilot will use the login from the Copilot CLI if there is one. An app launched from Finder inherits no shell environment, so a token is required on a machine that has never signed in."
+              storedNote="A token is stored and encrypted on this device. It is never displayed again. It is used both for the Copilot model and, if you enable GitHub commits, for reading your commit history — so it needs repository read access for that."
+              emptyNote="No token stored. Copilot will use the login from the Copilot CLI if there is one. An app launched from Finder inherits no shell environment, so a token is required on a machine that has never signed in. The GitHub commits integration always needs a token here — signing in above authorizes the model, not reading your repositories."
               unavailableNote={
                 <>
                   This device cannot encrypt local storage, so Trajectory will

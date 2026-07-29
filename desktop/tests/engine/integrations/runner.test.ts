@@ -139,6 +139,7 @@ describe("runSync", () => {
       hosts: ["api.example.com"],
       label: "Needy",
       requiresCredential: true,
+      credentialHint: "Add a Needy token in Settings.",
       fetch: () => {
         fetched = true;
         return Promise.resolve([]);
@@ -157,17 +158,43 @@ describe("runSync", () => {
     expect(fetched).toBe(false);
     expect(outcome.status).toBe("failed");
     expect(sink.failures[0]).toContain("needs a credential");
+    // The remedy travels with the refusal. "Needs a credential" alone sent a
+    // user who had just signed in with GitHub looking for a setting they had
+    // already filled in, because a different token was meant.
+    expect(sink.failures[0]).toContain("Add a Needy token in Settings.");
+  });
+
+  it("makes every credentialed adapter say where to get one", () => {
+    for (const adapter of createAdapters({ now: () => now })) {
+      if (adapter.requiresCredential) {
+        expect(adapter.credentialHint.length).toBeGreaterThan(0);
+      }
+    }
   });
 });
 
 describe("adapter registry", () => {
-  it("ships only the offline fixture for now", () => {
-    const adapters = createAdapters(() => now);
-    expect(adapters.map((adapter) => adapter.id)).toEqual(["fixture"]);
+  it("ships the offline fixture and GitHub commits", () => {
+    const adapters = createAdapters({ now: () => now });
+    expect(adapters.map((adapter) => adapter.id)).toEqual(["fixture", "github"]);
   });
 
-  it("declares no outbound hosts, because nothing here makes a call", () => {
-    expect(declaredHosts(createAdapters(() => now))).toEqual([]);
+  it("contacts only the hosts the constitution names", () => {
+    // [HC-NO-EXFILTRATION] fixes the allowlist at api.github.com,
+    // api.notion.com, and www.strava.com. A fourth host is a constitution
+    // change, so this assertion is the machine-readable half of that promise.
+    expect(declaredHosts(createAdapters({ now: () => now }))).toEqual([
+      "api.github.com",
+    ]);
+  });
+
+  it("declares a credential requirement only where one is needed", () => {
+    const adapters = createAdapters({ now: () => now });
+    expect(
+      Object.fromEntries(
+        adapters.map((adapter) => [adapter.id, adapter.requiresCredential]),
+      ),
+    ).toEqual({ fixture: false, github: true });
   });
 });
 

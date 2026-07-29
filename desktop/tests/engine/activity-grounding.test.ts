@@ -54,14 +54,62 @@ async function demoResult(signals: readonly ActivitySignal[] = []) {
 }
 
 describe("activity selection", () => {
-  it("selects no signals when nothing matches, and sends null", async () => {
+  it("selects no signals when an unmatched one is also old, and sends null", () => {
+    const stale = signal({
+      id: "fixture_unrelated",
+      domain: "gardening",
+      summary: "Repotted the seedlings",
+      occurred_at: "2025-01-01",
+    });
+    expect(selectActivitySignals(question, goals, [stale], { today })).toEqual(
+      [],
+    );
+    expect(buildActivityContext(question, goals, [stale], today)).toBeNull();
+  });
+
+  it("admits a recent signal that matches neither a goal nor the question", () => {
+    // Recency is a way in on its own. Requiring a match meant an unmapped
+    // repository was not merely hard to interpret but absent, and a model
+    // cannot reason about what it was never shown. Deciding that a commit to
+    // `gardening` is off-topic is the model's job, not selection's.
     const unrelated = signal({
       id: "fixture_unrelated",
       domain: "gardening",
       summary: "Repotted the seedlings",
     });
-    expect(selectActivitySignals(question, goals, [unrelated])).toEqual([]);
-    expect(buildActivityContext(question, goals, [unrelated], today)).toBeNull();
+    expect(
+      selectActivitySignals(question, goals, [unrelated], { today }).map(
+        (item) => item.id,
+      ),
+    ).toEqual(["fixture_unrelated"]);
+    expect(
+      buildActivityContext(question, goals, [unrelated], today),
+    ).not.toBeNull();
+  });
+
+  it("still ranks a matching older signal above a recent unrelated one", () => {
+    const selected = selectActivitySignals(
+      question,
+      goals,
+      [
+        signal({
+          id: "fixture_recent_noise",
+          domain: "gardening",
+          summary: "Repotted the seedlings",
+        }),
+        signal({
+          id: "fixture_old_match",
+          domain: "career",
+          summary: "Wrote notes",
+          occurred_at: "2026-03-04",
+        }),
+      ],
+      { today },
+    );
+    expect(selected.map((item) => item.id)).toEqual([
+      "fixture_old_match",
+      "fixture_recent_noise",
+    ]);
   });
 
   it("sends null rather than an empty scaffold when there is no activity", () => {

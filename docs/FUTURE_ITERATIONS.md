@@ -159,7 +159,8 @@ requirements those prompts satisfy; each prompt ticks its own.
 
 - [ ] Define a stable task-provider interface.
 - [ ] Define a stable calendar-provider interface.
-- [ ] Define a code-hosting activity interface.
+- [x] Define a code-hosting activity interface. — P3. `ActivityAdapter` plus
+      the GitHub commits implementation that establishes the pattern.
 - [ ] Define a screen-time analytics interface.
 - [ ] Define a journal-entry interface.
 - [ ] Define a fitness and recovery interface.
@@ -167,7 +168,27 @@ requirements those prompts satisfy; each prompt ticks its own.
 - [ ] Add a generic CSV task importer.
 - [ ] Add a generic CSV screen-time importer with date, application, category, duration, pickups, and source device.
 - [ ] Add local JSON or Markdown daily check-in import.
-- [ ] Add GitHub activity ingestion using explicit token authorization.
+- [x] Add GitHub activity ingestion using explicit token authorization. — P3.
+      Commit search scoped to repositories the user names, using the stored
+      token. Individual commits only; see the aggregate item below.
+- [ ] Split the GitHub credential into one slot per purpose. One stored
+      `githubToken` currently serves both the Copilot model and the commits
+      adapter, so reading commit history requires granting repository access to
+      the same secret that talks to the model, and a token stored for Copilot
+      alone fails the integration at request time rather than at the point the
+      user chose it. Separate slots would let each purpose ask for exactly what
+      it needs, and would let the user revoke one without losing the other. The
+      Settings copy now states the sharing plainly, which is honest but is not
+      the same as fixing it.
+- [ ] Decide whether GitHub's `contributionsCollection` is worth adding. P3
+      specified it and P3 deliberately did not build it, for two reasons worth
+      re-examining rather than inheriting. It reports contribution counts across
+      every repository the token can see, which contradicts the same prompt's
+      rule that scope defaults to none and the user names what is in scope. And
+      `ActivityRollup` is already computed locally from stored signals, so a
+      second, differently-derived source of the same numbers could disagree with
+      the first. If per-repository breakdowns beyond the chosen scope turn out to
+      matter, this needs a deliberate decision about which source wins.
 - [ ] Add a Notion adapter interface and later a minimal implementation.
 - [ ] Add exported or manually created screen-time data before attempting platform collectors.
 - [ ] Document future platform-specific collectors.
