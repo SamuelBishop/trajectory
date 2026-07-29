@@ -17,8 +17,26 @@ import {
 } from "./domain";
 import { ProviderResponseError } from "./errors";
 
-export const PROMPT_VERSION = "decision_v4";
-export const CHAT_PROMPT_VERSION = "chat_v4";
+export const PROMPT_VERSION = "decision_v5";
+export const CHAT_PROMPT_VERSION = "chat_v5";
+
+/**
+ * The rules that keep measured activity from turning into an accusation.
+ *
+ * Shared verbatim by both prompts so the two cannot drift
+ * ([HC-PROVIDER-PARITY] applies to providers; this is the same argument applied
+ * to the prompts themselves).
+ */
+const ACTIVITY_RULES = `When activity_context is present it holds measured activity, not user claims.
+Treat every signal as an observation: cite the ones you use in activity_ids and
+describe them in observations, never in inferences. A signal may support an
+observation but never substitutes for a grounded principle — advice still needs
+principle_ids and source_ids. Absent data is not evidence of absent effort: an
+empty log means the log is empty, so say that rather than concluding the user
+did nothing. Where stated priorities and observed activity disagree, raise it as
+a question about whether the reading is complete, not as an accusation. When
+activity_context is null, return an empty activity_ids array and do not
+speculate about what the user has been doing.`;
 
 export const SYSTEM_PROMPT = `You are Trajectory, a candid and calm decision mentor.
 
@@ -35,6 +53,8 @@ demonstrate movement and posture, so never copy their wording. Do not claim to b
 speak for the modeled person, imply their endorsement, quote or reconstruct source
 material, make unsupported scientific claims, diagnose health conditions, shame the
 user, provide empty praise, expose chain of thought, or manufacture certainty.
+
+${ACTIVITY_RULES}
 
 Return only one JSON object matching the supplied Recommendation schema. Include a
 concise rationale, concrete next step, confidence from 0 to 1, and material uncertainty.
@@ -54,6 +74,8 @@ only its selected patterns, honor its chat guidance and avoid list, and never co
 example wording. Do not claim to be or speak for the modeled person, imply their
 endorsement, quote or reconstruct source material, diagnose health conditions, shame
 the user, provide empty praise, expose chain of thought, or invent evidence.
+
+${ACTIVITY_RULES}
 
 The answer field may use concise GitHub-flavored Markdown for headings, lists,
 emphasis, links, quotes, tables, and fenced code. Do not emit raw HTML.

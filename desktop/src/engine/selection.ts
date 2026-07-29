@@ -8,6 +8,8 @@
  */
 
 import type {
+  ActivityContext,
+  ActivitySignal,
   Goal,
   MentorPrinciple,
   MentorResources,
@@ -20,6 +22,7 @@ import type {
   VoiceSelectionCount,
 } from "./domain";
 import { InsufficientContextError } from "./errors";
+import { buildRollup, windowEndingToday } from "./integrations/rollup";
 
 const TOKEN_PATTERN = /[a-z0-9]+/g;
 
@@ -325,4 +328,92 @@ function countBounds(value: VoiceSelectionCount): {
   }
   const [minimum, maximum] = value.split("-").map(Number) as [number, number];
   return { minimum, maximum };
+}
+
+/**
+ * The most signals any one question may carry.
+ *
+ * A budget, not a starting point. The mentor's own principles and voice share
+ * this context window, and a wall of commits would crowd out the reasoning that
+ * makes the answer worth reading.
+ */
+export const ACTIVITY_SIGNAL_LIMIT = 12;
+
+/** How far back a rollup looks. */
+const ACTIVITY_WINDOW_DAYS = 30;
+
+/**
+ * Pick the signals worth showing for one message.
+ *
+ * Two ways in, and recency is neither of them. A signal qualifies by sharing a
+ * domain with a selected goal, or by overlapping the message's own words.
+ * Recency only orders what already qualified — otherwise yesterday's unrelated
+ * commit would displace last week's directly relevant one.
+ */
+export function selectActivitySignals(
+  message: string,
+  // Only the domain is read. Saying so keeps the function callable without
+  // fabricating a whole Goal, and makes the coupling to `Goal.domain` explicit.
+  goals: readonly Pick<Goal, "domain">[],
+  signals: readonly ActivitySignal[],
+  limit = ACTIVITY_SIGNAL_LIMIT,
+): ActivitySignal[] {
+  if (limit <= 0 || signals.length === 0) {
+    return [];
+  }
+  const queryTokens = tokens(message);
+  const goalDomains = new Set(goals.map((goal) => goal.domain));
+
+  return signals
+    .map((signal) => ({
+      signal,
+      score:
+        (goalDomains.has(signal.domain) ? 2 : 0) +
+        score(queryTokens, [signal.summary, signal.domain, signal.kind]),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        right.signal.occurred_at.localeCompare(left.signal.occurred_at) ||
+        left.signal.id.localeCompare(right.signal.id),
+    )
+    .slice(0, limit)
+    .map((entry) => entry.signal);
+}
+
+/**
+ * Assemble the activity half of a request, or null when there is nothing to
+ * say.
+ *
+ * Null rather than an empty scaffold is deliberate: `{signals: [], rollups: []}`
+ * reads to a model as "we looked and found nothing," which is a claim about the
+ * user. Null says only that no activity was supplied.
+ */
+export function buildActivityContext(
+  message: string,
+  goals: readonly Pick<Goal, "domain">[],
+  signals: readonly ActivitySignal[],
+  today: string,
+): ActivityContext | null {
+  const selected = selectActivitySignals(message, goals, signals);
+  if (selected.length === 0) {
+    return null;
+  }
+
+  // Rollups are computed over everything stored for the contributing
+  // integrations, not just the selected signals. The point of a rollup is the
+  // shape of the whole window — a streak counted only over what selection
+  // admitted would be an artifact of selection.
+  const window = windowEndingToday(ACTIVITY_WINDOW_DAYS, today);
+  const integrationIds = [
+    ...new Set(selected.map((signal) => signal.integration_id)),
+  ].sort();
+
+  return {
+    signals: selected,
+    rollups: integrationIds.map((integrationId) =>
+      buildRollup(integrationId, signals, window.start, window.end),
+    ),
+  };
 }

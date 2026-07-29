@@ -273,6 +273,10 @@ export function registerIpcHandlers(): void {
           githubToken: await secrets.read("githubToken"),
         }),
         directories,
+        {
+          signals: await integrations.signalsForPrompt(),
+          today: new Date().toISOString().slice(0, 10),
+        },
       ));
     } catch (error) {
       console.error(`Chat failed via "${provider}":`, describeCauseChain(error));

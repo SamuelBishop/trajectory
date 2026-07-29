@@ -64,6 +64,9 @@ export class DeterministicProvider implements MentorProvider {
       goal_ids: [goal.id],
       principle_ids: [principle.id],
       source_ids: [sourceId],
+      // The committed demo is grounded in configuration, not activity. Citing
+      // a signal here would be inventing one.
+      activity_ids: [],
       observations: [
         `The user asked: "${request.question}"`,
         "The current-state file says the pull request is functionally complete.",
@@ -112,6 +115,7 @@ export class DeterministicProvider implements MentorProvider {
       goal_ids: [goal.id],
       principle_ids: [principle.id],
       source_ids: [source.id],
+      activity_ids: [],
       observations: [
         "The current state describes the pull request as functionally complete.",
         "The design proposal has been postponed twice.",

@@ -25,8 +25,8 @@ describe("voice runtime context", () => {
       directories,
     );
 
-    expect(decision.request.prompt_version).toBe("decision_v4");
-    expect(chat.request.prompt_version).toBe("chat_v4");
+    expect(decision.request.prompt_version).toBe("decision_v5");
+    expect(chat.request.prompt_version).toBe("chat_v5");
     expect(decision.request.voice_context?.examples.length).toBeLessThanOrEqual(2);
     expect(chat.request.voice_context?.patterns).toHaveLength(1);
     expect(chat.request.voice_context?.avoid).toContain("invented evidence");

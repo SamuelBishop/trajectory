@@ -11,6 +11,7 @@ function validRecommendation(): Record<string, unknown> {
     goal_ids: ["career_001"],
     principle_ids: ["demo_opportunity_cost_001"],
     source_ids: ["demo_source_001"],
+    activity_ids: [],
     observations: ["The pull request is described as low risk."],
     inferences: ["More polish may be perfectionism."],
     alternatives_considered: ["Keep polishing.", "Submit after a short check."],

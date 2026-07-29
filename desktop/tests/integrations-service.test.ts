@@ -164,6 +164,30 @@ describe("IntegrationService", () => {
     expect(view.integrations[0]?.lastSyncedAt).toBeNull();
   });
 
+  it("only sends the model activity from integrations that are on", async () => {
+    const directory = await userDataPath();
+    const service = new IntegrationService(directory, testEncryption);
+    await service.savePolicy("fixture", enabledPolicy);
+    await service.sync("fixture", "manual");
+    expect(await service.signalsForPrompt()).toHaveLength(5);
+
+    // Turning an integration off stops it reaching the model immediately. The
+    // records stay on disk until the user deletes them, but they are no longer
+    // something the mentor gets to reason from.
+    await service.savePolicy("fixture", { ...enabledPolicy, enabled: false });
+    expect(await service.signalsForPrompt()).toEqual([]);
+    expect((await service.view()).integrations[0]?.signalCount).toBe(5);
+  });
+
+  it("sends the model no activity when encryption is unavailable", async () => {
+    const service = new IntegrationService(
+      await userDataPath(),
+      unavailableEncryption,
+    );
+    await service.savePolicy("fixture", enabledPolicy);
+    expect(await service.signalsForPrompt()).toEqual([]);
+  });
+
   it("refuses to act on an integration it does not have", async () => {
     const service = new IntegrationService(await userDataPath(), testEncryption);
     await expect(service.sync("github", "manual")).rejects.toThrow(

@@ -87,6 +87,36 @@ function validateCitations(
   }
 }
 
+/**
+ * Cited signals must exist in the context that was sent.
+ *
+ * Implements: [HC-CITATIONS-RESOLVE]
+ *
+ * One direction only, unlike sources. A model is not obliged to cite every
+ * signal it was shown, because signals are context rather than support — being
+ * told about six commits and mentioning one is normal. The reverse check that
+ * `[HC-BIDIRECTIONAL-ATTRIBUTION]` applies to sources would be wrong here, and
+ * routing signals through `source_ids` to inherit it would be worse: a commit
+ * would start counting as evidence for a principle.
+ */
+function validateActivityCitations(
+  activityIds: string[],
+  request: DecisionRequest | ChatRequest,
+): void {
+  if (activityIds.length === 0) {
+    return;
+  }
+  const available = new Set(
+    (request.activity_context?.signals ?? []).map((signal) => signal.id),
+  );
+  const unknownSignals = unknown(activityIds, available);
+  if (unknownSignals.length > 0) {
+    throw new AttributionError(
+      `Recommendation cites unknown activity signals: ${unknownSignals.join(", ")}`,
+    );
+  }
+}
+
 export function validateRecommendation(
   recommendation: Recommendation,
   request: DecisionRequest,
@@ -97,6 +127,7 @@ export function validateRecommendation(
     recommendation.source_ids,
     request,
   );
+  validateActivityCitations(recommendation.activity_ids, request);
 }
 
 export function validateChatResponse(
@@ -109,6 +140,7 @@ export function validateChatResponse(
     response.source_ids,
     request,
   );
+  validateActivityCitations(response.activity_ids, request);
 }
 
 export function validateDemoGrounding(

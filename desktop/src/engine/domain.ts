@@ -330,6 +330,24 @@ export const activityRollupSchema = z.strictObject({
   streak_days: z.number().int().min(0),
 });
 
+/**
+ * The activity the model is allowed to see for one question.
+ *
+ * Implements: [HC-OBSERVATION-VS-INFERENCE]
+ *
+ * A sibling of `voice_context` on the request, never merged into
+ * `current_state`. `current_state` is what the user claims about themselves;
+ * this is what was measured. Keeping them apart is what lets the user reject a
+ * conclusion without having to doubt the reading underneath it.
+ *
+ * Both halves are already bounded by selection. This never carries the store.
+ */
+export const activityContextSchema = z.strictObject({
+  signals: z.array(activitySignalSchema),
+  /** One per integration that contributed a selected signal. */
+  rollups: z.array(activityRollupSchema),
+});
+
 export const chatMessageSchema = z.strictObject({
   role: z.enum(["user", "assistant"]),
   content: chatText,
@@ -346,6 +364,7 @@ export const decisionRequestSchema = z.strictObject({
   principles: z.array(mentorPrincipleSchema).min(1),
   sources: z.array(sourceRecordSchema).min(1),
   voice_context: voiceRuntimeContextSchema.nullable(),
+  activity_context: activityContextSchema.nullable(),
   provider: identifier,
   prompt_version: identifier,
 });
@@ -362,6 +381,7 @@ export const chatRequestSchema = z.strictObject({
   principles: z.array(mentorPrincipleSchema).min(1),
   sources: z.array(sourceRecordSchema).min(1),
   voice_context: voiceRuntimeContextSchema.nullable(),
+  activity_context: activityContextSchema.nullable(),
   provider: identifier,
   prompt_version: identifier,
 });
@@ -377,6 +397,14 @@ export const recommendationSchema = z.strictObject({
   goal_ids: z.array(identifier).min(1),
   principle_ids: z.array(identifier).min(1),
   source_ids: z.array(identifier).min(1),
+  /**
+   * Signals cited as observations. Required but may be empty — every property
+   * of this schema is listed in `required` ([HC-STRICT-SCHEMA-REQUIRED]), and
+   * the normal case is that no integration is enabled. A separate lane from
+   * `source_ids` on purpose: a commit is evidence about the user, not support
+   * for a mentor's principle.
+   */
+  activity_ids: z.array(identifier),
   observations: z.array(text).min(1),
   inferences: z.array(text).min(1),
   alternatives_considered: z.array(text).min(2),
@@ -391,6 +419,8 @@ export const chatResponseSchema = z.strictObject({
   goal_ids: z.array(identifier).min(1),
   principle_ids: z.array(identifier).min(1),
   source_ids: z.array(identifier).min(1),
+  /** See `recommendationSchema.activity_ids`. Required, may be empty. */
+  activity_ids: z.array(identifier),
   observations: z.array(text),
   inferences: z.array(text),
   confidence,
@@ -436,6 +466,7 @@ export type ActivitySignalKind = z.infer<typeof activitySignalKindSchema>;
 export type ActivityProvenance = z.infer<typeof activityProvenanceSchema>;
 export type ActivitySignal = z.infer<typeof activitySignalSchema>;
 export type ActivityRollup = z.infer<typeof activityRollupSchema>;
+export type ActivityContext = z.infer<typeof activityContextSchema>;
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
 export type DecisionRequest = z.infer<typeof decisionRequestSchema>;
 export type ChatRequest = z.infer<typeof chatRequestSchema>;

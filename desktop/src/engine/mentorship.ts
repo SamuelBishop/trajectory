@@ -7,6 +7,7 @@
 
 import { loadMentorResources, loadUserConfig } from "./config";
 import type {
+  ActivitySignal,
   ChatMessage,
   ChatRequest,
   ChatResult,
@@ -19,6 +20,7 @@ import { InsufficientContextError } from "./errors";
 import { CHAT_PROMPT_VERSION, PROMPT_VERSION } from "./prompting";
 import type { MentorProvider } from "./providers/types";
 import {
+  buildActivityContext,
   buildVoiceContext,
   selectGoals,
   selectPrinciples,
@@ -35,6 +37,19 @@ export interface EngineDirectories {
   readonly mentorDirectory: string;
 }
 
+/**
+ * Observed activity, supplied by the caller rather than read here.
+ *
+ * The engine takes no clock and opens no encrypted store — both belong to the
+ * main process, exactly as chat history does. Absent options mean no
+ * integration is enabled, which is the normal case.
+ */
+export interface ActivityInput {
+  readonly signals: readonly ActivitySignal[];
+  /** ISO calendar date the rollup window ends on. */
+  readonly today: string;
+}
+
 const HISTORY_LIMIT = 20;
 const FALLBACK_LIMIT = 3;
 
@@ -42,6 +57,7 @@ export async function reviewDecision(
   question: string,
   provider: MentorProvider,
   directories: EngineDirectories,
+  activity?: ActivityInput,
 ): Promise<DecisionResult> {
   const user = await loadUserConfig(directories.userDirectory);
   const resources = await loadMentorResources(directories.mentorDirectory);
@@ -50,6 +66,9 @@ export async function reviewDecision(
   const sources = selectSources(principles, resources);
   const voiceContext = resources.voice
     ? buildVoiceContext(question, goals, principles, resources.voice)
+    : null;
+  const activityContext = activity
+    ? buildActivityContext(question, goals, activity.signals, activity.today)
     : null;
 
   const request: DecisionRequest = {
@@ -63,6 +82,7 @@ export async function reviewDecision(
     principles,
     sources,
     voice_context: voiceContext,
+    activity_context: activityContext,
     provider: provider.name,
     prompt_version: PROMPT_VERSION,
   };
@@ -82,6 +102,7 @@ export async function chatWithMentor(
   history: ChatMessage[],
   provider: MentorProvider,
   directories: EngineDirectories,
+  activity?: ActivityInput,
 ): Promise<ChatResult> {
   const user = await loadUserConfig(directories.userDirectory);
   const resources = await loadMentorResources(directories.mentorDirectory);
@@ -122,6 +143,9 @@ export async function chatWithMentor(
   const voiceContext = resources.voice
     ? buildVoiceContext(message, goals, principles, resources.voice)
     : null;
+  const activityContext = activity
+    ? buildActivityContext(message, goals, activity.signals, activity.today)
+    : null;
 
   const request: ChatRequest = {
     message,
@@ -135,6 +159,7 @@ export async function chatWithMentor(
     principles,
     sources,
     voice_context: voiceContext,
+    activity_context: activityContext,
     provider: provider.name,
     prompt_version: CHAT_PROMPT_VERSION,
   };

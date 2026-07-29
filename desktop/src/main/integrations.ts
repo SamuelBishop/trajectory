@@ -20,6 +20,7 @@ import {
   type SyncTrigger,
 } from "../engine/integrations";
 import type { ActivityAdapter } from "../engine/integrations/types";
+import type { ActivitySignal } from "../engine/domain";
 import type {
   IntegrationPolicyView,
   IntegrationSummary,
@@ -150,6 +151,31 @@ export class IntegrationService {
         );
       });
     }
+  }
+
+  /**
+   * The signals chat may ground in.
+   *
+   * Only enabled integrations contribute. Turning one off means "stop using
+   * this", so leaving its stored records in the prompt would make the toggle a
+   * lie — the data stays on disk until the user deletes it, but it stops
+   * reaching the model immediately.
+   */
+  async signalsForPrompt(): Promise<ActivitySignal[]> {
+    if (!this.encryptionAvailable()) {
+      return [];
+    }
+    const config = await loadIntegrationsConfig(this.userDataPath);
+    const enabled = new Set(
+      this.adapters
+        .filter((adapter) => policyFor(config, adapter.id).enabled)
+        .map((adapter) => adapter.id),
+    );
+    if (enabled.size === 0) {
+      return [];
+    }
+    const signals = await this.store.list();
+    return signals.filter((signal) => enabled.has(signal.integration_id));
   }
 
   async savePolicy(
