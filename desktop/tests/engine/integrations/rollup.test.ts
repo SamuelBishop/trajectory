@@ -21,6 +21,7 @@ function signal(
     summary: `Invented record ${id}`,
     domain,
     metrics,
+    completed: null,
     url: null,
     provenance: {
       fetched_at: "2026-03-10T12:00:00.000Z",
@@ -77,6 +78,41 @@ describe("activity rollup", () => {
       "2026-03-10",
     );
     expect(rollup.totals).toEqual({ distance_m: 18_000 });
+  });
+
+  it("counts finished and unfinished work apart", () => {
+    // One total would let a long to-do list read as a productive week.
+    const rollup = buildRollup(
+      "fixture",
+      [
+        { ...signal("a", "2026-03-10", "career"), completed: true },
+        { ...signal("b", "2026-03-10", "career"), completed: false },
+        { ...signal("c", "2026-03-10", "career"), completed: false },
+        signal("d", "2026-03-10", "career"),
+      ],
+      "2026-03-04",
+      "2026-03-10",
+    );
+
+    expect(rollup.signal_count).toBe(4);
+    expect(rollup.completed_count).toBe(1);
+    expect(rollup.open_count).toBe(2);
+  });
+
+  it("does not let a day of unfinished plans hold a streak", () => {
+    // Writing a task down is not doing it. The streak is the number people read
+    // as proof of consistency, so listing must not be able to keep it alive.
+    const rollup = buildRollup(
+      "fixture",
+      [
+        { ...signal("a", "2026-03-10", "career"), completed: false },
+        { ...signal("b", "2026-03-09", "career"), completed: true },
+      ],
+      "2026-03-04",
+      "2026-03-10",
+    );
+
+    expect(rollup.streak_days).toBe(0);
   });
 
   it("counts a streak backwards from the end of the window", () => {

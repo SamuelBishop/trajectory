@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { ActivitySignal } from "../src/engine/domain";
+import { activitySignalSchema, type ActivitySignal } from "../src/engine/domain";
 import { EncryptedActivityStore } from "../src/main/activity-store";
 
 const temporaryDirectories: string[] = [];
@@ -48,6 +48,7 @@ function signal(overrides: Partial<ActivitySignal> = {}): ActivitySignal {
     occurred_at: "2026-03-10",
     summary: "Invented sample record",
     domain: "training",
+    completed: null,
     metrics: { distance_m: 10_000 },
     url: null,
     provenance: {
@@ -63,6 +64,17 @@ function signal(overrides: Partial<ActivitySignal> = {}): ActivitySignal {
 const merge = { retentionDays: 180, today: "2026-03-10", syncedAt: "2026-03-10T12:00:00.000Z" };
 
 describe("EncryptedActivityStore", () => {
+  it("loads records written before completion was tracked", async () => {
+    // The field arrived after this user already had months of stored signals.
+    // Rejecting them would silently empty the log the mentor reasons from, and
+    // an unreadable record is dropped by safeParse without a word.
+    const { completed: _dropped, ...legacy } = signal();
+    const parsed = activitySignalSchema.safeParse(legacy);
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.completed).toBeNull();
+  });
+
   it("writes no plaintext activity to disk", async () => {
     const filePath = await temporaryFile();
     const store = new EncryptedActivityStore(filePath, testEncryption);

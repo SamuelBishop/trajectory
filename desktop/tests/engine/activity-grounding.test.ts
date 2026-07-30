@@ -8,7 +8,11 @@ import {
   buildActivityContext,
   selectActivitySignals,
 } from "../../src/engine/selection";
-import { buildUserMessage } from "../../src/engine/prompting";
+import {
+  CHAT_SYSTEM_PROMPT,
+  SYSTEM_PROMPT,
+  buildUserMessage,
+} from "../../src/engine/prompting";
 import { DeterministicProvider } from "../../src/engine/providers/deterministic";
 import {
   validateChatResponse,
@@ -32,6 +36,7 @@ function signal(overrides: Partial<ActivitySignal> = {}): ActivitySignal {
     occurred_at: today,
     summary: "Invented record for a test",
     domain: "career",
+    completed: null,
     metrics: {},
     url: null,
     provenance: {
@@ -287,6 +292,25 @@ describe("activity on the request", () => {
     expect(JSON.stringify(request.current_state)).not.toContain(
       "fixture_career",
     );
+  });
+
+  it("carries an unfinished task to the model as unfinished", async () => {
+    // The field is only worth having if it survives the trip. It is serialized
+    // with the rest of the request, and the rules have to say what it means —
+    // a value the prompt never explains is one the model will guess at.
+    const { request } = await demoResult([
+      signal({ id: "fixture_open", domain: "career", completed: false }),
+    ]);
+    const message = buildUserMessage(request);
+
+    expect(request.activity_context?.signals[0]?.completed).toBe(false);
+    expect(message).toContain('"completed":false');
+    // Both prompts, because a rule in only one of them drifts ([HC-PROVIDER-PARITY]
+    // applied to the prompts). A value the prompt never explains is one the
+    // model will guess at, and the guess here is "this got done".
+    for (const prompt of [SYSTEM_PROMPT, CHAT_SYSTEM_PROMPT]) {
+      expect(prompt).toContain("stated intention, not evidence of activity");
+    }
   });
 
   it("keeps observations and inferences in separate fields when activity is present", async () => {

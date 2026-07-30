@@ -205,6 +205,9 @@ export class GitHubCommitsAdapter {
         occurred_at: occurredAt,
         summary: commitSummary(item.commit.message),
         domain: domainFor(config, repository),
+        // A commit is an event, not a task. It was never open, so neither true
+        // nor false is honest here.
+        completed: null,
         metrics:
           index < MAX_ENRICHED
             ? await this.stats(repository, item.sha, token)

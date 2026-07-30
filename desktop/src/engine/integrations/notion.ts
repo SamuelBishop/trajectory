@@ -392,6 +392,7 @@ export class NotionTasksAdapter {
         // count here, and inventing a metric would give the model a number to
         // reason about that means nothing.
         metrics: {},
+        completed: complete,
         url: page.url ?? null,
         provenance: {
           fetched_at: fetchedAt,
@@ -464,6 +465,7 @@ export class NotionTasksAdapter {
           summary: box.text,
           domain,
           metrics: {},
+          completed: box.checked,
           url: page.url ?? null,
           provenance: {
             fetched_at: fetchedAt,

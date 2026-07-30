@@ -215,8 +215,16 @@ requirements those prompts satisfy; each prompt ticks its own.
       "how many were finished late" or "how long the average one stayed open".
       Those need the open/closed pair, and today only completed tasks are stored
       by default, so the data to compute them is not collected.
-- [ ] The Notion status column is read but its *value* is discarded once
-      completion is decided. Knowing a task went to "Blocked" rather than "In
+- [x] Record whether a task was finished. `ActivitySignal.completed` is now
+      `true`/`false`/`null`, populated from the checkbox state in daily-page
+      mode and from `isComplete()` in row mode, which previously computed the
+      answer and discarded it. Rollups count `completed_count` and `open_count`
+      apart, and `streak_days` ignores days whose only record was an unfinished
+      plan — otherwise writing a to-do list would keep a streak alive. Until
+      this existed, `include_open_tasks` was the hazard its own hint warned
+      about: open and finished tasks were indistinguishable once stored.
+- [ ] The Notion status column is read but its *value* beyond done/not-done is
+      still discarded. Knowing a task went to "Blocked" rather than "In
       progress" is exactly the kind of signal a mentor should notice, and it is
       thrown away at the boundary.
 - [ ] Add exported or manually created screen-time data before attempting platform collectors.

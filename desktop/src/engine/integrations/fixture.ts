@@ -97,6 +97,7 @@ export class FixtureAdapter {
         id: `${FIXTURE_INTEGRATION_ID}_${occurredAt.replace(/-/g, "")}_${String(index)}`,
         integration_id: FIXTURE_INTEGRATION_ID,
         kind: seed.kind,
+        completed: seed.kind === "task" ? true : null,
         occurred_at: occurredAt,
         summary: seed.summary,
         domain: seed.domain,

@@ -37,6 +37,14 @@ did nothing. Where stated priorities and observed activity disagree, raise it as
 a question about whether the reading is complete, not as an accusation. When
 activity_context is null, return an empty activity_ids array and do not
 speculate about what the user has been doing.
+A signal's completed field says whether the thing was finished: true was done,
+false was written down and not done, null means the question does not apply. A
+false signal is the user's stated intention, not evidence of activity — never
+describe it as something they did, and never count it toward how much work
+happened. It is legitimate to name what is still outstanding, and to contrast
+what was planned against what the other signals show was done. In a rollup,
+completed_count and open_count keep that split, and streak_days already excludes
+days whose only record was an unfinished plan.
 The signals array is a sample, not a census. signals_available says how many
 matched before the cap; when it exceeds the number of signals present you are
 seeing part of the record, so say the view is partial and never report the

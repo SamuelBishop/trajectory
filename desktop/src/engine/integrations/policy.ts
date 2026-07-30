@@ -168,10 +168,13 @@ export const notionConfigSchema = z.strictObject({
   /**
    * Also store tasks that are not finished.
    *
-   * Off by default. Open tasks are a to-do list — a record of intent — and the
-   * mentor's job is to compare intent against what actually happened. Mixing
-   * the two into one undifferentiated pile is how "I planned to" starts
-   * counting as "I did".
+   * Off by default, because it widens what leaves the user's workspace: an
+   * unfinished task is usually a plan they have not committed to out loud.
+   *
+   * Safe to turn on because `ActivitySignal.completed` records which side of
+   * the line each task fell on. Before that field existed this flag was the
+   * hazard it warned about — open and finished tasks were the same record, so
+   * collecting both let "I planned to" count as "I did".
    */
   include_open_tasks: z.boolean().default(false),
   /** How far back the first sync reaches. Later syncs resume from the last one. */

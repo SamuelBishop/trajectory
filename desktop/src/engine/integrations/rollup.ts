@@ -73,10 +73,22 @@ export function buildRollup(
   const counts = new Map<string, number>();
   const totals: Record<string, number> = {};
   const days = new Set<string>();
+  let completedCount = 0;
+  let openCount = 0;
 
   for (const signal of inWindow) {
     counts.set(signal.domain, (counts.get(signal.domain) ?? 0) + 1);
-    days.add(signal.occurred_at);
+    if (signal.completed === true) {
+      completedCount += 1;
+    } else if (signal.completed === false) {
+      openCount += 1;
+    }
+    // Only days that carry something other than an unfinished plan. A day whose
+    // sole record is a task you wrote down and did not do is not a day you kept
+    // the streak, and counting it would reward writing lists.
+    if (signal.completed !== false) {
+      days.add(signal.occurred_at);
+    }
     for (const [metric, value] of Object.entries(signal.metrics)) {
       totals[metric] = (totals[metric] ?? 0) + value;
     }
@@ -97,6 +109,8 @@ export function buildRollup(
     window_start: windowStart,
     window_end: windowEnd,
     signal_count: inWindow.length,
+    completed_count: completedCount,
+    open_count: openCount,
     by_domain: byDomain,
     totals,
     streak_days: streakEndingAt(days, windowEnd),

@@ -651,9 +651,9 @@ function NotionScopeEditor({
       />
 
       <p className="field-hint">
-        Off by default. An unfinished item records what you meant to do; a
-        finished one records what you did. The mentor&rsquo;s job is to compare
-        them, which it cannot do once they are in one pile.
+        An unfinished item records what you meant to do; a finished one records
+        what you did. Trajectory stores which is which, so the mentor can tell
+        you what is still outstanding without ever counting it as done.
       </p>
 
       <div className="save-bar">

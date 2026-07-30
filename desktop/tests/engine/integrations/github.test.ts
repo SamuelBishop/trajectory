@@ -115,6 +115,10 @@ describe("GitHub commit mapping", () => {
       domain: "career",
       url: "https://github.com/octo-sample/api-service/commit/a1b2c3d",
       metrics: { additions: 120, deletions: 40, files: 3 },
+      // A commit is an event, not a task. It was never open, so calling it
+      // finished would put it in the same bucket as a ticked box and let the
+      // completed tally count events as work items.
+      completed: null,
     });
     expect(signals[0]?.provenance.adapter_version).toBe("github-1");
   });

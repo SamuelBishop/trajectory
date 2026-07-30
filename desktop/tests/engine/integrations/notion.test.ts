@@ -335,6 +335,28 @@ describe("the Notion tasks adapter in daily-page mode", () => {
     expect(signal.kind).toBe("task");
   });
 
+  it("records whether each box was ticked, so a plan cannot read as done", async () => {
+    // The whole reason open boxes are safe to collect. Without this field an
+    // aspiration and an achievement are the same record.
+    const { httpFetch } = daily([dailyPage()], {
+      "dddd1111-2222-3333-4444-555566667777": [
+        todo("aaaa1111bbbb2222cccc333344445555", "Shipped the adapter", true),
+        todo("bbbb1111cccc2222dddd333344445555", "Strava integration", false),
+      ],
+    });
+    const signals = await adapter(
+      { ...checkboxConfig, include_open_tasks: true },
+      httpFetch,
+    ).fetch(null, "secret_token");
+
+    expect(
+      signals.map((entry) => [entry.summary, entry.completed]),
+    ).toEqual([
+      ["Shipped the adapter", true],
+      ["Strava integration", false],
+    ]);
+  });
+
   it("leaves unticked boxes out unless they are asked for", async () => {
     const blocks = {
       "dddd1111-2222-3333-4444-555566667777": [
@@ -483,6 +505,7 @@ describe("the Notion tasks adapter", () => {
     expect(signals).toHaveLength(1);
     expect(signals[0]?.summary).toBe("Write the retro");
     expect(signals[0]?.domain).toBe("projects");
+    expect(signals[0]?.completed).toBe(true);
   });
 
   it("leaves open tasks out unless they are asked for", async () => {
@@ -496,9 +519,15 @@ describe("the Notion tasks adapter", () => {
     expect(await adapter({}, httpFetch).fetch(null, "secret_token")).toHaveLength(0);
 
     const { httpFetch: second } = recorder([results([open])]);
-    expect(
-      await adapter({ include_open_tasks: true }, second).fetch(null, "secret_token"),
-    ).toHaveLength(1);
+    const collected = await adapter({ include_open_tasks: true }, second).fetch(
+      null,
+      "secret_token",
+    );
+    expect(collected).toHaveLength(1);
+    // Row mode already worked out completion to decide whether to store the
+    // task, then threw the answer away. Keeping it is what lets an open task be
+    // collected without being mistaken for a finished one.
+    expect(collected[0]?.completed).toBe(false);
   });
 
   it("follows the cursor through a multi-page response", async () => {

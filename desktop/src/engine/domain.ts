@@ -308,6 +308,20 @@ export const activitySignalSchema = z.strictObject({
   /** Matches `Goal.domain`, which is how selection connects the two. */
   domain: identifier,
   metrics: z.record(z.string(), z.number()).default({}),
+  /**
+   * Whether the thing this signal describes was finished.
+   *
+   * `true` was done, `false` was written down and not done, `null` means the
+   * question does not apply — a commit is an event, and asking whether it was
+   * completed is a category error.
+   *
+   * Implements: [HC-OBSERVATION-VS-INFERENCE]. Without this field an unfinished
+   * task and a finished one are the same record, so storing intent alongside
+   * achievement would let "I planned to" be read as "I did". That is the exact
+   * confusion `activity_context` exists to prevent, and it cannot be recovered
+   * downstream: nothing else in the signal says which one it was.
+   */
+  completed: z.boolean().nullable().default(null),
   url: text.nullable().default(null),
   provenance: activityProvenanceSchema,
 });
@@ -321,12 +335,24 @@ export const activityRollupSchema = z.strictObject({
   window_start: calendarDate,
   window_end: calendarDate,
   signal_count: z.number().int().min(0),
+  /**
+   * How many of `signal_count` were finished, and how many were written down
+   * and not finished. Counted separately because a plan is not an achievement,
+   * and a single total would let a long to-do list read as a productive week.
+   */
+  completed_count: z.number().int().min(0),
+  open_count: z.number().int().min(0),
   /** Signal counts by domain, highest first. */
   by_domain: z.array(
     z.strictObject({ domain: identifier, count: z.number().int().min(0) }),
   ),
   totals: z.record(z.string(), z.number()).default({}),
-  /** Consecutive days ending at `window_end` that carry at least one signal. */
+  /**
+   * Consecutive days ending at `window_end` that carry at least one signal
+   * which was not merely planned. Writing a task down on a day does not make it
+   * a day you did something, and counting it would make the streak — the one
+   * number people read as proof of consistency — reward listing over doing.
+   */
   streak_days: z.number().int().min(0),
 });
 
