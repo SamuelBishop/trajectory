@@ -201,12 +201,24 @@ export class EncryptedActivityStore {
       for (const signal of data.signals) {
         byId.set(signal.id, signal);
       }
+      const seen = new Set<string>();
       for (const signal of incoming) {
         if (signal.integration_id !== integrationId) {
           throw new Error(
             `Adapter "${integrationId}" returned a signal belonging to "${signal.integration_id}".`,
           );
         }
+        // Two distinct records arriving under one ID means the adapter's ID
+        // scheme cannot tell them apart, and this map would quietly keep the
+        // last one. Losing records without a word is worse than a failed sync:
+        // the user sees a smaller number and has no way to know it is wrong.
+        if (seen.has(signal.id)) {
+          throw new Error(
+            `Adapter "${integrationId}" returned more than one record with the ID "${signal.id}". ` +
+              "Storing them would silently keep only the last.",
+          );
+        }
+        seen.add(signal.id);
         byId.set(signal.id, signal);
       }
 

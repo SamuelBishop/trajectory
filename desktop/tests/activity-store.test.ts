@@ -64,6 +64,23 @@ function signal(overrides: Partial<ActivitySignal> = {}): ActivitySignal {
 const merge = { retentionDays: 180, today: "2026-03-10", syncedAt: "2026-03-10T12:00:00.000Z" };
 
 describe("EncryptedActivityStore", () => {
+  it("refuses a batch whose records share an ID", async () => {
+    // The failure this replaces was silent: colliding IDs meant the map kept
+    // the last record and the user saw a smaller number with no way to know it
+    // was wrong. A failed sync they can read beats data loss they cannot.
+    const store = new EncryptedActivityStore(await temporaryFile(), testEncryption);
+    await expect(
+      store.merge(
+        "fixture",
+        [
+          signal({ id: "fixture_same", summary: "First" }),
+          signal({ id: "fixture_same", summary: "Second" }),
+        ],
+        merge,
+      ),
+    ).rejects.toThrow(/more than one record with the ID/);
+  });
+
   it("loads records written before completion was tracked", async () => {
     // The field arrived after this user already had months of stored signals.
     // Rejecting them would silently empty the log the mentor reasons from, and

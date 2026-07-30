@@ -159,8 +159,20 @@ describe("Notion property readers", () => {
 
   it("turns a Notion page ID into a signal ID", () => {
     expect(signalId("aaaabbbb-cccc-dddd-eeee-ffff00001111")).toBe(
-      "notion_aaaabbbbcccc",
+      "notion_aaaabbbbccccddddeeeeffff00001111",
     );
+  });
+
+  it("keeps two IDs apart when they share a long prefix", () => {
+    // Real IDs from one workspace: a database and one of its own views. Notion
+    // IDs are not random, so they agree on their first fourteen characters.
+    // Truncating to twelve gave every block on a page the same signal ID, and
+    // the store keys on that — a day of tasks collapsed into one record.
+    const database = "3ad135c7a98580adb03ad49739daa48a";
+    const view = "3ad135c7a98580228deb000c58474f2c";
+
+    expect(database.slice(0, 12)).toBe(view.slice(0, 12));
+    expect(signalId(database)).not.toBe(signalId(view));
   });
 });
 

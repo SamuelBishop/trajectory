@@ -284,9 +284,17 @@ export function slugifyDomain(value: string): string {
   return slug.length > 0 ? slug : NOTION_INTEGRATION_ID;
 }
 
-/** Notion IDs are UUIDs; `ActivitySignal.id` is a slug, so the hyphens go. */
-export function signalId(pageId: string): string {
-  const compact = pageId.replaceAll("-", "").toLowerCase().slice(0, 12);
+/**
+ * Notion IDs are UUIDs; `ActivitySignal.id` is a slug, so the hyphens go.
+ *
+ * The whole ID, never a prefix. Notion IDs are not random: objects made in the
+ * same workspace share a long leading run, so a page and one of its own blocks
+ * can agree on their first fourteen characters. Truncating collapsed every
+ * checkbox on a page into one identifier, and the store keys on that, so a day
+ * of tasks silently became a single record.
+ */
+export function signalId(notionId: string): string {
+  const compact = notionId.replaceAll("-", "").toLowerCase();
   return `${NOTION_INTEGRATION_ID}_${compact.length > 0 ? compact : "unknown"}`;
 }
 

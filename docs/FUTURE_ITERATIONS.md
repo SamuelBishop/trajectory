@@ -213,6 +213,12 @@ requirements those prompts satisfy; each prompt ticks its own.
 - [x] The Notion card has two Save buttons that persist different halves of the
       same form. They now name what they save and announce unsaved changes, so
       an edit left behind is visible instead of looking accepted.
+- [ ] The GitHub adapter still truncates a commit SHA to 12 characters for its
+      signal ID. A content hash is genuinely random so the collision odds are
+      negligible, unlike the Notion case, but it is the same construction and
+      the store now rejects a colliding batch rather than losing records. Worth
+      widening when something forces those IDs to change anyway; doing it now
+      would duplicate every stored commit until retention expires.
 - [ ] Checkbox mode reads at most 31 pages and 100 block requests per sync. A
       long-running daily journal with deeply nested notes will hit the block
       budget before the page budget and quietly return a partial day. The
