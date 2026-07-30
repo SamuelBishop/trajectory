@@ -12,6 +12,7 @@ import {
   StravaRateLimitError,
   activityMetrics,
   activitySummary,
+  describeTokenRejection,
   earliestStart,
   humanizeSport,
   type StravaTokenStore,
@@ -616,5 +617,78 @@ describe("StravaActivitiesAdapter", () => {
 
     const signals = await adapter.fetch(null, CLIENT_SECRET);
     expect(signals[0]?.domain).toBe("ultra-training");
+  });
+});
+
+describe("saying which credential Strava rejected", () => {
+  // Strava returns `{ message, errors: [{ resource, field, code }] }`. The
+  // field names an input, never its value, so it is safe to repeat and it is
+  // the only thing that distinguishes a mistyped secret from a dead token.
+  it("names the application credentials when the client is wrong", () => {
+    const message = describeTokenRejection({
+      message: "Bad Request",
+      errors: [
+        { resource: "Application", field: "client_id", code: "invalid" },
+      ],
+    });
+    expect(message).toContain("Client ID");
+    expect(message).not.toContain("refresh token");
+  });
+
+  it("names the refresh token when that is what died", () => {
+    // The common failure: something else sharing the API application refreshed
+    // and Strava invalidated this copy.
+    const message = describeTokenRejection({
+      message: "Bad Request",
+      errors: [
+        { resource: "RefreshToken", field: "refresh_token", code: "invalid" },
+      ],
+    });
+    expect(message).toContain("rotated or revoked");
+    expect(message).toContain("activity:read_all");
+  });
+
+  it("falls back to the general advice when Strava says nothing useful", () => {
+    for (const body of [null, {}, { errors: [] }, "not json"]) {
+      expect(describeTokenRejection(body)).toContain("Re-authorize");
+    }
+  });
+
+  it("never repeats a credential value back to the user", () => {
+    // The field name is an input's name. Its value must never make the trip,
+    // however Strava chose to echo it. [HC-SECRETS-ENV-ONLY]
+    const message = describeTokenRejection({
+      errors: [
+        {
+          resource: "RefreshToken",
+          field: "refresh_token",
+          code: "invalid",
+          value: "s3cr3t-token-value",
+        },
+      ],
+    });
+    expect(message).not.toContain("s3cr3t-token-value");
+  });
+
+  it("surfaces the rejection detail through a real refresh", async () => {
+    const adapter = new StravaActivitiesAdapter(
+      () => Promise.resolve(config()),
+      tokenStore().store,
+      () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              message: "Bad Request",
+              errors: [{ field: "client_secret", code: "invalid" }],
+            }),
+            { status: 400 },
+          ),
+        ),
+      () => now,
+    );
+
+    await expect(adapter.fetch(null, CLIENT_SECRET)).rejects.toThrow(
+      "strava.com/settings/api",
+    );
   });
 });

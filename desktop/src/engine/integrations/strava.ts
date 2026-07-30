@@ -122,6 +122,49 @@ interface TokenResponse {
   expires_in?: number;
 }
 
+/**
+ * Strava's rejection body: `{ message, errors: [{ resource, field, code }] }`.
+ *
+ * The `field` is the name of an input, never its value, so repeating it tells
+ * the user which of the three credentials to fix without printing any of them.
+ */
+interface TokenErrorBody {
+  errors?: readonly { field?: string; code?: string }[];
+}
+
+/**
+ * Turn Strava's rejection into the one sentence that says what to do next.
+ *
+ * Three credentials go into this request and any of them can be the wrong one.
+ * A single "re-authorize" message sends a user to re-mint a token that was
+ * fine, which is the most expensive of the three fixes and often not the
+ * needed one. Strava already names the field it disliked; discarding that and
+ * making the user guess is the app knowing something and not saying it.
+ */
+export function describeTokenRejection(body: unknown): string {
+  const errors = (body as TokenErrorBody | null)?.errors ?? [];
+  const fields = new Set(errors.map((error) => error.field ?? ""));
+
+  if (fields.has("client_id") || fields.has("client_secret")) {
+    return (
+      "Strava rejected the application credentials. Check that the Client ID above " +
+      "matches the one on strava.com/settings/api and that the stored client secret " +
+      "is that application's, with no stray whitespace."
+    );
+  }
+  if (fields.has("refresh_token") || fields.has("code")) {
+    return (
+      "Strava rejected the stored refresh token. It has been rotated or revoked — " +
+      "anything else using the same API application invalidates it by refreshing. " +
+      "Re-authorize with the activity:read_all scope and store the new token in Settings."
+    );
+  }
+  return (
+    "Strava rejected the stored authorization. Re-authorize the application " +
+    "and store the new refresh token in Settings."
+  );
+}
+
 /** `ActivitySignal.domain` accepts lowercase alphanumerics, underscores, hyphens. */
 export function slugifyDomain(value: string): string {
   const slug = value
@@ -346,12 +389,12 @@ export class StravaActivitiesAdapter {
     });
 
     if (response.status === 400 || response.status === 401) {
-      // Never echo what was sent. A 400 here almost always means the refresh
-      // token was already rotated by something else using the same application.
-      throw new StravaAuthError(
-        "Strava rejected the stored authorization. Re-authorize the application " +
-          "and store the new refresh token in Settings.",
-      );
+      // Strava names the field it rejected. Repeat that name and nothing else:
+      // it identifies which of the three credentials is wrong without echoing
+      // any of them back. Without it the only advice possible is "re-authorize",
+      // which is the most expensive fix and usually the wrong one.
+      const detail: unknown = await response.json().catch(() => null);
+      throw new StravaAuthError(describeTokenRejection(detail));
     }
     this.assertUsable(response);
 
