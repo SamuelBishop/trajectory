@@ -62,6 +62,8 @@ const api: DesktopApi = {
     ipcRenderer.invoke("integrations:deleteData", id),
   saveGitHubScope: (scope: unknown) =>
     ipcRenderer.invoke("integrations:saveGitHubScope", scope),
+  saveNotionScope: (scope: unknown) =>
+    ipcRenderer.invoke("integrations:saveNotionScope", scope),
 
   // No getter for either credential. The renderer can learn that one exists
   // and can replace or remove it, but no channel returns a value
@@ -81,6 +83,8 @@ const api: DesktopApi = {
     ipcRenderer.invoke("secrets:setGithubActivity", value),
   clearGithubActivityToken: () =>
     ipcRenderer.invoke("secrets:clearGithubActivity"),
+  setNotionToken: (value: string) => ipcRenderer.invoke("secrets:setNotion", value),
+  clearNotionToken: () => ipcRenderer.invoke("secrets:clearNotion"),
   startSignIn: () => ipcRenderer.invoke("auth:start"),
   waitForSignIn: () => ipcRenderer.invoke("auth:wait"),
   cancelSignIn: () => ipcRenderer.invoke("auth:cancel"),

@@ -174,9 +174,13 @@ describe("runSync", () => {
 });
 
 describe("adapter registry", () => {
-  it("ships the offline fixture and GitHub commits", () => {
+  it("ships the offline fixture, GitHub commits, and Notion tasks", () => {
     const adapters = createAdapters({ now: () => now });
-    expect(adapters.map((adapter) => adapter.id)).toEqual(["fixture", "github"]);
+    expect(adapters.map((adapter) => adapter.id)).toEqual([
+      "fixture",
+      "github",
+      "notion",
+    ]);
   });
 
   it("contacts only the hosts the constitution names", () => {
@@ -185,6 +189,7 @@ describe("adapter registry", () => {
     // change, so this assertion is the machine-readable half of that promise.
     expect(declaredHosts(createAdapters({ now: () => now }))).toEqual([
       "api.github.com",
+      "api.notion.com",
     ]);
   });
 
@@ -194,7 +199,7 @@ describe("adapter registry", () => {
       Object.fromEntries(
         adapters.map((adapter) => [adapter.id, adapter.requiresCredential]),
       ),
-    ).toEqual({ fixture: false, github: true });
+    ).toEqual({ fixture: false, github: true, notion: true });
   });
 });
 

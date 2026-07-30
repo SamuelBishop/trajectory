@@ -171,13 +171,18 @@ export function registerIpcHandlers(): void {
   const integrations = new IntegrationService(
     userData,
     encryption,
-    (id) =>
+    (id) => {
       // Deliberately not `githubToken`. That one authenticates the model, and
       // setting it switches the provider off a device login, so sharing it
       // would mean turning on commit reading could break chat.
-      id === "github"
-        ? secrets.read("githubActivityToken")
-        : Promise.resolve(undefined),
+      if (id === "github") {
+        return secrets.read("githubActivityToken");
+      }
+      if (id === "notion") {
+        return secrets.read("notionToken");
+      }
+      return Promise.resolve(undefined);
+    },
     // Lazy on purpose: `localConfig` is declared below and this runs only when
     // Settings asks for the view, long after both exist.
     async () => {
@@ -236,11 +241,13 @@ export function registerIpcHandlers(): void {
     hasOpenAiKey: boolean;
     hasGithubToken: boolean;
     hasGithubActivityToken: boolean;
+    hasNotionToken: boolean;
     encryptionAvailable: boolean;
   }> => ({
     hasOpenAiKey: await secrets.has("openaiApiKey"),
     hasGithubToken: await secrets.has("githubToken"),
     hasGithubActivityToken: await secrets.has("githubActivityToken"),
+    hasNotionToken: await secrets.has("notionToken"),
     encryptionAvailable: encryption.isAvailable(),
   });
 
@@ -461,6 +468,10 @@ export function registerIpcHandlers(): void {
     await integrations.saveGitHubScope(scope);
     return await integrations.view();
   });
+  ipcMain.handle("integrations:saveNotionScope", async (_event, scope: unknown) => {
+    await integrations.saveNotionScope(scope);
+    return await integrations.view();
+  });
 
   ipcMain.handle("secrets:status", () => secretStatus());
   ipcMain.handle("secrets:setOpenAi", async (_event, value: unknown) => {
@@ -479,6 +490,17 @@ export function registerIpcHandlers(): void {
   });
   ipcMain.handle("secrets:clearGithubActivity", async () => {
     await secrets.clear("githubActivityToken");
+    return await secretStatus();
+  });
+  ipcMain.handle("secrets:setNotion", async (_event, value: unknown) => {
+    if (typeof value !== "string") {
+      throw new Error("The credential must be text.");
+    }
+    await secrets.set("notionToken", value);
+    return await secretStatus();
+  });
+  ipcMain.handle("secrets:clearNotion", async () => {
+    await secrets.clear("notionToken");
     return await secretStatus();
   });
   ipcMain.handle("secrets:clearOpenAi", async () => {

@@ -20,6 +20,7 @@
 
 import type { ActivitySignal } from "../domain";
 import type { GitHubConfig } from "./policy";
+import { firstLine } from "./text";
 import type { ActivityAdapter } from "./types";
 
 export const GITHUB_INTEGRATION_ID = "github";
@@ -74,13 +75,16 @@ export function slugifyDomain(value: string): string {
   return slug.length > 0 ? slug : "github";
 }
 
-/** First line only. Bodies carry issue links, internal IDs, and pasted secrets. */
-export function firstLine(message: string, limit = 280): string {
-  const line = message.split(/\r\n|\r|\n/, 1)[0]?.trim() ?? "";
-  if (line.length === 0) {
-    return "(no commit message)";
-  }
-  return line.length > limit ? `${line.slice(0, limit - 1).trimEnd()}…` : line;
+/**
+ * First line only. Bodies carry issue links, internal IDs, and pasted secrets.
+ *
+ * Re-exported so existing callers keep working; the bounding itself is shared
+ * with every other adapter, while the empty-message wording stays GitHub's.
+ */
+export { firstLine };
+
+function commitSummary(message: string): string {
+  return firstLine(message) || "(no commit message)";
 }
 
 /**
@@ -197,7 +201,7 @@ export class GitHubCommitsAdapter {
         integration_id: GITHUB_INTEGRATION_ID,
         kind: "code_commit",
         occurred_at: occurredAt,
-        summary: firstLine(item.commit.message),
+        summary: commitSummary(item.commit.message),
         domain: domainFor(config, repository),
         metrics:
           index < MAX_ENRICHED

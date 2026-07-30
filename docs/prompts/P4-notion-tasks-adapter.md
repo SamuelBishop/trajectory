@@ -18,11 +18,22 @@ so mapping is mechanical rather than heuristic.
 - Paginate with `start_cursor` and `has_more`.
 
 **The setup gotcha worth documenting:** creating the integration is not enough.
-The user must explicitly share the target database with it through Notion's UI,
-or every query returns an empty result with no error explaining why. Surface this
-as a specific message when a query succeeds but returns nothing on first sync —
-"the database may not be shared with the integration" is far more useful than an
-empty list.
+The user must explicitly connect the target database to it through Notion's UI.
+
+> **Corrected during implementation.** This prompt originally claimed an
+> unshared database "returns an empty result with no error", and told you to
+> infer the problem from an empty first sync. That is not what Notion does: it
+> returns **404 `object_not_found`**, and its own message already says "Make
+> sure the relevant pages and databases are shared with your connection". So the
+> adapter surfaces the 404 rather than guessing from emptiness — a real error
+> beats a heuristic, and the heuristic would have fired on genuinely quiet weeks.
+>
+> The silent-empty failure the prompt was reaching for is real, but it lives
+> somewhere else: a **status property name that matches no column**. The query
+> succeeds, every task is filtered out for not being "done", and the sync
+> reports success having stored nothing — indistinguishable from a week with no
+> tasks. The adapter detects that case and names the properties the database
+> actually has.
 
 ## Configuration and mapping
 

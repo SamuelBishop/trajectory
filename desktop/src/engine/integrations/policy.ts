@@ -97,17 +97,76 @@ export const githubConfigSchema = z.strictObject({
   domains: z.record(z.string(), z.string()).default({}),
 });
 
+/**
+ * What the Notion adapter is allowed to look at, and how to read it.
+ *
+ * Implements: [HC-NO-EXFILTRATION], [HC-EXPLICIT-CONFIG-PATHS]
+ *
+ * Every property name is configurable because no two task databases share a
+ * schema. Notion has no canonical "status" or "due date" — those are whatever
+ * the user named their columns, so hardcoding "Status" would work for the
+ * author and silently return nothing for everyone else.
+ *
+ * The defaults are Notion's own template names, which makes the common case
+ * work unconfigured while leaving every part of it adjustable.
+ */
+export const notionConfigSchema = z.strictObject({
+  /**
+   * The database to read. Empty means the adapter makes no request.
+   *
+   * Accepts a pasted Notion URL as well as a bare ID; `normalizeDatabaseId`
+   * does the extraction, because copying the URL is what people actually do.
+   */
+  database_id: z.string().trim().default(""),
+  /** The title column. Notion's default name for it is "Name". */
+  title_property: z.string().trim().default("Name"),
+  /**
+   * The column that says whether a task is finished.
+   *
+   * May be a `status`, a `select`, or a `checkbox` — all three are common, and
+   * the adapter reads whichever it finds rather than requiring one.
+   */
+  status_property: z.string().trim().default("Status"),
+  /**
+   * Status values that count as finished, compared case-insensitively.
+   *
+   * Ignored when the status column is a checkbox, where ticked means done.
+   */
+  done_values: z.array(z.string().trim()).default(["Done", "Complete", "Completed"]),
+  /** Optional date column holding when the task was finished. */
+  completed_property: z.string().trim().default(""),
+  /** Optional date column holding when the task is due. */
+  due_property: z.string().trim().default("Due"),
+  /** Optional `select` or `multi_select` column naming the goal domain. */
+  domain_property: z.string().trim().default(""),
+  /** Used when no domain column is mapped, or when a task leaves it blank. */
+  default_domain: z.string().trim().default(""),
+  /**
+   * Also store tasks that are not finished.
+   *
+   * Off by default. Open tasks are a to-do list — a record of intent — and the
+   * mentor's job is to compare intent against what actually happened. Mixing
+   * the two into one undifferentiated pile is how "I planned to" starts
+   * counting as "I did".
+   */
+  include_open_tasks: z.boolean().default(false),
+  /** How far back the first sync reaches. Later syncs resume from the last one. */
+  lookback_days: z.number().int().min(1).max(365).default(7),
+});
+
 export const integrationsConfigSchema = z.strictObject({
   /** Stops every automatic sync across every integration at once. */
   paused: z.boolean().default(false),
   integrations: z.record(z.string(), integrationPolicySchema).default({}),
   github: githubConfigSchema.prefault({}),
+  notion: notionConfigSchema.prefault({}),
 });
 
 export type QuietHours = z.infer<typeof quietHoursSchema>;
 export type SyncModes = z.infer<typeof syncModesSchema>;
 export type IntegrationPolicy = z.infer<typeof integrationPolicySchema>;
 export type GitHubConfig = z.infer<typeof githubConfigSchema>;
+export type NotionConfig = z.infer<typeof notionConfigSchema>;
 export type IntegrationsConfig = z.infer<typeof integrationsConfigSchema>;
 
 export const DEFAULT_POLICY: IntegrationPolicy =

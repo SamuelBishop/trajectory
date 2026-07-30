@@ -15,6 +15,7 @@ import {
   createAdapters,
   githubConfigSchema,
   loadIntegrationsConfig,
+  notionConfigSchema,
   policyFor,
   runSync,
   saveIntegrationsConfig,
@@ -44,6 +45,20 @@ const githubScopeViewSchema = z.object({
   allRepositories: z.boolean().default(false),
   lookbackDays: z.number().default(7),
   domains: z.record(z.string(), z.string()).default({}),
+});
+
+/** The renderer's shape for Notion scope. Parsed, never cast, for the same reason. */
+const notionScopeViewSchema = z.object({
+  databaseId: z.string().default(""),
+  titleProperty: z.string().default("Name"),
+  statusProperty: z.string().default("Status"),
+  doneValues: z.array(z.string()).default([]),
+  completedProperty: z.string().default(""),
+  dueProperty: z.string().default(""),
+  domainProperty: z.string().default(""),
+  defaultDomain: z.string().default(""),
+  includeOpenTasks: z.boolean().default(false),
+  lookbackDays: z.number().default(7),
 });
 
 interface Encryption {
@@ -91,6 +106,8 @@ export class IntegrationService {
       httpFetch,
       githubConfig: async () =>
         (await loadIntegrationsConfig(this.userDataPath)).github,
+      notionConfig: async () =>
+        (await loadIntegrationsConfig(this.userDataPath)).notion,
     });
     this.encryptionAvailable = () => encryption.isAvailable();
   }
@@ -144,6 +161,18 @@ export class IntegrationService {
         lookbackDays: config.github.lookback_days,
         domains: config.github.domains,
       },
+      notion: {
+        databaseId: config.notion.database_id,
+        titleProperty: config.notion.title_property,
+        statusProperty: config.notion.status_property,
+        doneValues: config.notion.done_values,
+        completedProperty: config.notion.completed_property,
+        dueProperty: config.notion.due_property,
+        domainProperty: config.notion.domain_property,
+        defaultDomain: config.notion.default_domain,
+        includeOpenTasks: config.notion.include_open_tasks,
+        lookbackDays: config.notion.lookback_days,
+      },
       goalDomains: await this.readGoalDomains().catch(() => []),
     };
   }
@@ -168,6 +197,36 @@ export class IntegrationService {
         all_repositories: view.allRepositories,
         lookback_days: view.lookbackDays,
         domains: view.domains,
+      }),
+    });
+  }
+
+  /**
+   * Replace the Notion scope.
+   *
+   * The database ID is stored as the user typed it — a pasted URL is normalized
+   * by the adapter at query time rather than here, so what Settings shows back
+   * is what they entered and a bad paste stays visible instead of becoming a
+   * silently empty field.
+   */
+  async saveNotionScope(scope: unknown): Promise<void> {
+    const view = notionScopeViewSchema.parse(scope);
+    const config = await loadIntegrationsConfig(this.userDataPath);
+    await saveIntegrationsConfig(this.userDataPath, {
+      ...config,
+      // Rebuilt field by field rather than spread, so the renderer cannot
+      // smuggle an unexpected key into stored config. The schema re-validates.
+      notion: notionConfigSchema.parse({
+        database_id: view.databaseId,
+        title_property: view.titleProperty,
+        status_property: view.statusProperty,
+        done_values: view.doneValues,
+        completed_property: view.completedProperty,
+        due_property: view.dueProperty,
+        domain_property: view.domainProperty,
+        default_domain: view.defaultDomain,
+        include_open_tasks: view.includeOpenTasks,
+        lookback_days: view.lookbackDays,
       }),
     });
   }

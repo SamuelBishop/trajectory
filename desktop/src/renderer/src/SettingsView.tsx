@@ -210,6 +210,29 @@ export function SettingsView({
         <div className="editor">
           <div className="editor-body">
             <CredentialSection
+              title="Notion token"
+              stored={secretStatus?.hasNotionToken === true}
+              encryptionAvailable={secretStatus?.encryptionAvailable !== false}
+              placeholder="ntn_…"
+              storedNote="A token is stored and encrypted on this device. It is never displayed again."
+              emptyNote="Only needed for the Notion tasks integration. Create an internal integration at notion.so/my-integrations and copy its secret. Then open your task database in Notion and connect it to that integration from the ••• menu — creating the integration grants it access to nothing on its own, and a database it cannot see is reported as missing rather than empty."
+              unavailableNote={
+                <>
+                  This device cannot encrypt local storage, so Trajectory will
+                  not save a token here. The Notion tasks integration stays
+                  unavailable until encryption is.
+                </>
+              }
+              onStore={(value) => window.trajectory.setNotionToken(value)}
+              onClear={() => window.trajectory.clearNotionToken()}
+              onChanged={setSecretStatus}
+            />
+          </div>
+        </div>
+
+        <div className="editor">
+          <div className="editor-body">
+            <CredentialSection
               title="OpenAI credential"
               stored={secretStatus?.hasOpenAiKey === true}
               encryptionAvailable={secretStatus?.encryptionAvailable !== false}

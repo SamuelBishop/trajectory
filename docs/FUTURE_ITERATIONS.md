@@ -188,7 +188,21 @@ requirements those prompts satisfy; each prompt ticks its own.
       second, differently-derived source of the same numbers could disagree with
       the first. If per-repository breakdowns beyond the chosen scope turn out to
       matter, this needs a deliberate decision about which source wins.
-- [ ] Add a Notion adapter interface and later a minimal implementation.
+- [x] Add a Notion adapter interface and later a minimal implementation. Shipped
+      in P4: `desktop/src/engine/integrations/notion.ts`, pinned to API version
+      `2022-06-28` and filtering on `last_edited_time` rather than the status
+      column, so the request stays valid against a schema the adapter has never
+      seen. Every property name is configurable because no two task databases
+      share a schema.
+- [ ] Notion tasks have no rollup of their own. `buildRollup` counts signals per
+      integration over a 30-day window, which answers "how many tasks" but not
+      "how many were finished late" or "how long the average one stayed open".
+      Those need the open/closed pair, and today only completed tasks are stored
+      by default, so the data to compute them is not collected.
+- [ ] The Notion status column is read but its *value* is discarded once
+      completion is decided. Knowing a task went to "Blocked" rather than "In
+      progress" is exactly the kind of signal a mentor should notice, and it is
+      thrown away at the boundary.
 - [ ] Add exported or manually created screen-time data before attempting platform collectors.
 - [ ] Document future platform-specific collectors.
 - [ ] Add calendar ingestion with explicit scope selection.

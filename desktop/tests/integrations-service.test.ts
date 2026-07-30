@@ -85,6 +85,7 @@ describe("IntegrationService", () => {
     expect(view.integrations.map((entry) => entry.id)).toEqual([
       "fixture",
       "github",
+      "notion",
     ]);
     for (const entry of view.integrations) {
       expect(entry).toMatchObject({
@@ -317,6 +318,62 @@ describe("IntegrationService", () => {
     expect(view.github.login).toBe("sample-user");
     expect(view.github.repositories).toEqual(["octo-sample/api-service"]);
     expect(view.github.domains).toEqual({ "octo-sample/api-service": "career" });
+  });
+
+  it("round-trips the Notion scope through stored config", async () => {
+    const service = new IntegrationService(await userDataPath(), testEncryption);
+    await service.saveNotionScope({
+      databaseId: "https://www.notion.so/Tasks-11112222333344445555666677778888",
+      titleProperty: "Task",
+      statusProperty: "State",
+      doneValues: ["Shipped"],
+      completedProperty: "Closed on",
+      dueProperty: "Target",
+      domainProperty: "Area",
+      defaultDomain: "projects",
+      includeOpenTasks: true,
+      lookbackDays: 14,
+    });
+
+    const view = await service.view();
+    // Stored as typed. Normalizing the URL away here would mean a bad paste
+    // came back as a blank field with nothing to correct.
+    expect(view.notion.databaseId).toContain("notion.so");
+    expect(view.notion.statusProperty).toBe("State");
+    expect(view.notion.doneValues).toEqual(["Shipped"]);
+    expect(view.notion.includeOpenTasks).toBe(true);
+    expect(view.notion.lookbackDays).toBe(14);
+  });
+
+  it("keeps the Notion scope when an unrelated policy is saved", async () => {
+    const directory = await userDataPath();
+    const service = new IntegrationService(directory, testEncryption);
+    await service.saveNotionScope({
+      databaseId: "11112222333344445555666677778888",
+      statusProperty: "State",
+      defaultDomain: "projects",
+    });
+
+    await service.savePolicy("fixture", enabledPolicy);
+
+    const view = await service.view();
+    expect(view.notion.statusProperty).toBe("State");
+    expect(view.notion.defaultDomain).toBe("projects");
+  });
+
+  it("keeps the GitHub and Notion scopes apart", async () => {
+    const service = new IntegrationService(await userDataPath(), testEncryption);
+    await service.saveGitHubScope({
+      login: "sample-user",
+      repositories: ["octo-sample/api-service"],
+    });
+    await service.saveNotionScope({ databaseId: "11112222333344445555666677778888" });
+
+    // Each save rebuilds only its own branch of the config. Writing one must not
+    // reset the other, which is what a spread over the whole object would do.
+    const view = await service.view();
+    expect(view.github.login).toBe("sample-user");
+    expect(view.notion.databaseId).toBe("11112222333344445555666677778888");
   });
 
   it("refuses a GitHub scope it cannot validate", async () => {

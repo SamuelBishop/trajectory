@@ -21,6 +21,7 @@ import type {
   IntegrationPolicyView,
   IntegrationSummary,
   IntegrationsView,
+  NotionScopeView,
 } from "../../shared/types";
 import { toErrorMessage } from "./errors";
 import { Field, NumberInput, TagInput, TextInput, Toggle } from "./FormKit";
@@ -108,6 +109,14 @@ export function IntegrationsSection(): React.JSX.Element {
               {integration.id === "github" && (
                 <GitHubScopeEditor
                   scope={view.github}
+                  goalDomains={view.goalDomains}
+                  busy={busy}
+                  onRun={run}
+                />
+              )}
+              {integration.id === "notion" && (
+                <NotionScopeEditor
+                  scope={view.notion}
                   goalDomains={view.goalDomains}
                   busy={busy}
                   onRun={run}
@@ -434,6 +443,180 @@ function GitHubScopeEditor({
           type="button"
           disabled={busy || !dirty}
           onClick={() => onRun(() => window.trajectory.saveGitHubScope(draft))}
+        >
+          Save scope
+        </button>
+      </div>
+    </>
+  );
+}
+
+
+/**
+ * Which Notion database may be read, and how to interpret its columns.
+ *
+ * Every property name is a field because no two task databases share a schema.
+ * Notion has no canonical "status" column — it is whatever the user named it —
+ * so a hardcoded name would work for one person and silently return nothing for
+ * everyone else. The adapter reports a name that matches nothing rather than
+ * storing zero tasks and letting it read as a quiet week.
+ */
+function NotionScopeEditor({
+  scope,
+  goalDomains,
+  busy,
+  onRun,
+}: {
+  readonly scope: NotionScopeView;
+  readonly goalDomains: readonly string[];
+  readonly busy: boolean;
+  readonly onRun: (action: () => Promise<IntegrationsView>) => void;
+}): React.JSX.Element {
+  const [draft, setDraft] = useState<NotionScopeView>(scope);
+
+  useEffect(() => {
+    setDraft(scope);
+  }, [scope]);
+
+  const dirty = JSON.stringify(draft) !== JSON.stringify(scope);
+  const domainHint =
+    goalDomains.length > 0 ? `e.g. ${goalDomains.join(", ")}` : "a goal domain";
+
+  return (
+    <>
+      <Field
+        label="Database"
+        hint="Paste the database URL from Notion, or its ID. Empty means nothing is read at all."
+      >
+        <TextInput
+          value={draft.databaseId}
+          disabled={busy}
+          placeholder="https://www.notion.so/…"
+          onChange={(databaseId) => setDraft({ ...draft, databaseId })}
+        />
+      </Field>
+
+      <p className="field-hint">
+        The database also has to be connected to your integration from
+        Notion&rsquo;s ••• menu. Creating the integration does not grant it
+        access on its own.
+      </p>
+
+      <Field
+        label="Days to look back"
+        hint="How far the first sync reaches. Later syncs resume from the last one."
+      >
+        <NumberInput
+          value={draft.lookbackDays}
+          min={1}
+          max={365}
+          disabled={busy}
+          onChange={(lookbackDays) => setDraft({ ...draft, lookbackDays })}
+        />
+      </Field>
+
+      <Field label="Title property" hint="The column holding the task name.">
+        <TextInput
+          value={draft.titleProperty}
+          disabled={busy}
+          placeholder="Name"
+          onChange={(titleProperty) => setDraft({ ...draft, titleProperty })}
+        />
+      </Field>
+
+      <Field
+        label="Status property"
+        hint="The column that says whether a task is done. A status, select, or checkbox."
+      >
+        <TextInput
+          value={draft.statusProperty}
+          disabled={busy}
+          placeholder="Status"
+          onChange={(statusProperty) => setDraft({ ...draft, statusProperty })}
+        />
+      </Field>
+
+      <Field
+        label="Values that mean done"
+        hint="Comma separated, matched ignoring case. Ignored when the status column is a checkbox."
+      >
+        <TagInput
+          value={draft.doneValues}
+          disabled={busy}
+          placeholder="Done, Shipped"
+          onChange={(doneValues) => setDraft({ ...draft, doneValues })}
+        />
+      </Field>
+
+      <Field
+        label="Completed date property"
+        hint="Optional. When a task was finished. Falls back to when it was last edited."
+      >
+        <TextInput
+          value={draft.completedProperty}
+          disabled={busy}
+          placeholder="Completed on"
+          onChange={(completedProperty) =>
+            setDraft({ ...draft, completedProperty })
+          }
+        />
+      </Field>
+
+      <Field
+        label="Due date property"
+        hint="Optional. Used to date tasks that are not finished."
+      >
+        <TextInput
+          value={draft.dueProperty}
+          disabled={busy}
+          placeholder="Due"
+          onChange={(dueProperty) => setDraft({ ...draft, dueProperty })}
+        />
+      </Field>
+
+      <Field
+        label="Domain property"
+        hint="Optional. A select column naming which goal a task serves."
+      >
+        <TextInput
+          value={draft.domainProperty}
+          disabled={busy}
+          placeholder="Area"
+          onChange={(domainProperty) => setDraft({ ...draft, domainProperty })}
+        />
+      </Field>
+
+      <Field
+        label="Default domain"
+        hint="Used when no domain column is mapped, or when a task leaves it blank."
+      >
+        <TextInput
+          value={draft.defaultDomain}
+          disabled={busy}
+          placeholder={domainHint}
+          onChange={(defaultDomain) => setDraft({ ...draft, defaultDomain })}
+        />
+      </Field>
+
+      <Toggle
+        label="Also collect tasks that are not finished"
+        checked={draft.includeOpenTasks}
+        disabled={busy}
+        onChange={(includeOpenTasks) => setDraft({ ...draft, includeOpenTasks })}
+      />
+
+      <p className="field-hint">
+        Off by default. An open task records what you meant to do; a finished one
+        records what you did. The mentor&rsquo;s job is to compare them, which it
+        cannot do once they are in one pile.
+      </p>
+
+      <div className="save-bar">
+        <span className="save-status" />
+        <button
+          type="button"
+          disabled={busy || !dirty}
+          onClick={() => onRun(() => window.trajectory.saveNotionScope(draft))}
         >
           Save scope
         </button>

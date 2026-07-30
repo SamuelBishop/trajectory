@@ -37,11 +37,15 @@ export const SECRETS_FILE = "trajectory-secrets.enc.json";
  * credential that talks to the model — and worse, setting it switched the
  * provider off a working device login onto a token that had no Copilot access,
  * so turning on an integration broke chat.
+ *
+ * `notionToken` follows the same rule for the same reason: one slot per grant,
+ * so revoking a workspace's access never costs the user their model access.
  */
 export type SecretName =
   | "openaiApiKey"
   | "githubToken"
-  | "githubActivityToken";
+  | "githubActivityToken"
+  | "notionToken";
 
 export class SecretStore {
   constructor(

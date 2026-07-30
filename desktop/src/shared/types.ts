@@ -92,6 +92,7 @@ export interface DesktopApi {
   ): Promise<IntegrationsView>;
   setIntegrationsPaused(paused: boolean): Promise<IntegrationsView>;
   saveGitHubScope(scope: GitHubScopeView): Promise<IntegrationsView>;
+  saveNotionScope(scope: NotionScopeView): Promise<IntegrationsView>;
   /** Erases stored activity for one integration. There is no undo. */
   deleteIntegrationData(id: string): Promise<IntegrationsView>;
 
@@ -103,6 +104,8 @@ export interface DesktopApi {
   clearGithubToken(): Promise<SecretStatus>;
   setGithubActivityToken(value: string): Promise<SecretStatus>;
   clearGithubActivityToken(): Promise<SecretStatus>;
+  setNotionToken(value: string): Promise<SecretStatus>;
+  clearNotionToken(): Promise<SecretStatus>;
   startSignIn(): Promise<LoginPrompt>;
   waitForSignIn(): Promise<LoginResult>;
   cancelSignIn(): Promise<LoginResult>;
@@ -176,6 +179,7 @@ export interface SecretStatus {
   hasGithubToken: boolean;
   /** Read-only repository access. Distinct from the model's credential. */
   hasGithubActivityToken: boolean;
+  hasNotionToken: boolean;
   encryptionAvailable: boolean;
 }
 
@@ -228,12 +232,33 @@ export interface GitHubScopeView {
   domains: Record<string, string>;
 }
 
+/**
+ * Which Notion database may be read, and how to interpret its columns.
+ *
+ * Every property name is here because no two task databases share a schema.
+ * Notion has no canonical status or due-date column — they are whatever the
+ * user named them — so these are settings rather than constants.
+ */
+export interface NotionScopeView {
+  databaseId: string;
+  titleProperty: string;
+  statusProperty: string;
+  doneValues: string[];
+  completedProperty: string;
+  dueProperty: string;
+  domainProperty: string;
+  defaultDomain: string;
+  includeOpenTasks: boolean;
+  lookbackDays: number;
+}
+
 export interface IntegrationsView {
   paused: boolean;
   integrations: IntegrationSummary[];
   /** False when the OS cannot encrypt, which blocks storing activity at all. */
   encryptionAvailable: boolean;
   github: GitHubScopeView;
+  notion: NotionScopeView;
   /** Goal domains the user actually has, so the UI can offer real targets. */
   goalDomains: string[];
 }
