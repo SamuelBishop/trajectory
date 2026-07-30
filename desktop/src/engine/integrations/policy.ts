@@ -118,8 +118,32 @@ export const notionConfigSchema = z.strictObject({
    * does the extraction, because copying the URL is what people actually do.
    */
   database_id: z.string().trim().default(""),
+  /**
+   * Where the tasks are.
+   *
+   * `rows` treats each database row as one task and reads its properties. That
+   * is a task board.
+   *
+   * `checkboxes` treats each row as a container — a daily page — and reads the
+   * to-do blocks written *inside* it. That is a journal, where the row is a
+   * date and the tasks are the boxes you ticked under it. Reading the page body
+   * is strictly more than reading its properties, so it is opt-in.
+   *
+   * A mode rather than two flags, because the two readings are exclusive: under
+   * `checkboxes` the row itself is not a task, and the status column is
+   * irrelevant since a ticked box is unambiguous.
+   */
+  task_source: z.enum(["rows", "checkboxes"]).default("rows"),
   /** The title column. Notion's default name for it is "Name". */
   title_property: z.string().trim().default("Name"),
+  /**
+   * The date column on a daily page, used only under `checkboxes`.
+   *
+   * A real date rather than the page title. A page called "July 30" carries no
+   * year, so dating a task from its title means guessing one — and guessing
+   * wrong files this week's work under last year.
+   */
+  date_property: z.string().trim().default("Date"),
   /**
    * The column that says whether a task is finished.
    *

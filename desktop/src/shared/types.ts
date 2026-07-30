@@ -241,7 +241,13 @@ export interface GitHubScopeView {
  */
 export interface NotionScopeView {
   databaseId: string;
+  /**
+   * `rows` reads each database row as a task. `checkboxes` reads the to-do
+   * blocks inside each row's page, which is how a daily journal is shaped.
+   */
+  taskSource: "rows" | "checkboxes";
   titleProperty: string;
+  dateProperty: string;
   statusProperty: string;
   doneValues: string[];
   completedProperty: string;

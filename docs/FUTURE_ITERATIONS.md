@@ -194,6 +194,22 @@ requirements those prompts satisfy; each prompt ticks its own.
       column, so the request stays valid against a schema the adapter has never
       seen. Every property name is configurable because no two task databases
       share a schema.
+- [x] Read tasks out of a daily journal page, not just out of database rows.
+      The row-and-properties shape assumes one row per task; a daily note is one
+      row per *day* with the work written inside it as checkboxes, which the row
+      reader would reduce to a single useless signal named after the date.
+      `task_source: "checkboxes"` walks the page body instead, nested blocks
+      included, and dates every box by the row's date column. Reading ticked
+      boxes rather than journal prose is deliberate: a ticked box has an
+      unambiguous done state, and prose is self-reported, which is what
+      `current_state.yaml` already is — feeding it back as observed activity
+      would collapse the `[HC-OBSERVATION-VS-INFERENCE]` split.
+- [ ] Checkbox mode reads at most 31 pages and 100 block requests per sync. A
+      long-running daily journal with deeply nested notes will hit the block
+      budget before the page budget and quietly return a partial day. The
+      truncation is bounded but not yet *reported*, so it has the same shape as
+      the `signals_available` bug: the app knowing it saw less than everything
+      and not saying so.
 - [ ] Notion tasks have no rollup of their own. `buildRollup` counts signals per
       integration over a 30-day window, which answers "how many tasks" but not
       "how many were finished late" or "how long the average one stayed open".

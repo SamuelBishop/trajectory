@@ -10,6 +10,7 @@ import {
   NotionAccessError,
   NotionRateLimitError,
   NotionTasksAdapter,
+  checkboxesIn,
   dateStart,
   domainFor,
   isComplete,
@@ -244,6 +245,207 @@ describe("choosing a domain", () => {
   });
 });
 
+function dailyPage(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "dddd1111-2222-3333-4444-555566667777",
+    url: "https://www.notion.so/July-30-dddd111122223333444455556666777",
+    last_edited_time: "2026-07-30T21:00:00.000Z",
+    properties: {
+      Name: { type: "title", title: [{ plain_text: "July 30" }] },
+      Date: { type: "date", date: { start: "2026-07-30" } },
+    },
+    ...overrides,
+  };
+}
+
+function todo(id: string, text: string, checked: boolean, hasChildren = false) {
+  return {
+    id,
+    type: "to_do",
+    has_children: hasChildren,
+    to_do: { rich_text: [{ plain_text: text }], checked },
+  };
+}
+
+/** Routes the database query and the per-page block reads to separate replies. */
+function daily(pages: unknown[], blocksById: Record<string, unknown[]>) {
+  const urls: string[] = [];
+  const httpFetch = ((url: string) => {
+    urls.push(url);
+    if (url.includes("/query")) {
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({ results: pages, has_more: false, next_cursor: null }),
+        ),
+      );
+    }
+    const id = /\/v1\/blocks\/([^/]+)\/children/.exec(url)?.[1] ?? "";
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          results: blocksById[id] ?? [],
+          has_more: false,
+          next_cursor: null,
+        }),
+      ),
+    );
+  }) as unknown as typeof fetch;
+  return { urls, httpFetch };
+}
+
+describe("reading checkboxes out of a page body", () => {
+  it("keeps to-do blocks and ignores every other block type", () => {
+    const blocks = [
+      { id: "b1", type: "paragraph" },
+      todo("b2", "Ship the importer", true),
+      { id: "b3", type: "heading_2" },
+      todo("b4", "Write the retro", false),
+    ];
+    expect(checkboxesIn(blocks)).toEqual([
+      { id: "b2", text: "Ship the importer", checked: true },
+      { id: "b4", text: "Write the retro", checked: false },
+    ]);
+  });
+
+  it("drops a box with no text rather than storing a blank task", () => {
+    expect(checkboxesIn([todo("b1", "   ", true)])).toEqual([]);
+  });
+});
+
+describe("the Notion tasks adapter in daily-page mode", () => {
+  const checkboxConfig = { task_source: "checkboxes" as const, lookback_days: 1 };
+
+  it("dates every box by the page's date column, not by the page title", async () => {
+    // "July 30" carries no year. Dating from the title means guessing one, and
+    // guessing wrong files this week's work under a previous year.
+    const { httpFetch } = daily([dailyPage()], {
+      "dddd1111-2222-3333-4444-555566667777": [
+        todo("aaaa1111bbbb2222cccc333344445555", "Ship the importer", true),
+      ],
+    });
+    const signals = await adapter(checkboxConfig, httpFetch).fetch(
+      null,
+      "secret_token",
+    );
+
+    expect(signals).toHaveLength(1);
+    const signal = activitySignalSchema.parse(signals[0]);
+    expect(signal.summary).toBe("Ship the importer");
+    expect(signal.occurred_at).toBe("2026-07-30");
+    expect(signal.kind).toBe("task");
+  });
+
+  it("leaves unticked boxes out unless they are asked for", async () => {
+    const blocks = {
+      "dddd1111-2222-3333-4444-555566667777": [
+        todo("aaaa1111bbbb2222cccc333344445555", "Ship the importer", true),
+        todo("bbbb1111cccc2222dddd333344445555", "Write the retro", false),
+      ],
+    };
+    const first = daily([dailyPage()], blocks);
+    expect(
+      await adapter(checkboxConfig, first.httpFetch).fetch(null, "secret_token"),
+    ).toHaveLength(1);
+
+    const second = daily([dailyPage()], blocks);
+    expect(
+      await adapter(
+        { ...checkboxConfig, include_open_tasks: true },
+        second.httpFetch,
+      ).fetch(null, "secret_token"),
+    ).toHaveLength(2);
+  });
+
+  it("walks into a toggle rather than missing the list inside it", async () => {
+    // A daily note usually keeps its to-dos under a heading or inside a toggle,
+    // so a flat read of the top level would find almost nothing.
+    const { httpFetch } = daily([dailyPage()], {
+      "dddd1111-2222-3333-4444-555566667777": [
+        { id: "toggle-1", type: "toggle", has_children: true },
+      ],
+      "toggle-1": [todo("aaaa1111bbbb2222cccc333344445555", "Nested task", true)],
+    });
+    const signals = await adapter(checkboxConfig, httpFetch).fetch(
+      null,
+      "secret_token",
+    );
+
+    expect(signals.map((entry) => entry.summary)).toEqual(["Nested task"]);
+  });
+
+  it("does not store the daily page itself as a task", async () => {
+    // The row is a date, not something you did. Emitting it would put "July 30"
+    // in the mentor's context as an accomplishment.
+    const { httpFetch } = daily([dailyPage()], {
+      "dddd1111-2222-3333-4444-555566667777": [
+        todo("aaaa1111bbbb2222cccc333344445555", "Ship the importer", true),
+      ],
+    });
+    const signals = await adapter(checkboxConfig, httpFetch).fetch(
+      null,
+      "secret_token",
+    );
+
+    expect(signals.map((entry) => entry.summary)).not.toContain("July 30");
+  });
+
+  it("names the real columns when the date property matches none", async () => {
+    const { httpFetch } = daily(
+      [
+        dailyPage({
+          properties: {
+            Name: { type: "title", title: [{ plain_text: "July 30" }] },
+            Day: { type: "date", date: { start: "2026-07-30" } },
+          },
+        }),
+      ],
+      {},
+    );
+    const error = await rejection(
+      adapter(checkboxConfig, httpFetch).fetch(null, "secret_token"),
+    );
+
+    expect(error.message).toContain('date property named "Date"');
+    expect(error.message).toContain("Day");
+  });
+
+  it("keeps a page whose body cannot be read from failing the whole sync", async () => {
+    // A daily note can hold a linked database or a synced block the integration
+    // cannot see. Losing that day's boxes is much cheaper than losing the month.
+    const httpFetch = ((url: string) => {
+      if (String(url).includes("/query")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              results: [dailyPage(), dailyPage({ id: "eeee1111-2222-3333-4444-555566667777" })],
+              has_more: false,
+              next_cursor: null,
+            }),
+          ),
+        );
+      }
+      if (String(url).includes("dddd1111")) {
+        return Promise.resolve(new Response("{}", { status: 403 }));
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            results: [todo("aaaa1111bbbb2222cccc333344445555", "Survived", true)],
+            has_more: false,
+            next_cursor: null,
+          }),
+        ),
+      );
+    }) as unknown as typeof fetch;
+
+    const signals = await adapter(checkboxConfig, httpFetch).fetch(
+      null,
+      "secret_token",
+    );
+    expect(signals.map((entry) => entry.summary)).toEqual(["Survived"]);
+  });
+});
+
 describe("the Notion tasks adapter", () => {
   it("maps a completed task to a signal the schema accepts", async () => {
     const { httpFetch } = recorder([results([page()])]);
@@ -354,6 +556,18 @@ describe("the Notion tasks adapter", () => {
     });
   });
 
+  it("resumes from the last sync rather than the lookback window", async () => {
+    const { httpFetch, bodies } = recorder([results([page()])]);
+    await adapter({}, httpFetch).fetch("2026-01-05", "secret_token");
+
+    // Clamping to the horizon here would silently lose everything edited during
+    // a fortnight away from the app: newer than the last sync, older than the
+    // window, so nothing ever asks for it again.
+    expect(bodies[0]?.["filter"]).toMatchObject({
+      last_edited_time: { on_or_after: "2026-01-05" },
+    });
+  });
+
   it("keeps a two-day window on the user's calendar, not UTC's", async () => {
     // 18:00 in Denver is already tomorrow in UTC. A horizon derived from
     // toISOString therefore starts a day late, which on a week is invisible and
@@ -369,18 +583,6 @@ describe("the Notion tasks adapter", () => {
 
     expect(bodies[0]?.["filter"]).toMatchObject({
       last_edited_time: { on_or_after: "2026-07-29" },
-    });
-  });
-
-  it("resumes from the last sync rather than the lookback window", async () => {
-    const { httpFetch, bodies } = recorder([results([page()])]);
-    await adapter({}, httpFetch).fetch("2026-01-05", "secret_token");
-
-    // Clamping to the horizon here would silently lose everything edited during
-    // a fortnight away from the app: newer than the last sync, older than the
-    // window, so nothing ever asks for it again.
-    expect(bodies[0]?.["filter"]).toMatchObject({
-      last_edited_time: { on_or_after: "2026-01-05" },
     });
   });
 

@@ -24,7 +24,7 @@ import type {
   NotionScopeView,
 } from "../../shared/types";
 import { toErrorMessage } from "./errors";
-import { Field, NumberInput, TagInput, TextInput, Toggle } from "./FormKit";
+import { Field, NumberInput, Select, TagInput, TextInput, Toggle } from "./FormKit";
 
 function formatSyncedAt(value: string | null): string {
   if (value === null) return "Never synced.";
@@ -503,6 +503,21 @@ function NotionScopeEditor({
       </p>
 
       <Field
+        label="Where the tasks are"
+        hint="Rows: each row is one task. Checkboxes: each row is a day, and the to-do boxes written inside it are the tasks."
+      >
+        <Select
+          value={draft.taskSource}
+          disabled={busy}
+          options={[
+            { value: "rows", label: "Each row is a task" },
+            { value: "checkboxes", label: "Checkboxes inside each page" },
+          ]}
+          onChange={(taskSource) => setDraft({ ...draft, taskSource })}
+        />
+      </Field>
+
+      <Field
         label="Days to look back"
         hint="How far the first sync reaches. Later syncs resume from the last one."
       >
@@ -515,6 +530,29 @@ function NotionScopeEditor({
         />
       </Field>
 
+      {draft.taskSource === "checkboxes" && (
+        <>
+          <Field
+            label="Date property"
+            hint="The date column on each daily page. Every box ticked on that page is dated by it."
+          >
+            <TextInput
+              value={draft.dateProperty}
+              disabled={busy}
+              placeholder="Date"
+              onChange={(dateProperty) => setDraft({ ...draft, dateProperty })}
+            />
+          </Field>
+          <p className="field-hint">
+            A real date column rather than the page title. A page called
+            &ldquo;July 30&rdquo; carries no year, so dating a task from its name
+            means guessing one.
+          </p>
+        </>
+      )}
+
+      {draft.taskSource === "rows" && (
+      <>
       <Field label="Title property" hint="The column holding the task name.">
         <TextInput
           value={draft.titleProperty}
@@ -574,6 +612,9 @@ function NotionScopeEditor({
         />
       </Field>
 
+      </>
+      )}
+
       <Field
         label="Domain property"
         hint="Optional. A select column naming which goal a task serves."
@@ -599,16 +640,20 @@ function NotionScopeEditor({
       </Field>
 
       <Toggle
-        label="Also collect tasks that are not finished"
+        label={
+          draft.taskSource === "checkboxes"
+            ? "Also collect boxes that are not ticked"
+            : "Also collect tasks that are not finished"
+        }
         checked={draft.includeOpenTasks}
         disabled={busy}
         onChange={(includeOpenTasks) => setDraft({ ...draft, includeOpenTasks })}
       />
 
       <p className="field-hint">
-        Off by default. An open task records what you meant to do; a finished one
-        records what you did. The mentor&rsquo;s job is to compare them, which it
-        cannot do once they are in one pile.
+        Off by default. An unfinished item records what you meant to do; a
+        finished one records what you did. The mentor&rsquo;s job is to compare
+        them, which it cannot do once they are in one pile.
       </p>
 
       <div className="save-bar">

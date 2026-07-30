@@ -50,7 +50,9 @@ const githubScopeViewSchema = z.object({
 /** The renderer's shape for Notion scope. Parsed, never cast, for the same reason. */
 const notionScopeViewSchema = z.object({
   databaseId: z.string().default(""),
+  taskSource: z.enum(["rows", "checkboxes"]).default("rows"),
   titleProperty: z.string().default("Name"),
+  dateProperty: z.string().default("Date"),
   statusProperty: z.string().default("Status"),
   doneValues: z.array(z.string()).default([]),
   completedProperty: z.string().default(""),
@@ -163,7 +165,9 @@ export class IntegrationService {
       },
       notion: {
         databaseId: config.notion.database_id,
+        taskSource: config.notion.task_source,
         titleProperty: config.notion.title_property,
+        dateProperty: config.notion.date_property,
         statusProperty: config.notion.status_property,
         doneValues: config.notion.done_values,
         completedProperty: config.notion.completed_property,
@@ -218,7 +222,9 @@ export class IntegrationService {
       // smuggle an unexpected key into stored config. The schema re-validates.
       notion: notionConfigSchema.parse({
         database_id: view.databaseId,
+        task_source: view.taskSource,
         title_property: view.titleProperty,
+        date_property: view.dateProperty,
         status_property: view.statusProperty,
         done_values: view.doneValues,
         completed_property: view.completedProperty,

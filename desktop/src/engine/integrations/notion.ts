@@ -44,8 +44,21 @@ const NOTION_VERSION = "2022-06-28";
 
 const PAGE_SIZE = 100;
 
-/** Bounds one sync at 500 tasks. A first sync must not walk an entire archive. */
+/** Bounds one sync at 500 rows. A first sync must not walk an entire archive. */
 const MAX_PAGES = 5;
+
+/**
+ * How many daily pages get their body read, and how many block requests that
+ * may cost in total.
+ *
+ * Reading bodies costs a request per page, plus one per nested block that has
+ * children. A month of daily pages is the useful ceiling; the request budget is
+ * the backstop for a page with deeply nested toggles. Notion allows roughly
+ * three requests a second, so an unbounded walk would throttle the integration
+ * into uselessness on its first sync.
+ */
+const MAX_CONTAINER_PAGES = 31;
+const MAX_BLOCK_REQUESTS = 100;
 
 /** Raised when Notion asks us to stop. Carried to the user, never retried in a loop. */
 export class NotionRateLimitError extends Error {
@@ -88,6 +101,38 @@ export interface NotionPage {
   url?: string;
   last_edited_time?: string;
   properties?: Record<string, NotionProperty>;
+}
+
+export interface NotionBlock {
+  id: string;
+  type?: string;
+  has_children?: boolean;
+  to_do?: { rich_text?: RichTextItem[]; checked?: boolean };
+}
+
+/** A ticked or unticked box, carrying the day it was written under. */
+export interface Checkbox {
+  id: string;
+  text: string;
+  checked: boolean;
+}
+
+/** Pull the to-do blocks out of a page body, ignoring every other block type. */
+export function checkboxesIn(blocks: readonly NotionBlock[]): Checkbox[] {
+  const found: Checkbox[] = [];
+  for (const block of blocks) {
+    if (block.type !== "to_do" || !block.to_do) {
+      continue;
+    }
+    const text = firstLine(
+      (block.to_do.rich_text ?? []).map((run) => run.plain_text ?? "").join(""),
+    );
+    if (text.length === 0) {
+      continue;
+    }
+    found.push({ id: block.id, text, checked: block.to_do.checked === true });
+  }
+  return found;
 }
 
 /**
@@ -261,10 +306,11 @@ export function earliestEdit(
   if (since !== null) {
     return since;
   }
-  // A local calendar date, not a UTC one. From early evening onwards in a US
-  // timezone UTC has already rolled over, so a horizon taken from toISOString
-  // starts a day late — and a two-day window silently loses yesterday exactly
-  // when someone sits down to review their day.
+  // Local calendar date, not UTC. Deriving the horizon from `toISOString` means
+  // that from early evening onwards — when UTC has already rolled over but the
+  // user's day has not — the window starts a day late. On a week that is an
+  // invisible edge; on the one- or two-day window a daily review needs, it
+  // silently drops yesterday, at exactly the hour someone sits down to reflect.
   return localDate(new Date(today.getTime() - lookbackDays * 86_400_000));
 }
 
@@ -314,6 +360,11 @@ export class NotionTasksAdapter {
 
     const pages = await this.query(databaseId, config, since, token);
     const fetchedAt = this.now().toISOString();
+
+    if (config.task_source === "checkboxes") {
+      return await this.fromCheckboxes(pages, config, databaseId, token, fetchedAt);
+    }
+
     const signals: ActivitySignal[] = [];
     let sawStatusProperty = false;
 
@@ -366,6 +417,131 @@ export class NotionTasksAdapter {
     return signals;
   }
 
+  /**
+   * Daily-page mode: the row is a date, the tasks are the boxes inside it.
+   *
+   * Every checkbox on a page is dated by that page's date column rather than by
+   * when the block was written, because that is what the user meant when they
+   * wrote it under a given day.
+   */
+  private async fromCheckboxes(
+    pages: readonly NotionPage[],
+    config: NotionConfig,
+    databaseId: string,
+    token: string,
+    fetchedAt: string,
+  ): Promise<ActivitySignal[]> {
+    const signals: ActivitySignal[] = [];
+    const budget = { remaining: MAX_BLOCK_REQUESTS };
+    let sawDateProperty = false;
+
+    for (const page of pages.slice(0, MAX_CONTAINER_PAGES)) {
+      const dated = dateStart(page.properties?.[config.date_property]);
+      if (dated !== null) {
+        sawDateProperty = true;
+      }
+      const occurred =
+        dated ??
+        (typeof page.last_edited_time === "string" &&
+        page.last_edited_time.length >= 10
+          ? page.last_edited_time.slice(0, 10)
+          : null);
+      if (occurred === null) {
+        continue;
+      }
+
+      const blocks = await this.blockChildren(page.id, token, budget);
+      const domain = domainFor(page, config);
+      for (const box of checkboxesIn(blocks)) {
+        if (!box.checked && !config.include_open_tasks) {
+          continue;
+        }
+        signals.push({
+          id: signalId(box.id),
+          integration_id: NOTION_INTEGRATION_ID,
+          kind: "task",
+          occurred_at: occurred,
+          summary: box.text,
+          domain,
+          metrics: {},
+          url: page.url ?? null,
+          provenance: {
+            fetched_at: fetchedAt,
+            adapter_version: this.version,
+            account_label: databaseId,
+            manually_reviewed: false,
+          },
+        });
+      }
+    }
+
+    // Same honesty as the status column in row mode: a date property naming no
+    // real column would silently date every task by when the page was last
+    // touched, which is not what the user wrote under that day.
+    if (pages.length > 0 && !sawDateProperty && config.date_property.length > 0) {
+      throw new Error(
+        `No page had a date property named "${config.date_property}". ` +
+          `The database uses: ${describeProperties(pages)}. ` +
+          "Set the date property in Settings, or clear it to date tasks by when the page was last edited.",
+      );
+    }
+
+    return signals;
+  }
+
+  /**
+   * Every block on a page, walking into anything that has children.
+   *
+   * Toggles and headings routinely hold the to-do list in a daily note, so a
+   * flat read of the top level would miss most of it. The shared budget is what
+   * stops a deeply nested page from spending the whole sync's request
+   * allowance.
+   */
+  private async blockChildren(
+    blockId: string,
+    token: string,
+    budget: { remaining: number },
+  ): Promise<NotionBlock[]> {
+    const collected: NotionBlock[] = [];
+    let cursor: string | undefined;
+
+    do {
+      if (budget.remaining <= 0) {
+        return collected;
+      }
+      budget.remaining -= 1;
+      const query = cursor === undefined ? "" : `&start_cursor=${cursor}`;
+      const response = await this.httpFetch(
+        `${API_ROOT}/v1/blocks/${blockId}/children?page_size=${String(PAGE_SIZE)}${query}`,
+        { method: "GET", headers: this.headers(token) },
+      );
+      // A single unreadable block must not fail the whole sync: a page can hold
+      // a linked database or a synced block the integration cannot see, and
+      // losing that page's boxes is much cheaper than losing the month.
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 429) {
+          this.assertUsable(response, blockId);
+        }
+        return collected;
+      }
+      const body = (await response.json()) as {
+        results?: NotionBlock[];
+        has_more?: boolean;
+        next_cursor?: string | null;
+      };
+      const results = body.results ?? [];
+      collected.push(...results);
+      for (const child of results) {
+        if (child.has_children === true) {
+          collected.push(...(await this.blockChildren(child.id, token, budget)));
+        }
+      }
+      cursor = body.has_more === true && body.next_cursor ? body.next_cursor : undefined;
+    } while (cursor !== undefined);
+
+    return collected;
+  }
+
   private async query(
     databaseId: string,
     config: NotionConfig,
@@ -380,11 +556,7 @@ export class NotionTasksAdapter {
         `${API_ROOT}/v1/databases/${databaseId}/query`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Notion-Version": NOTION_VERSION,
-            "Content-Type": "application/json",
-          },
+          headers: { ...this.headers(token), "Content-Type": "application/json" },
           body: JSON.stringify({
             // A timestamp filter takes no property name — Notion rejects the
             // request if one is supplied — which is exactly why it is safe
@@ -415,6 +587,13 @@ export class NotionTasksAdapter {
       cursor = body.next_cursor;
     }
     return collected;
+  }
+
+  private headers(token: string): Record<string, string> {
+    return {
+      Authorization: `Bearer ${token}`,
+      "Notion-Version": NOTION_VERSION,
+    };
   }
 
   /**
