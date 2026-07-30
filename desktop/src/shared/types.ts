@@ -94,6 +94,16 @@ export interface DesktopApi {
   saveGitHubScope(scope: GitHubScopeView): Promise<IntegrationsView>;
   saveNotionScope(scope: NotionScopeView): Promise<IntegrationsView>;
   saveStravaScope(scope: StravaScopeView): Promise<IntegrationsView>;
+  /**
+   * Open Strava's consent page for the configured application.
+   *
+   * Exists because the token Strava shows on its own settings page carries
+   * `read` scope and cannot list activities, so the obvious way to set this up
+   * is the wrong one.
+   */
+  openStravaAuthorize(): Promise<AuthorizeOutcome>;
+  /** Exchange the pasted redirect address for a refresh token and store it. */
+  completeStravaAuthorize(pasted: string): Promise<AuthorizeOutcome>;
   /** Erases stored activity for one integration. There is no undo. */
   deleteIntegrationData(id: string): Promise<IntegrationsView>;
 
@@ -276,6 +286,12 @@ export interface NotionScopeView {
  * credentials and live in `SecretStore`; this view crosses IPC to the renderer,
  * which must never receive one ([HC-SECRETS-ENV-ONLY]).
  */
+/** Whether a setup step worked, and what to say if it did not. */
+export interface AuthorizeOutcome {
+  readonly ok: boolean;
+  readonly problem: string | null;
+}
+
 export interface StravaScopeView {
   /** The API application's ID. Public — it appears in every authorize URL. */
   clientId: string;

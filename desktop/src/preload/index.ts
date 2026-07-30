@@ -66,6 +66,10 @@ const api: DesktopApi = {
     ipcRenderer.invoke("integrations:saveNotionScope", scope),
   saveStravaScope: (scope: unknown) =>
     ipcRenderer.invoke("integrations:saveStravaScope", scope),
+  openStravaAuthorize: () =>
+    ipcRenderer.invoke("integrations:openStravaAuthorize"),
+  completeStravaAuthorize: (pasted: string) =>
+    ipcRenderer.invoke("integrations:completeStravaAuthorize", pasted),
 
   // No getter for either credential. The renderer can learn that one exists
   // and can replace or remove it, but no channel returns a value

@@ -17,6 +17,7 @@
 import { useEffect, useState } from "react";
 
 import type {
+  AuthorizeOutcome,
   GitHubScopeView,
   IntegrationPolicyView,
   IntegrationSummary,
@@ -746,6 +747,8 @@ function StravaScopeEditor({
         track. Routes and GPS coordinates are never read or stored.
       </p>
 
+      <StravaAuthorizeHelper busy={busy} />
+
       <div className="save-bar">
         <span className="save-status">
           {dirty ? "Unsaved Strava settings." : ""}
@@ -760,5 +763,101 @@ function StravaScopeEditor({
         </button>
       </div>
     </>
+  );
+}
+
+/**
+ * Getting a refresh token that can actually read activities.
+ *
+ * This is not a convenience. `strava.com/settings/api` shows an access token
+ * and a refresh token right under the client secret, and they are issued with
+ * `read` scope, which cannot list activities. Copying them is the obvious move
+ * and it produces a setup that authenticates correctly and then fails on every
+ * sync — the token endpoint returns 200 and the activity request returns 401.
+ * Nothing on that page hints at it. So the app asks for the scope itself
+ * rather than leaving the user to discover which of the two tokens was wrong.
+ */
+function StravaAuthorizeHelper({
+  busy,
+}: {
+  readonly busy: boolean;
+}): React.JSX.Element {
+  const [pasted, setPasted] = useState("");
+  const [note, setNote] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+
+  const settle = (action: () => Promise<AuthorizeOutcome>, done: string): void => {
+    setWorking(true);
+    setNote(null);
+    void attempt(action)
+      .then((outcome) => {
+        setNote(outcome.ok ? done : outcome.problem);
+        if (outcome.ok) {
+          setPasted("");
+        }
+      })
+      .catch((error: unknown) => {
+        setNote(toErrorMessage(error));
+      })
+      .finally(() => {
+        setWorking(false);
+      });
+  };
+
+  return (
+    <div className="subsection">
+      <p className="field-hint">
+        The refresh token shown on Strava&apos;s own API settings page will not
+        work: it is issued with <code>read</code> scope and cannot list
+        activities. Use this instead — it asks for{" "}
+        <code>activity:read_all</code> and stores the result.
+      </p>
+      <div className="save-bar">
+        <span className="save-status">{note ?? ""}</span>
+        <button
+          type="button"
+          disabled={busy || working}
+          onClick={() =>
+            settle(
+              () => window.trajectory.openStravaAuthorize(),
+              "Authorize in the browser, then paste the address it lands on.",
+            )
+          }
+        >
+          Authorize on Strava
+        </button>
+      </div>
+      <Field
+        label="Redirect address"
+        hint="The page will fail to load. That is expected — copy the whole address and paste it here."
+      >
+        <input
+          className="text-input"
+          type="text"
+          value={pasted}
+          placeholder="http://localhost/exchange_token?state=&code=..."
+          autoComplete="off"
+          spellCheck={false}
+          disabled={busy || working}
+          onChange={(event) => setPasted(event.target.value)}
+        />
+      </Field>
+      <div className="save-bar">
+        <span className="save-status" />
+        <button
+          type="button"
+          className={pasted.trim().length > 0 ? "primary" : undefined}
+          disabled={busy || working || pasted.trim().length === 0}
+          onClick={() =>
+            settle(
+              () => window.trajectory.completeStravaAuthorize(pasted),
+              "Refresh token stored. Press Refresh to sync.",
+            )
+          }
+        >
+          Store refresh token
+        </button>
+      </div>
+    </div>
   );
 }

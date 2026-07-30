@@ -35,6 +35,111 @@ import { localDate } from "./rollup";
 export const STRAVA_INTEGRATION_ID = "strava";
 const STRAVA_HOST = "www.strava.com";
 const TOKEN_URL = `https://${STRAVA_HOST}/oauth/token`;
+const AUTHORIZE_URL = `https://${STRAVA_HOST}/oauth/authorize`;
+
+/**
+ * The scope this adapter needs, and the reason the setup has a helper at all.
+ *
+ * `strava.com/settings/api` displays a ready-made access token and refresh
+ * token next to the client secret, which is the obvious thing to copy — and
+ * those are issued with `read` scope only. `read` cannot list activities, so
+ * the pair authenticates perfectly, the token endpoint returns 200, and the
+ * activity request returns 401. Nothing about the settings page suggests the
+ * token it hands you is the wrong one for reading activities.
+ */
+const REQUIRED_SCOPE = "activity:read_all";
+
+/**
+ * Where the user has to go to grant `activity:read_all`.
+ *
+ * `localhost` is a whitelisted redirect target, so the redirect fails to load
+ * and the authorization code can be read out of the address bar. That is the
+ * whole reason this integration needs no loopback listener.
+ *
+ * `approval_prompt=force` because Strava otherwise silently reuses an existing
+ * authorization — including one granted with the wrong scope, which is the
+ * exact situation this link exists to escape.
+ */
+export function authorizeUrl(clientId: string): string {
+  return (
+    `${AUTHORIZE_URL}?` +
+    new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: REDIRECT_URI,
+      response_type: "code",
+      approval_prompt: "force",
+      scope: REQUIRED_SCOPE,
+    }).toString()
+  );
+}
+
+const REDIRECT_URI = "http://localhost/exchange_token";
+
+/**
+ * Pull the authorization code out of whatever the user pasted.
+ *
+ * They are told to copy an address bar, so accept the whole URL. They will
+ * sometimes paste just the code, so accept that too. Getting this wrong is
+ * cheap to fix and annoying to hit, and the alternative is an instruction
+ * telling someone to edit a URL by hand.
+ */
+export function authorizationCodeFrom(pasted: string): string {
+  const trimmed = pasted.trim();
+  if (trimmed.length === 0) {
+    return "";
+  }
+  const match = /[?&]code=([^&\s]+)/.exec(trimmed);
+  if (match?.[1] !== undefined) {
+    return match[1];
+  }
+  // A bare code. Reject anything URL-shaped so a paste that *should* have
+  // carried a code is reported rather than sent to Strava as one.
+  return /^[A-Za-z0-9._-]+$/.test(trimmed) ? trimmed : "";
+}
+
+/**
+ * Trade an authorization code for a refresh token.
+ *
+ * Separate from the adapter because it runs once, during setup, and needs the
+ * client secret and a code rather than a stored refresh token. It returns the
+ * refresh token instead of storing it: persistence belongs to the main
+ * process, and the network call belongs here.
+ */
+export async function exchangeAuthorizationCode(
+  clientId: string,
+  clientSecret: string,
+  code: string,
+  httpFetch: typeof fetch = globalThis.fetch,
+): Promise<string> {
+  if (code.length === 0) {
+    throw new StravaAuthError(
+      "That does not look like an authorization code. Paste the whole address " +
+        "the browser landed on, including the ?code= part.",
+    );
+  }
+  const response = await httpFetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: "authorization_code",
+      code,
+    }).toString(),
+  });
+
+  if (!response.ok) {
+    const detail: unknown = await response.json().catch(() => null);
+    throw new StravaAuthError(describeTokenRejection(detail));
+  }
+
+  const body = (await response.json()) as TokenResponse;
+  const refreshToken = body.refresh_token ?? "";
+  if (refreshToken.length === 0) {
+    throw new StravaAuthError("Strava returned no refresh token.");
+  }
+  return refreshToken;
+}
 const ACTIVITIES_URL = `https://${STRAVA_HOST}/api/v3/athlete/activities`;
 
 /** Strava's own maximum. Fewer pages for the same history means fewer requests. */

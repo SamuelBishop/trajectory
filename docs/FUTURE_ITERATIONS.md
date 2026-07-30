@@ -263,15 +263,20 @@ requirements those prompts satisfy; each prompt ticks its own.
       screen still accepts a combination that cannot work. The authorize helper
       below would fix it at the source by minting the token against the
       configured ID rather than asking for both separately.
-- [ ] Add an in-app Strava authorize helper. Today setup means pasting a client
-      ID, a client secret, and a refresh token obtained by hand: opening the
-      authorize URL, letting `http://localhost/exchange_token` fail to load, and
-      copying `code` out of the address bar. That is fine for the one user who
-      already has a working token and unacceptable for anyone else. The shape is
-      `shell.openExternal` to the authorize URL and a field for the pasted
-      redirect URL, from which the adapter extracts `code`. Explicitly **not** an
-      embedded webview — an app-controlled window asking for third-party
-      credentials is a phishing pattern.
+- [x] Add an in-app Strava authorize helper. Built after the deferred version
+      cost a live debugging session: the refresh token Strava displays on its
+      own API settings page is issued with `read` scope, cannot list
+      activities, and is the obvious thing to copy. The result authenticates
+      correctly — the token endpoint returns 200 — and then every sync fails
+      with a 401 on the activity request, with nothing on Strava's page hinting
+      why. "Authorize on Strava" opens the consent screen for the configured
+      application with `activity:read_all` and `approval_prompt=force`, and a
+      second field takes the pasted redirect address and exchanges it. The main
+      process builds the URL from stored config so the renderer never supplies
+      one to `shell.openExternal`, and the minted refresh token goes straight to
+      the secret store without being returned. Not an embedded webview: an
+      app-controlled window asking for third-party credentials is a phishing
+      pattern.
 - [ ] Fetch per-activity detail for perceived exertion and suffer score. Neither
       is on the `SummaryActivity` the list endpoint returns, so each costs one
       extra request per activity against a 200-per-15-minutes budget. Worth it

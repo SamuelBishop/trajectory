@@ -1024,3 +1024,16 @@ button {
   position: static;
   background: transparent;
 }
+
+/*
+ * A setup step that is not a setting. Separated because the fields above it
+ * are things the user chooses and this is a one-time exchange with Strava —
+ * running them together made the authorize button read like another toggle.
+ */
+.subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid #24241f;
+}

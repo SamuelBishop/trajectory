@@ -20,6 +20,11 @@ import { providerNameSchema } from "../engine/domain";
 import { integrationPolicySchema } from "../engine/integrations";
 import { localDate } from "../engine/integrations/rollup";
 import {
+  authorizationCodeFrom,
+  authorizeUrl,
+  exchangeAuthorizationCode,
+} from "../engine/integrations/strava";
+import {
   assertValidMentorId,
   deleteMentor,
   duplicateMentor,
@@ -493,6 +498,53 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("integrations:saveStravaScope", async (_event, scope: unknown) => {
     await integrations.saveStravaScope(scope);
     return await integrations.view();
+  });
+
+  // Setup help for the one credential a user cannot obtain by copying a field.
+  // The URL is built here from stored configuration, never handed in by the
+  // renderer, which is the same rule the sign-in flow follows: the renderer may
+  // ask for the browser to be opened, it may not say where to.
+  ipcMain.handle("integrations:openStravaAuthorize", async () => {
+    const clientId = (await integrations.view()).strava.clientId;
+    if (clientId.length === 0) {
+      return { ok: false, problem: "Set the Client ID first, then save." };
+    }
+    void shell.openExternal(authorizeUrl(clientId)).catch(() => undefined);
+    return { ok: true, problem: null };
+  });
+
+  // The paste half of the same flow. The code arrives from the renderer, so it
+  // is validated here ([HC-VALIDATE-IPC-INPUT]) and the resulting refresh token
+  // is written straight to the secret store — it is never returned, because
+  // nothing outside this process has a reason to see it.
+  ipcMain.handle("integrations:completeStravaAuthorize", async (_event, pasted: unknown) => {
+    if (typeof pasted !== "string") {
+      throw new Error("The redirect address must be text.");
+    }
+    const clientId = (await integrations.view()).strava.clientId;
+    if (clientId.length === 0) {
+      return { ok: false, problem: "Set the Client ID first, then save." };
+    }
+    const clientSecret = (await secrets.read("stravaClientSecret")) ?? "";
+    if (clientSecret.length === 0) {
+      return { ok: false, problem: "Store the Strava client secret first." };
+    }
+    try {
+      const refreshToken = await exchangeAuthorizationCode(
+        clientId,
+        clientSecret,
+        authorizationCodeFrom(pasted),
+        globalThis.fetch,
+      );
+      await secrets.set("stravaRefreshToken", refreshToken);
+      return { ok: true, problem: null };
+    } catch (error) {
+      return {
+        ok: false,
+        problem:
+          error instanceof Error ? error.message : "Authorization failed.",
+      };
+    }
   });
 
   ipcMain.handle("secrets:status", () => secretStatus());

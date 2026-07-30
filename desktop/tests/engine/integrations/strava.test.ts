@@ -12,8 +12,11 @@ import {
   StravaRateLimitError,
   activityMetrics,
   activitySummary,
+  authorizationCodeFrom,
+  authorizeUrl,
   describeApiRejection,
   describeTokenRejection,
+  exchangeAuthorizationCode,
   earliestStart,
   humanizeSport,
   type StravaTokenStore,
@@ -824,5 +827,111 @@ describe("explaining a rejection from the activity endpoint", () => {
     await expect(adapter.fetch(null, CLIENT_SECRET)).rejects.toThrow(
       /missing a permission/,
     );
+  });
+});
+
+describe("getting a refresh token that can read activities", () => {
+  it("asks for activity:read_all, because the settings-page token cannot", () => {
+    // The whole reason this helper exists. Strava's API settings page hands
+    // out a refresh token with `read` scope, which authenticates perfectly and
+    // then cannot list a single activity.
+    const url = new URL(authorizeUrl("169093"));
+    expect(url.origin + url.pathname).toBe("https://www.strava.com/oauth/authorize");
+    expect(url.searchParams.get("scope")).toBe("activity:read_all");
+    expect(url.searchParams.get("client_id")).toBe("169093");
+    expect(url.searchParams.get("response_type")).toBe("code");
+  });
+
+  it("forces the consent screen so a wrong existing grant is replaced", () => {
+    // Without this Strava silently reuses the authorization already on file —
+    // including the `read`-only one the user is trying to escape, which would
+    // make the fix appear to do nothing.
+    expect(
+      new URL(authorizeUrl("169093")).searchParams.get("approval_prompt"),
+    ).toBe("force");
+  });
+
+  it("points the redirect somewhere that needs no listener", () => {
+    // localhost is a whitelisted redirect target and the page failing to load
+    // is the expected outcome: the code is read out of the address bar. This
+    // is why the integration needs no loopback server.
+    expect(new URL(authorizeUrl("1")).searchParams.get("redirect_uri")).toBe(
+      "http://localhost/exchange_token",
+    );
+  });
+
+  it("takes the code out of a pasted address bar", () => {
+    expect(
+      authorizationCodeFrom(
+        "http://localhost/exchange_token?state=&code=abc123def&scope=read,activity:read_all",
+      ),
+    ).toBe("abc123def");
+  });
+
+  it("accepts a bare code, because people paste that too", () => {
+    expect(authorizationCodeFrom("  abc123def  ")).toBe("abc123def");
+  });
+
+  it("refuses a URL that carries no code rather than sending it as one", () => {
+    // A paste that should have carried a code and did not is a mistake worth
+    // reporting. Forwarding the whole URL to Strava as a code would produce a
+    // rejection that blames the credential instead.
+    expect(authorizationCodeFrom("http://localhost/exchange_token?error=access_denied")).toBe("");
+    expect(authorizationCodeFrom("")).toBe("");
+  });
+
+  it("exchanges a code for a refresh token", async () => {
+    const log: string[] = [];
+    const refreshToken = await exchangeAuthorizationCode(
+      "169093",
+      CLIENT_SECRET,
+      "abc123def",
+      (url, init) => {
+        log.push(String(url));
+        log.push(String((init as RequestInit).body));
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ refresh_token: "minted-token", access_token: "a" }),
+          ),
+        );
+      },
+    );
+
+    expect(refreshToken).toBe("minted-token");
+    expect(log[0]).toBe("https://www.strava.com/oauth/token");
+    expect(log[1]).toContain("grant_type=authorization_code");
+    expect(log[1]).toContain("code=abc123def");
+  });
+
+  it("explains a rejected exchange without echoing the secret", async () => {
+    await expect(
+      exchangeAuthorizationCode("169093", CLIENT_SECRET, "abc", () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              errors: [{ resource: "Application", field: "", code: "invalid" }],
+            }),
+            { status: 401 },
+          ),
+        ),
+      ),
+    ).rejects.toThrow(/client secret/);
+
+    await expect(
+      exchangeAuthorizationCode("169093", CLIENT_SECRET, "abc", () =>
+        Promise.resolve(new Response("{}", { status: 401 })),
+      ),
+    ).rejects.not.toThrow(new RegExp(CLIENT_SECRET));
+  });
+
+  it("refuses to call Strava at all when there is no code", async () => {
+    let called = false;
+    await expect(
+      exchangeAuthorizationCode("169093", CLIENT_SECRET, "", () => {
+        called = true;
+        return Promise.resolve(new Response("{}"));
+      }),
+    ).rejects.toThrow(/authorization code/);
+    expect(called).toBe(false);
   });
 });
