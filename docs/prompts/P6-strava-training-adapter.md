@@ -5,36 +5,75 @@ following the pattern established by the GitHub adapter in P3.
 
 Requires P0, P1, P2, and P3.
 
-## The one hard part
+## Credentials — smaller than it looks
 
-Unlike GitHub and Notion, Strava does not accept a static token. It needs the
-OAuth2 authorization code flow with token refresh, which means the app must
-receive a redirect. Everything else in this prompt is routine; budget the
-complexity here.
+An earlier draft of this prompt called OAuth "the one hard part" and priced the
+work at roughly twice P4. That was wrong, and the correction is worth recording
+because it is the kind of mistake that silently cancels useful work.
 
-- Open the system browser to Strava's authorize URL with scope
-  `activity:read_all`. Do not use an embedded webview — an app-controlled window
-  asking for third-party credentials is a phishing pattern, and the desktop
-  security instructions already forbid the shape.
-- Listen on a loopback redirect (`http://127.0.0.1:{port}/callback`) only while
-  authorization is pending, and shut the listener down immediately afterward,
-  whether it succeeded or failed. A listener that outlives the flow is an open
-  local port nobody is thinking about.
-- Exchange the code for an access token and a refresh token. Access tokens expire
-  in six hours, so store the **refresh** token and rotate. Strava returns a new
-  refresh token on some refreshes — persist it when it changes, or the
-  integration dies silently weeks later.
+Strava's authorization code flow splits cleanly in two, and only the cheap half
+has to run inside the app:
 
-Add `stravaRefreshToken` to the `SecretName` union and reuse `SecretStore`.
+| Step | When | Where |
+| --- | --- | --- |
+| `authorization_code` exchange | once, by hand | browser + `curl` |
+| `refresh_token` exchange | every sync | the adapter |
+| `GET /athlete/activities` | every sync | the adapter |
+
+`localhost` and `127.0.0.1` are whitelisted redirect targets, so the authorize
+redirect can point at `http://localhost/exchange_token`, fail to load, and have
+the `code` copied out of the address bar. **No loopback listener is required.**
+The refresh token that comes back is a long-lived pasted credential of exactly
+the same shape as the GitHub and Notion tokens — so this ships the same way:
+three paste fields, no listener, no port allocation, no listener lifecycle.
+
+An in-app authorize helper (`shell.openExternal` plus a pasted redirect URL) is
+deferred to `FUTURE_ITERATIONS.md`. It is needed by any user who does not
+already hold a refresh token. It must never be an embedded webview: an
+app-controlled window asking for third-party credentials is a phishing pattern,
+and the desktop security instructions forbid the shape.
+
+**Rotation is the real hazard, and it is not optional.** The docs are explicit
+that a refresh token is returned from *every* successful token request and that
+"once a new refresh token is returned, the older refresh token is invalidated
+immediately". Persist it the moment it arrives and **before** issuing the
+activity request, so a later failure cannot lose it. An integration that drops
+the rotated token keeps working until the day it doesn't, then dies weeks later
+with no signal — and a stale-but-green failure mode is the exact bug species
+this repository has now hit four times.
+
+Strava issues one API application per athlete account, so `client_id` and
+`client_secret` are shared with anything else the user has built against
+Strava, and so is the token lineage. Rotating here invalidates the token held
+there. Note it; do not design around it.
+
+Also true, and not in the earlier draft: creating an API application now
+requires a Strava subscription, and new applications start in "single-player
+mode" where only the owning athlete can authorize. For Trajectory that is
+exactly right.
+
+Credentials split three ways:
+
+- `client_id` → `stravaConfigSchema` in `policy.ts`. Not a secret; it is an
+  integer app ID that appears in every authorize URL.
+- `client_secret` → a `SecretName` slot, passed through the existing
+  `runner.runSync({ credential })` path.
+- `refresh_token` → a second `SecretName` slot, reached through an injected
+  `{ read(), save(next) }` pair, because it must travel in both directions.
+  That keeps the network call in `engine/integrations/` where the ingress
+  exemption lives and `SecretStore` in `main/` where it belongs.
 
 ## Fetching
 
 `GET https://www.strava.com/api/v3/athlete/activities?after={epoch}&per_page=…`
 
-Rate limits are 100 requests per 15 minutes and 1000 per day. Sync incrementally
-from the last successful `fetched_at` using `after`, and paginate. A full
-refetch on every sync will exhaust the daily budget on a long history and get the
-integration throttled.
+Rate limits are **200 requests per 15 minutes and 2,000 per day**, per
+application — not the 100/1,000 an earlier draft of this prompt claimed. Sync
+incrementally from the last successful `fetched_at` using `after`, and paginate.
+A full refetch on every sync will exhaust the daily budget on a long history and
+get the integration throttled. A 429 must name which of the two budgets was
+exhausted, because the wait is fifteen minutes or the rest of the day and the
+user cannot tell which from a bare error.
 
 ## Mapping
 
@@ -47,8 +86,11 @@ One signal per activity:
 - `occurred_at` — the activity start date, local.
 - `domain` — user-configured, defaulting to a single training domain so workouts
   score against a running or fitness goal.
-- `metrics` — distance in metres, moving time in seconds, elevation gain, average
-  heart rate when present, and perceived exertion when present.
+- `metrics` — distance in metres, moving time in seconds, elapsed time,
+  elevation gain, and average and max heart rate when present. **Not perceived
+  exertion**: it is not on the `SummaryActivity` the list endpoint returns, and
+  fetching it would cost one extra request per activity against the rate limit
+  above. Dropped rather than paid for.
 
 Do **not** store GPS streams, polylines, or start coordinates. They are the most
 sensitive data Strava holds, they are large, and the mentor has no use for them.
@@ -76,8 +118,23 @@ Run `./scripts/verify.sh` and show the output. Tests against recorded fixtures,
 never a live endpoint.
 
 Tests to add, named for behavior: maps an activity to a signal, omits GPS and
-polyline data entirely, persists a rotated refresh token, refreshes an expired
-access token before fetching, fetches incrementally using `after`, paginates a
-multi-page history, shuts down the loopback listener after a failed
-authorization, and computes weekly volume and consecutive-day streaks in the
-rollup.
+polyline data entirely, persists a rotated refresh token **before** the activity
+request rather than after, reuses a cached access token until it expires,
+refreshes an expired one before fetching, fetches incrementally using `after`,
+paginates a multi-page history, keeps a credential out of every error message,
+distinguishes the fifteen-minute budget from the daily one on a 429, and derives
+the lookback horizon from the local calendar rather than from UTC.
+
+That last one is not padding. Deriving a calendar day with
+`.toISOString().slice(0, 10)` has produced a real off-by-one bug in this
+repository four separate times. Use `localDate` from `rollup.ts`, and write the
+test at an hour where UTC and local disagree — a test at 09:00Z passes under
+both and catches nothing.
+
+Weekly volume and consecutive training days come from `buildRollup`, which
+already sums `metrics` into `totals` and already computes `streak_days` per
+integration. What was missing was a short window: rollups covered thirty days
+only, so "how did this week go" was answered from a month of data. Selection now
+emits both a 7-day and a 30-day rollup per contributing integration. Because the
+windows overlap, both prompts must tell the model never to add two rollups
+together.

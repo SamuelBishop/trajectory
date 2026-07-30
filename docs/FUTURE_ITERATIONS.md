@@ -242,6 +242,41 @@ requirements those prompts satisfy; each prompt ticks its own.
       still discarded. Knowing a task went to "Blocked" rather than "In
       progress" is exactly the kind of signal a mentor should notice, and it is
       thrown away at the boundary.
+- [x] Define a fitness and recovery interface, and ship it. — P6.
+      `desktop/src/engine/integrations/strava.ts`. One signal per activity,
+      `kind: "workout"`, summary composed by the adapter from sport and distance
+      rather than the user's title, which is usually a joke. No GPS, no
+      polylines, no start coordinates: the most sensitive thing Strava holds and
+      the mentor has no use for it.
+- [x] Give rollups a short window as well as a long one. `buildRollup` already
+      summed metrics and counted per-integration streaks, but selection only
+      ever asked for 30 days, so "how did this week go" — the question people
+      actually ask, and the one a training block turns on — was answered from a
+      month of data. Selection now emits a 7-day and a 30-day rollup per
+      contributing integration. The windows overlap, so both prompts state that
+      rollups must never be added together.
+- [ ] Add an in-app Strava authorize helper. Today setup means pasting a client
+      ID, a client secret, and a refresh token obtained by hand: opening the
+      authorize URL, letting `http://localhost/exchange_token` fail to load, and
+      copying `code` out of the address bar. That is fine for the one user who
+      already has a working token and unacceptable for anyone else. The shape is
+      `shell.openExternal` to the authorize URL and a field for the pasted
+      redirect URL, from which the adapter extracts `code`. Explicitly **not** an
+      embedded webview — an app-controlled window asking for third-party
+      credentials is a phishing pattern.
+- [ ] Fetch per-activity detail for perceived exertion and suffer score. Neither
+      is on the `SummaryActivity` the list endpoint returns, so each costs one
+      extra request per activity against a 200-per-15-minutes budget. Worth it
+      only if effort turns out to matter more than volume.
+- [ ] Strava issues one API application per athlete account, so Trajectory
+      shares a client ID, secret, and refresh-token lineage with the user's
+      devsite. Trajectory persists the rotated refresh token as the docs
+      require; the devsite discards it and its `keepOrEmpty()` fallback keeps the
+      previous heatmap so the build stays green. If Strava ever rotates, the
+      devsite serves frozen data and nothing goes red. The fix is on that side:
+      persist the returned token, and make stale data visible rather than
+      silently green. Written down here so the failure has an explanation
+      waiting for it.
 - [ ] Add exported or manually created screen-time data before attempting platform collectors.
 - [ ] Document future platform-specific collectors.
 - [ ] Add calendar ingestion with explicit scope selection.
