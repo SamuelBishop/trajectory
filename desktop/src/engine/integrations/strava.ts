@@ -125,11 +125,12 @@ interface TokenResponse {
 /**
  * Strava's rejection body: `{ message, errors: [{ resource, field, code }] }`.
  *
- * The `field` is the name of an input, never its value, so repeating it tells
- * the user which of the three credentials to fix without printing any of them.
+ * `resource` and `field` name an input, never its value, so repeating them
+ * tells the user which of the three credentials to fix without printing any of
+ * them.
  */
 interface TokenErrorBody {
-  errors?: readonly { field?: string; code?: string }[];
+  errors?: readonly { resource?: string; field?: string; code?: string }[];
 }
 
 /**
@@ -137,31 +138,54 @@ interface TokenErrorBody {
  *
  * Three credentials go into this request and any of them can be the wrong one.
  * A single "re-authorize" message sends a user to re-mint a token that was
- * fine, which is the most expensive of the three fixes and often not the
- * needed one. Strava already names the field it disliked; discarding that and
- * making the user guess is the app knowing something and not saying it.
+ * fine, which is the most expensive of the three fixes and usually not the
+ * needed one.
+ *
+ * The shapes below were read off the live endpoint, not out of the docs, after
+ * a first version keyed on `field` alone and fell through to the fallback on
+ * the most common failure there is. `field` is *empty* for a wrong secret; the
+ * information is in `resource`:
+ *
+ * | sent | status | resource | field |
+ * | --- | --- | --- | --- |
+ * | client_id that does not exist | 400 | `Application` | `client_id` |
+ * | real client_id, wrong secret | 401 | `Application` | `""` |
+ * | bad bearer on the activity call | 401 | `Athlete` | `access_token` |
+ *
+ * A blank `field` under `Application` therefore means the application was
+ * found and its secret was refused, which is a different fix from an ID that
+ * matches nothing. Both are handled by the same branch because the user checks
+ * the same two boxes either way, but the distinction is why matching on
+ * `resource` is what makes this work at all.
  */
 export function describeTokenRejection(body: unknown): string {
   const errors = (body as TokenErrorBody | null)?.errors ?? [];
+  const resources = new Set(errors.map((error) => error.resource ?? ""));
   const fields = new Set(errors.map((error) => error.field ?? ""));
 
-  if (fields.has("client_id") || fields.has("client_secret")) {
-    return (
-      "Strava rejected the application credentials. Check that the Client ID above " +
-      "matches the one on strava.com/settings/api and that the stored client secret " +
-      "is that application's, with no stray whitespace."
-    );
-  }
-  if (fields.has("refresh_token") || fields.has("code")) {
+  if (fields.has("refresh_token") || resources.has("RefreshToken")) {
     return (
       "Strava rejected the stored refresh token. It has been rotated or revoked — " +
       "anything else using the same API application invalidates it by refreshing. " +
       "Re-authorize with the activity:read_all scope and store the new token in Settings."
     );
   }
+  if (resources.has("Application") || fields.has("client_id")) {
+    return (
+      "Strava accepted the request but refused the application credentials. The " +
+      "Client ID above and the stored client secret must both belong to the same " +
+      "application on strava.com/settings/api — a secret copied with a missing " +
+      "character or a trailing space fails exactly this way."
+    );
+  }
+  // Deliberately worded differently from every other failure here. An earlier
+  // version of this fallback was byte-identical to the 401 message from the
+  // activity request, which made the two indistinguishable in the one place it
+  // mattered: a user reading the message to decide what to fix.
   return (
-    "Strava rejected the stored authorization. Re-authorize the application " +
-    "and store the new refresh token in Settings."
+    "Strava rejected the token request without saying which credential was wrong. " +
+    "Check the Client ID above, the stored client secret, and the stored refresh " +
+    "token — one of the three is not what Strava expects."
   );
 }
 
@@ -396,7 +420,7 @@ export class StravaActivitiesAdapter {
       const detail: unknown = await response.json().catch(() => null);
       throw new StravaAuthError(describeTokenRejection(detail));
     }
-    this.assertUsable(response);
+    this.assertUsable(response, "refreshing the access token");
 
     const body = (await response.json()) as TokenResponse;
     const token = body.access_token ?? "";
@@ -438,7 +462,7 @@ export class StravaActivitiesAdapter {
         method: "GET",
         headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
       });
-      this.assertUsable(response);
+      this.assertUsable(response, "reading activities");
 
       const body: unknown = await response.json();
       if (!Array.isArray(body) || body.length === 0) {
@@ -460,14 +484,24 @@ export class StravaActivitiesAdapter {
    * No token, code, or client secret appears in any message here, not even
    * truncated. A 401 says to re-authorize; it does not show what was sent.
    */
-  private assertUsable(response: Response): void {
+  /**
+   * `request` names which call failed, because the same status means different
+   * things on the two endpoints and the fixes are not the same. A 401 on the
+   * token endpoint is a bad credential; a 401 on the activity endpoint means
+   * the credentials were *accepted* and the resulting authorization still
+   * cannot read activities. Reporting both as "re-authorize and store a new
+   * refresh token" sent the user to replace a token that was working.
+   */
+  private assertUsable(response: Response, request: string): void {
     if (response.ok) {
       return;
     }
     if (response.status === 401) {
       throw new StravaAuthError(
-        "Strava rejected the stored authorization. Re-authorize the application " +
-          "and store the new refresh token in Settings.",
+        `Strava returned 401 while ${request}. The access token was accepted at ` +
+          "the token endpoint but refused here, which usually means the authorization " +
+          "was granted without the activity:read_all scope. Re-authorize with that " +
+          "scope and store the new refresh token in Settings.",
       );
     }
     if (response.status === 429) {
@@ -480,10 +514,13 @@ export class StravaActivitiesAdapter {
     }
     if (response.status === 403) {
       throw new StravaAuthError(
-        "Strava refused the request. The authorization may lack the activity:read_all scope.",
+        `Strava refused the request while ${request}. The authorization may lack ` +
+          "the activity:read_all scope.",
       );
     }
-    throw new Error(`Strava replied ${String(response.status)}.`);
+    throw new Error(
+      `Strava replied ${String(response.status)} while ${request}.`,
+    );
   }
 }
 

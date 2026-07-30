@@ -289,7 +289,8 @@ export class IntegrationService {
     });
   }
 
-  async sync(integrationId: string, trigger: SyncTrigger): Promise<void> {    const adapter = this.adapter(integrationId);
+  async sync(integrationId: string, trigger: SyncTrigger): Promise<void> {
+    const adapter = this.adapter(integrationId);
     const config = await loadIntegrationsConfig(this.userDataPath);
     const credential = adapter.requiresCredential
       ? await this.readCredential(integrationId)

@@ -511,7 +511,9 @@ describe("StravaActivitiesAdapter", () => {
       () => now,
     );
 
-    await expect(adapter.fetch(null, CLIENT_SECRET)).rejects.toThrow(/Re-authorize/);
+    await expect(adapter.fetch(null, CLIENT_SECRET)).rejects.toThrow(
+      /one of the three/,
+    );
     await expect(adapter.fetch(null, CLIENT_SECRET)).rejects.not.toThrow(
       /refresh-secret-value|client-secret-value/,
     );
@@ -635,6 +637,20 @@ describe("saying which credential Strava rejected", () => {
     expect(message).not.toContain("refresh token");
   });
 
+  it("names the application credentials when the field is blank", () => {
+    // The exact body the live endpoint returns for a real client_id with the
+    // wrong secret, which is the most common way to get this wrong. A first
+    // version of this parser matched on `field` alone, and `field` is empty
+    // here — so the single most likely failure fell through to a fallback that
+    // told the user to go and replace a refresh token that was fine.
+    const message = describeTokenRejection({
+      message: "Authorization Error",
+      errors: [{ resource: "Application", field: "", code: "invalid" }],
+    });
+    expect(message).toContain("client secret");
+    expect(message).not.toContain("one of the three");
+  });
+
   it("names the refresh token when that is what died", () => {
     // The common failure: something else sharing the API application refreshed
     // and Strava invalidated this copy.
@@ -645,13 +661,49 @@ describe("saying which credential Strava rejected", () => {
       ],
     });
     expect(message).toContain("rotated or revoked");
+    // Ranked ahead of the Application branch: a rotated token is reported with
+    // resource RefreshToken, and matching Application first would swallow it.
+    expect(message).not.toContain("client secret");
     expect(message).toContain("activity:read_all");
   });
 
-  it("falls back to the general advice when Strava says nothing useful", () => {
+  it("falls back to naming all three credentials when Strava says nothing useful", () => {
     for (const body of [null, {}, { errors: [] }, "not json"]) {
-      expect(describeTokenRejection(body)).toContain("Re-authorize");
+      expect(describeTokenRejection(body)).toContain("one of the three");
     }
+  });
+
+  it("words every failure differently so the message identifies the cause", async () => {
+    // The bug this exists to prevent, and it cost a live debugging round: the
+    // fallback here was byte-identical to the 401 thrown by the activity
+    // request. Two unrelated failures with different fixes produced the same
+    // sentence, so reading it could not tell you which had happened — and the
+    // advice it gave was wrong for one of them.
+    const messages: string[] = [
+      describeTokenRejection({ errors: [{ resource: "Application", field: "" }] }),
+      describeTokenRejection({ errors: [{ field: "refresh_token" }] }),
+      describeTokenRejection(null),
+    ];
+
+    const activity401 = recorder([
+      { body: tokenBody() },
+      { status: 401, body: {} },
+    ]);
+    const adapter = new StravaActivitiesAdapter(
+      () => Promise.resolve(config()),
+      tokenStore().store,
+      activity401.httpFetch,
+      () => now,
+    );
+    await adapter.fetch(null, CLIENT_SECRET).catch((error: unknown) => {
+      messages.push((error as Error).message);
+    });
+
+    expect(messages).toHaveLength(4);
+    expect(new Set(messages).size).toBe(4);
+    // And the one that is not about a stored credential must not tell the user
+    // to go and replace one.
+    expect(messages[3]).toContain("reading activities");
   });
 
   it("never repeats a credential value back to the user", () => {
@@ -678,8 +730,8 @@ describe("saying which credential Strava rejected", () => {
         Promise.resolve(
           new Response(
             JSON.stringify({
-              message: "Bad Request",
-              errors: [{ field: "client_secret", code: "invalid" }],
+              message: "Authorization Error",
+              errors: [{ resource: "Application", field: "", code: "invalid" }],
             }),
             { status: 400 },
           ),
