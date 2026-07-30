@@ -20,6 +20,7 @@
 
 import type { ActivitySignal } from "../domain";
 import type { GitHubConfig } from "./policy";
+import { localDate } from "./rollup";
 import { firstLine } from "./text";
 import type { ActivityAdapter } from "./types";
 
@@ -131,9 +132,10 @@ export function earliestDate(
   if (since !== null) {
     return since;
   }
-  return new Date(today.getTime() - lookbackDays * 86_400_000)
-    .toISOString()
-    .slice(0, 10);
+  // Local calendar date, not UTC — see the note in the Notion adapter. From
+  // early evening onwards UTC is already tomorrow, so a horizon derived from it
+  // starts a day late and quietly clips the oldest day out of the window.
+  return localDate(new Date(today.getTime() - lookbackDays * 86_400_000));
 }
 
 /** Explicit map first, then a slug of the repository name. */

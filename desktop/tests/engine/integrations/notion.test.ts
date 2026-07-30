@@ -354,6 +354,24 @@ describe("the Notion tasks adapter", () => {
     });
   });
 
+  it("keeps a two-day window on the user's calendar, not UTC's", async () => {
+    // 18:00 in Denver is already tomorrow in UTC. A horizon derived from
+    // toISOString therefore starts a day late, which on a week is invisible and
+    // on a daily-review window drops yesterday entirely — every evening, at the
+    // hour someone actually sits down to look back at their day.
+    const evening = new Date("2026-07-30T18:00:00-06:00");
+    const { httpFetch, bodies } = recorder([results([page()])]);
+    await new NotionTasksAdapter(
+      () => Promise.resolve(config({ lookback_days: 1 })),
+      httpFetch,
+      () => evening,
+    ).fetch(null, "secret_token");
+
+    expect(bodies[0]?.["filter"]).toMatchObject({
+      last_edited_time: { on_or_after: "2026-07-29" },
+    });
+  });
+
   it("resumes from the last sync rather than the lookback window", async () => {
     const { httpFetch, bodies } = recorder([results([page()])]);
     await adapter({}, httpFetch).fetch("2026-01-05", "secret_token");

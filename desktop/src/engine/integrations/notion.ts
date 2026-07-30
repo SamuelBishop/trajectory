@@ -25,6 +25,7 @@
 
 import type { ActivitySignal } from "../domain";
 import type { NotionConfig } from "./policy";
+import { localDate } from "./rollup";
 import { firstLine } from "./text";
 
 export const NOTION_INTEGRATION_ID = "notion";
@@ -260,9 +261,11 @@ export function earliestEdit(
   if (since !== null) {
     return since;
   }
-  return new Date(today.getTime() - lookbackDays * 86_400_000)
-    .toISOString()
-    .slice(0, 10);
+  // A local calendar date, not a UTC one. From early evening onwards in a US
+  // timezone UTC has already rolled over, so a horizon taken from toISOString
+  // starts a day late — and a two-day window silently loses yesterday exactly
+  // when someone sits down to review their day.
+  return localDate(new Date(today.getTime() - lookbackDays * 86_400_000));
 }
 
 // Not `implements ActivityAdapter`: that type is a union pairing
