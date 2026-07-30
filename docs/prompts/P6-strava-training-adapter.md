@@ -42,10 +42,21 @@ the rotated token keeps working until the day it doesn't, then dies weeks later
 with no signal — and a stale-but-green failure mode is the exact bug species
 this repository has now hit four times.
 
-Strava issues one API application per athlete account, so `client_id` and
-`client_secret` are shared with anything else the user has built against
-Strava, and so is the token lineage. Rotating here invalidates the token held
-there. Note it; do not design around it.
+A refresh token belongs to **one specific application**, and the failure when
+it does not match is genuinely confusing: the token endpoint returns 200,
+because `client_id` and `client_secret` are a valid pair on their own, and then
+the activity request returns 401 on the access token it just issued. Anyone
+reading only the status codes concludes the stored token is stale and re-mints
+it, which changes nothing.
+
+So the three credentials are not three independent fields. The refresh token
+has to have been minted under the same `client_id` that is configured here. If
+the user has more than one Strava application — one per project is a normal
+thing to have — pairing the token from one with the ID of another produces
+exactly the sequence above.
+
+Where an application *is* shared with something else, the token lineage is
+shared too, and rotating here invalidates the copy held there.
 
 Also true, and not in the earlier draft: creating an API application now
 requires a Strava subscription, and new applications start in "single-player

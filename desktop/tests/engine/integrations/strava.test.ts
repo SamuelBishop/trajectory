@@ -12,6 +12,7 @@ import {
   StravaRateLimitError,
   activityMetrics,
   activitySummary,
+  describeApiRejection,
   describeTokenRejection,
   earliestStart,
   humanizeSport,
@@ -741,6 +742,87 @@ describe("saying which credential Strava rejected", () => {
 
     await expect(adapter.fetch(null, CLIENT_SECRET)).rejects.toThrow(
       "strava.com/settings/api",
+    );
+  });
+});
+
+describe("explaining a rejection from the activity endpoint", () => {
+  // A 401 here is not a 401 at the token endpoint. The credentials were just
+  // accepted, so telling the user to replace them is wrong — and that is the
+  // advice a status-code-only reading produces.
+  it("says a missing scope cannot be fixed by refreshing", () => {
+    const message = describeApiRejection(
+      401,
+      {
+        message: "Authorization Error",
+        errors: [
+          {
+            resource: "AccessToken",
+            field: "activity:read_permission",
+            code: "missing",
+          },
+        ],
+      },
+      "reading activities",
+    );
+    expect(message).toContain("missing a permission");
+    expect(message).toContain("refreshing cannot add a scope");
+  });
+
+  it("points at an application mismatch when the token itself is refused", () => {
+    // The shape the live endpoint returns for a bearer it does not recognize.
+    const message = describeApiRejection(
+      401,
+      {
+        message: "Authorization Error",
+        errors: [
+          { resource: "Athlete", field: "access_token", code: "invalid" },
+        ],
+      },
+      "reading activities",
+    );
+    expect(message).toContain("different application");
+    expect(message).not.toContain("missing a permission");
+  });
+
+  it("admits it does not know rather than guessing a cause", () => {
+    const message = describeApiRejection(401, null, "reading activities");
+    expect(message).toContain("did not say why");
+  });
+
+  it("never tells the user to replace a credential that was just accepted", () => {
+    // The regression that cost a live debugging round: every 401 from this
+    // endpoint said "store the new refresh token in Settings", for a token the
+    // token endpoint had accepted seconds earlier.
+    for (const body of [
+      { errors: [{ resource: "Athlete", field: "access_token" }] },
+      null,
+    ]) {
+      expect(describeApiRejection(401, body, "reading activities")).not.toMatch(
+        /store the new refresh token/,
+      );
+    }
+  });
+
+  it("carries the rejection through a real fetch", async () => {
+    const http = recorder([
+      { body: tokenBody() },
+      {
+        status: 401,
+        body: {
+          errors: [{ field: "activity:read_permission", code: "missing" }],
+        },
+      },
+    ]);
+    const adapter = new StravaActivitiesAdapter(
+      () => Promise.resolve(config()),
+      tokenStore().store,
+      http.httpFetch,
+      () => now,
+    );
+
+    await expect(adapter.fetch(null, CLIENT_SECRET)).rejects.toThrow(
+      /missing a permission/,
     );
   });
 });

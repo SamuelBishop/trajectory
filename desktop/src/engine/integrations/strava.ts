@@ -158,10 +158,65 @@ interface TokenErrorBody {
  * the same two boxes either way, but the distinction is why matching on
  * `resource` is what makes this work at all.
  */
-export function describeTokenRejection(body: unknown): string {
+/** The `{ resource, field, code }` triples Strava reports, as plain sets. */
+function errorFacets(body: unknown): {
+  resources: Set<string>;
+  fields: Set<string>;
+  codes: Set<string>;
+} {
   const errors = (body as TokenErrorBody | null)?.errors ?? [];
-  const resources = new Set(errors.map((error) => error.resource ?? ""));
-  const fields = new Set(errors.map((error) => error.field ?? ""));
+  return {
+    resources: new Set(errors.map((error) => error.resource ?? "")),
+    fields: new Set(errors.map((error) => error.field ?? "")),
+    codes: new Set(errors.map((error) => error.code ?? "")),
+  };
+}
+
+/**
+ * Explain a 401 or 403 from an API call, as opposed to the token endpoint.
+ *
+ * Strava distinguishes "this token is not valid" from "this token is valid and
+ * does not carry the permission you need", and the two have completely
+ * different fixes: one is a stale credential, the other is an authorization
+ * granted without a scope, which no amount of refreshing will repair. It
+ * reports the second as a `missing` code on an `activity:read_permission`
+ * field. Guessing between them from the status code alone gets it wrong
+ * roughly half the time, and the wrong guess sends the user to replace a
+ * working token.
+ */
+export function describeApiRejection(
+  status: number,
+  body: unknown,
+  request: string,
+): string {
+  const { resources, fields, codes } = errorFacets(body);
+  const scopeField = [...fields].some((field) => field.endsWith("_permission"));
+
+  if (scopeField || codes.has("missing")) {
+    return (
+      `Strava refused the request while ${request} because the authorization is ` +
+      "missing a permission, not because the token is stale. Re-authorize the " +
+      "application with the activity:read_all scope — refreshing cannot add a " +
+      "scope that was never granted — then store the new refresh token in Settings."
+    );
+  }
+  if (fields.has("access_token") || resources.has("Athlete")) {
+    return (
+      `Strava rejected the access token while ${request}. It was issued by the ` +
+      "token endpoint moments earlier, so this is not a stale credential: it " +
+      "usually means the refresh token belongs to a different application than " +
+      "the Client ID above."
+    );
+  }
+  return (
+    `Strava returned ${String(status)} while ${request} and did not say why. ` +
+    "The credentials were accepted at the token endpoint, so the authorization " +
+    "itself is the thing to check."
+  );
+}
+
+export function describeTokenRejection(body: unknown): string {
+  const { resources, fields } = errorFacets(body);
 
   if (fields.has("refresh_token") || resources.has("RefreshToken")) {
     return (
@@ -420,7 +475,7 @@ export class StravaActivitiesAdapter {
       const detail: unknown = await response.json().catch(() => null);
       throw new StravaAuthError(describeTokenRejection(detail));
     }
-    this.assertUsable(response, "refreshing the access token");
+    await this.assertUsable(response, "refreshing the access token");
 
     const body = (await response.json()) as TokenResponse;
     const token = body.access_token ?? "";
@@ -462,7 +517,7 @@ export class StravaActivitiesAdapter {
         method: "GET",
         headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
       });
-      this.assertUsable(response, "reading activities");
+      await this.assertUsable(response, "reading activities");
 
       const body: unknown = await response.json();
       if (!Array.isArray(body) || body.length === 0) {
@@ -492,16 +547,18 @@ export class StravaActivitiesAdapter {
    * cannot read activities. Reporting both as "re-authorize and store a new
    * refresh token" sent the user to replace a token that was working.
    */
-  private assertUsable(response: Response, request: string): void {
+  private async assertUsable(response: Response, request: string): Promise<void> {
     if (response.ok) {
       return;
     }
-    if (response.status === 401) {
+    if (response.status === 401 || response.status === 403) {
+      // Read the body. Twice now the answer to "why did this fail" was sitting
+      // in a response this adapter parsed only far enough to learn the status
+      // code, and both times the message it printed instead sent the user to
+      // fix something that was not broken.
+      const detail: unknown = await response.json().catch(() => null);
       throw new StravaAuthError(
-        `Strava returned 401 while ${request}. The access token was accepted at ` +
-          "the token endpoint but refused here, which usually means the authorization " +
-          "was granted without the activity:read_all scope. Re-authorize with that " +
-          "scope and store the new refresh token in Settings.",
+        describeApiRejection(response.status, detail, request),
       );
     }
     if (response.status === 429) {
@@ -510,12 +567,6 @@ export class StravaActivitiesAdapter {
       // is how an integration throttles itself for longer.
       throw new StravaRateLimitError(
         `Strava rate limit reached. ${describeWait(response)}`,
-      );
-    }
-    if (response.status === 403) {
-      throw new StravaAuthError(
-        `Strava refused the request while ${request}. The authorization may lack ` +
-          "the activity:read_all scope.",
       );
     }
     throw new Error(

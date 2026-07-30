@@ -255,6 +255,14 @@ requirements those prompts satisfy; each prompt ticks its own.
       month of data. Selection now emits a 7-day and a 30-day rollup per
       contributing integration. The windows overlap, so both prompts state that
       rollups must never be added together.
+- [ ] Trajectory cannot tell the user that their refresh token and Client ID
+      belong to different Strava applications until a sync fails, and the
+      failure is confusing: the token endpoint returns 200 because the ID and
+      secret are a valid pair, then the activity call returns 401 on the access
+      token it just issued. The message now names the mismatch, but the setup
+      screen still accepts a combination that cannot work. The authorize helper
+      below would fix it at the source by minting the token against the
+      configured ID rather than asking for both separately.
 - [ ] Add an in-app Strava authorize helper. Today setup means pasting a client
       ID, a client secret, and a refresh token obtained by hand: opening the
       authorize URL, letting `http://localhost/exchange_token` fail to load, and
@@ -268,10 +276,9 @@ requirements those prompts satisfy; each prompt ticks its own.
       is on the `SummaryActivity` the list endpoint returns, so each costs one
       extra request per activity against a 200-per-15-minutes budget. Worth it
       only if effort turns out to matter more than volume.
-- [ ] Strava issues one API application per athlete account, so Trajectory
-      shares a client ID, secret, and refresh-token lineage with the user's
-      devsite. Trajectory persists the rotated refresh token as the docs
-      require; the devsite discards it and its `keepOrEmpty()` fallback keeps the
+- [ ] Where a Strava application is shared with another project, so is the
+      refresh-token lineage. Trajectory persists the rotated refresh token as
+      the docs require; the devsite discards it and its `keepOrEmpty()` fallback keeps the
       previous heatmap so the build stays green. If Strava ever rotates, the
       devsite serves frozen data and nothing goes red. The fix is on that side:
       persist the returned token, and make stale data visible rather than
