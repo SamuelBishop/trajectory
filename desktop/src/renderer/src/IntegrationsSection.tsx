@@ -22,6 +22,7 @@ import type {
   IntegrationSummary,
   IntegrationsView,
   NotionScopeView,
+  StravaScopeView,
 } from "../../shared/types";
 import { toErrorMessage } from "./errors";
 import { useSavedDraft } from "./draft";
@@ -118,6 +119,14 @@ export function IntegrationsSection(): React.JSX.Element {
               {integration.id === "notion" && (
                 <NotionScopeEditor
                   scope={view.notion}
+                  goalDomains={view.goalDomains}
+                  busy={busy}
+                  onRun={run}
+                />
+              )}
+              {integration.id === "strava" && (
+                <StravaScopeEditor
+                  scope={view.strava}
                   goalDomains={view.goalDomains}
                   busy={busy}
                   onRun={run}
@@ -654,6 +663,98 @@ function NotionScopeEditor({
           onClick={() => onRun(() => window.trajectory.saveNotionScope(draft))}
         >
           Save Notion settings
+        </button>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Strava's scope is short because there is nothing to interpret.
+ *
+ * A recorded activity has one shape, so unlike Notion there are no column names
+ * to configure — only which application to use and which goal the training
+ * serves. The two credentials are not here: they live in Settings under
+ * Credentials, where every other secret is, and no channel reads one back.
+ */
+function StravaScopeEditor({
+  scope,
+  goalDomains,
+  busy,
+  onRun,
+}: {
+  readonly scope: StravaScopeView;
+  readonly goalDomains: readonly string[];
+  readonly busy: boolean;
+  readonly onRun: (action: () => Promise<IntegrationsView>) => void;
+}): React.JSX.Element {
+  const { draft, setDraft, dirty } = useSavedDraft(scope);
+  const domainHint =
+    goalDomains.length > 0 ? `e.g. ${goalDomains.join(", ")}` : "a goal domain";
+
+  return (
+    <>
+      <Field
+        label="Client ID"
+        hint="From strava.com/settings/api. Empty means nothing is read at all."
+      >
+        <TextInput
+          value={draft.clientId}
+          disabled={busy}
+          placeholder="123456"
+          onChange={(clientId) => setDraft({ ...draft, clientId })}
+        />
+      </Field>
+
+      <p className="field-hint">
+        The client secret and refresh token go under Credentials. Authorize the
+        application with the <code>activity:read_all</code> scope, or reuse a
+        refresh token you already minted for it.
+      </p>
+
+      <Field
+        label="Goal domain"
+        hint={`Which goal these workouts count towards — ${domainHint}.`}
+      >
+        <TextInput
+          value={draft.defaultDomain}
+          disabled={busy}
+          placeholder="running"
+          onChange={(defaultDomain) => setDraft({ ...draft, defaultDomain })}
+        />
+      </Field>
+
+      <Field
+        label="Days to look back"
+        hint="How far the first sync reaches. Later syncs resume from the last one."
+      >
+        <NumberInput
+          value={draft.lookbackDays}
+          min={1}
+          max={365}
+          disabled={busy}
+          onChange={(lookbackDays) => setDraft({ ...draft, lookbackDays })}
+        />
+      </Field>
+
+      <p className="field-hint">
+        Every activity type is collected, not only runs. A training plan fails
+        through overtraining as often as through undertraining, so the recovery
+        and cross-training days are the ones that answer whether you are on
+        track. Routes and GPS coordinates are never read or stored.
+      </p>
+
+      <div className="save-bar">
+        <span className="save-status">
+          {dirty ? "Unsaved Strava settings." : ""}
+        </span>
+        <button
+          type="button"
+          className={dirty ? "primary" : undefined}
+          disabled={busy || !dirty}
+          onClick={() => onRun(() => window.trajectory.saveStravaScope(draft))}
+        >
+          Save Strava settings
         </button>
       </div>
     </>

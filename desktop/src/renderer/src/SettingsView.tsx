@@ -233,6 +233,52 @@ export function SettingsView({
         <div className="editor">
           <div className="editor-body">
             <CredentialSection
+              title="Strava client secret"
+              stored={secretStatus?.hasStravaClientSecret === true}
+              encryptionAvailable={secretStatus?.encryptionAvailable !== false}
+              placeholder="Client secret from strava.com/settings/api"
+              storedNote="A secret is stored and encrypted on this device. It is never displayed again."
+              emptyNote="Only needed for the Strava integration. Create an API application at strava.com/settings/api — Strava allows one per account — and copy its client secret. The client ID is not a secret and goes in the Activity pane instead."
+              unavailableNote={
+                <>
+                  This device cannot encrypt local storage, so Trajectory will
+                  not save a secret here. The Strava integration stays
+                  unavailable until encryption is.
+                </>
+              }
+              onStore={(value) => window.trajectory.setStravaClientSecret(value)}
+              onClear={() => window.trajectory.clearStravaClientSecret()}
+              onChanged={setSecretStatus}
+            />
+          </div>
+        </div>
+
+        <div className="editor">
+          <div className="editor-body">
+            <CredentialSection
+              title="Strava refresh token"
+              stored={secretStatus?.hasStravaRefreshToken === true}
+              encryptionAvailable={secretStatus?.encryptionAvailable !== false}
+              placeholder="Refresh token with activity:read_all"
+              storedNote="A token is stored and encrypted on this device. Trajectory replaces it automatically when Strava rotates it."
+              emptyNote="Authorize your Strava application with the activity:read_all scope and store the refresh token it returns. Strava invalidates the old token whenever it issues a new one, so anything else using the same application will need re-authorizing if that happens."
+              unavailableNote={
+                <>
+                  This device cannot encrypt local storage, so Trajectory will
+                  not save a token here. The Strava integration stays
+                  unavailable until encryption is.
+                </>
+              }
+              onStore={(value) => window.trajectory.setStravaRefreshToken(value)}
+              onClear={() => window.trajectory.clearStravaRefreshToken()}
+              onChanged={setSecretStatus}
+            />
+          </div>
+        </div>
+
+        <div className="editor">
+          <div className="editor-body">
+            <CredentialSection
               title="OpenAI credential"
               stored={secretStatus?.hasOpenAiKey === true}
               encryptionAvailable={secretStatus?.encryptionAvailable !== false}

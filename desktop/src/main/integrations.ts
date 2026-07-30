@@ -19,7 +19,9 @@ import {
   policyFor,
   runSync,
   saveIntegrationsConfig,
+  stravaConfigSchema,
   type IntegrationsConfig,
+  type StravaTokenStore,
   type SyncTrigger,
 } from "../engine/integrations";
 import type { ActivityAdapter } from "../engine/integrations/types";
@@ -63,6 +65,13 @@ const notionScopeViewSchema = z.object({
   lookbackDays: z.number().default(7),
 });
 
+/** The renderer's shape for Strava scope. Parsed, never cast, for the same reason. */
+const stravaScopeViewSchema = z.object({
+  clientId: z.string().default(""),
+  defaultDomain: z.string().default("running"),
+  lookbackDays: z.number().default(30),
+});
+
 interface Encryption {
   isAvailable(): boolean;
   encrypt(value: string): Buffer;
@@ -99,6 +108,19 @@ export class IntegrationService {
      * suite that needs the network and a live token is one that stops being run.
      */
     httpFetch: typeof fetch = globalThis.fetch,
+    /**
+     * Reads and writes Strava's refresh token.
+     *
+     * Two-way where every other credential is read-only, because Strava rotates
+     * it: the token endpoint may return a replacement on any successful call,
+     * and the previous value is invalidated the moment it does. Defaulting to a
+     * no-op store means an unwired Strava reports "needs a refresh token"
+     * rather than silently fetching nothing.
+     */
+    stravaTokens: StravaTokenStore = {
+      read: () => Promise.resolve(undefined),
+      save: () => Promise.resolve(),
+    },
   ) {
     this.store = new EncryptedActivityStore(
       EncryptedActivityStore.defaultPath(userDataPath),
@@ -110,6 +132,9 @@ export class IntegrationService {
         (await loadIntegrationsConfig(this.userDataPath)).github,
       notionConfig: async () =>
         (await loadIntegrationsConfig(this.userDataPath)).notion,
+      stravaConfig: async () =>
+        (await loadIntegrationsConfig(this.userDataPath)).strava,
+      stravaTokens,
     });
     this.encryptionAvailable = () => encryption.isAvailable();
   }
@@ -177,6 +202,11 @@ export class IntegrationService {
         includeOpenTasks: config.notion.include_open_tasks,
         lookbackDays: config.notion.lookback_days,
       },
+      strava: {
+        clientId: config.strava.client_id,
+        defaultDomain: config.strava.default_domain,
+        lookbackDays: config.strava.lookback_days,
+      },
       goalDomains: await this.readGoalDomains().catch(() => []),
     };
   }
@@ -237,8 +267,29 @@ export class IntegrationService {
     });
   }
 
-  async sync(integrationId: string, trigger: SyncTrigger): Promise<void> {
-    const adapter = this.adapter(integrationId);
+  /**
+   * Replace the Strava scope.
+   *
+   * Only the application ID and the goal mapping live here. The client secret
+   * and the refresh token are credentials and go to `SecretStore`, so this
+   * method never sees one.
+   */
+  async saveStravaScope(scope: unknown): Promise<void> {
+    const view = stravaScopeViewSchema.parse(scope);
+    const config = await loadIntegrationsConfig(this.userDataPath);
+    await saveIntegrationsConfig(this.userDataPath, {
+      ...config,
+      // Rebuilt field by field rather than spread, so the renderer cannot
+      // smuggle an unexpected key into stored config. The schema re-validates.
+      strava: stravaConfigSchema.parse({
+        client_id: view.clientId,
+        default_domain: view.defaultDomain,
+        lookback_days: view.lookbackDays,
+      }),
+    });
+  }
+
+  async sync(integrationId: string, trigger: SyncTrigger): Promise<void> {    const adapter = this.adapter(integrationId);
     const config = await loadIntegrationsConfig(this.userDataPath);
     const credential = adapter.requiresCredential
       ? await this.readCredential(integrationId)

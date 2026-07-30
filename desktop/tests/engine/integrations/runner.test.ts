@@ -174,12 +174,13 @@ describe("runSync", () => {
 });
 
 describe("adapter registry", () => {
-  it("ships the offline fixture, GitHub commits, and Notion tasks", () => {
+  it("ships the offline fixture, GitHub commits, Notion tasks, and Strava activities", () => {
     const adapters = createAdapters({ now: () => now });
     expect(adapters.map((adapter) => adapter.id)).toEqual([
       "fixture",
       "github",
       "notion",
+      "strava",
     ]);
   });
 
@@ -190,6 +191,7 @@ describe("adapter registry", () => {
     expect(declaredHosts(createAdapters({ now: () => now }))).toEqual([
       "api.github.com",
       "api.notion.com",
+      "www.strava.com",
     ]);
   });
 
@@ -199,7 +201,7 @@ describe("adapter registry", () => {
       Object.fromEntries(
         adapters.map((adapter) => [adapter.id, adapter.requiresCredential]),
       ),
-    ).toEqual({ fixture: false, github: true, notion: true });
+    ).toEqual({ fixture: false, github: true, notion: true, strava: true });
   });
 });
 

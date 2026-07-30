@@ -40,12 +40,20 @@ export const SECRETS_FILE = "trajectory-secrets.enc.json";
  *
  * `notionToken` follows the same rule for the same reason: one slot per grant,
  * so revoking a workspace's access never costs the user their model access.
+ *
+ * Strava takes two slots because its authorization is two values, not one. The
+ * client secret identifies the application and effectively never changes; the
+ * refresh token identifies the athlete's grant and **rotates**. Storing them
+ * together would mean rewriting the application's identity every time a token
+ * refreshed, which is a good way to lose the half that was still correct.
  */
 export type SecretName =
   | "openaiApiKey"
   | "githubToken"
   | "githubActivityToken"
-  | "notionToken";
+  | "notionToken"
+  | "stravaClientSecret"
+  | "stravaRefreshToken";
 
 export class SecretStore {
   constructor(

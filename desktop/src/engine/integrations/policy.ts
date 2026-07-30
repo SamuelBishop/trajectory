@@ -181,12 +181,51 @@ export const notionConfigSchema = z.strictObject({
   lookback_days: z.number().int().min(1).max(365).default(7),
 });
 
+/**
+ * What the Strava adapter is allowed to look at.
+ *
+ * Implements: [HC-NO-EXFILTRATION], [HC-SECRETS-ENV-ONLY]
+ *
+ * `client_id` lives here rather than in `SecretStore` because it is not a
+ * secret — it is an integer application ID that appears in every authorize URL,
+ * including ones the user pastes into a browser address bar. The client
+ * *secret* and the refresh token are the credentials, and those are in
+ * `SecretStore`.
+ *
+ * There is no activity-type filter on purpose. A 50K plan fails through
+ * overtraining as often as through undertraining, so the cross-training and
+ * recovery work is exactly the signal a mentor needs — filtering to runs would
+ * hide the days that answer "am I recovering".
+ */
+export const stravaConfigSchema = z.strictObject({
+  /**
+   * The API application's ID, from <https://www.strava.com/settings/api>.
+   *
+   * Empty means the adapter makes no request. Kept as a string because it
+   * arrives by paste and is only ever put back into a query parameter;
+   * parsing it to a number would buy nothing and lose a leading zero.
+   */
+  client_id: z.string().trim().default(""),
+  /**
+   * The goal domain every workout is filed under.
+   *
+   * A single value rather than a per-activity map. `ActivitySignal.domain` has
+   * to match a `Goal.domain` for selection to connect them, and unlike a
+   * repository name an activity type carries no hint of which goal it serves —
+   * a run is a run whether it is base training or stress relief.
+   */
+  default_domain: z.string().trim().default("running"),
+  /** How far back the first sync reaches. Later syncs resume from the last one. */
+  lookback_days: z.number().int().min(1).max(365).default(30),
+});
+
 export const integrationsConfigSchema = z.strictObject({
   /** Stops every automatic sync across every integration at once. */
   paused: z.boolean().default(false),
   integrations: z.record(z.string(), integrationPolicySchema).default({}),
   github: githubConfigSchema.prefault({}),
   notion: notionConfigSchema.prefault({}),
+  strava: stravaConfigSchema.prefault({}),
 });
 
 export type QuietHours = z.infer<typeof quietHoursSchema>;
@@ -194,6 +233,7 @@ export type SyncModes = z.infer<typeof syncModesSchema>;
 export type IntegrationPolicy = z.infer<typeof integrationPolicySchema>;
 export type GitHubConfig = z.infer<typeof githubConfigSchema>;
 export type NotionConfig = z.infer<typeof notionConfigSchema>;
+export type StravaConfig = z.infer<typeof stravaConfigSchema>;
 export type IntegrationsConfig = z.infer<typeof integrationsConfigSchema>;
 
 export const DEFAULT_POLICY: IntegrationPolicy =

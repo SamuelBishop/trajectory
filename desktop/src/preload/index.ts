@@ -64,6 +64,8 @@ const api: DesktopApi = {
     ipcRenderer.invoke("integrations:saveGitHubScope", scope),
   saveNotionScope: (scope: unknown) =>
     ipcRenderer.invoke("integrations:saveNotionScope", scope),
+  saveStravaScope: (scope: unknown) =>
+    ipcRenderer.invoke("integrations:saveStravaScope", scope),
 
   // No getter for either credential. The renderer can learn that one exists
   // and can replace or remove it, but no channel returns a value
@@ -85,6 +87,14 @@ const api: DesktopApi = {
     ipcRenderer.invoke("secrets:clearGithubActivity"),
   setNotionToken: (value: string) => ipcRenderer.invoke("secrets:setNotion", value),
   clearNotionToken: () => ipcRenderer.invoke("secrets:clearNotion"),
+  setStravaClientSecret: (value: string) =>
+    ipcRenderer.invoke("secrets:setStravaClientSecret", value),
+  clearStravaClientSecret: () =>
+    ipcRenderer.invoke("secrets:clearStravaClientSecret"),
+  setStravaRefreshToken: (value: string) =>
+    ipcRenderer.invoke("secrets:setStravaRefreshToken", value),
+  clearStravaRefreshToken: () =>
+    ipcRenderer.invoke("secrets:clearStravaRefreshToken"),
   startSignIn: () => ipcRenderer.invoke("auth:start"),
   waitForSignIn: () => ipcRenderer.invoke("auth:wait"),
   cancelSignIn: () => ipcRenderer.invoke("auth:cancel"),

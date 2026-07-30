@@ -181,6 +181,11 @@ export function registerIpcHandlers(): void {
       if (id === "notion") {
         return secrets.read("notionToken");
       }
+      // Strava's client secret. The refresh token travels separately because
+      // it rotates and therefore has to be writable, which this reader is not.
+      if (id === "strava") {
+        return secrets.read("stravaClientSecret");
+      }
       return Promise.resolve(undefined);
     },
     // Lazy on purpose: `localConfig` is declared below and this runs only when
@@ -189,6 +194,15 @@ export function registerIpcHandlers(): void {
       const { userDirectory } = await localConfig();
       const user = await loadUserConfig(userDirectory);
       return [...new Set(user.goals.map((goal) => goal.domain))].sort();
+    },
+    undefined,
+    {
+      // Strava's refresh token is the one credential the app writes back.
+      // Strava invalidates the previous value the instant it issues a
+      // replacement, so a rotation that is not persisted leaves the
+      // integration holding a dead token and no way to explain it.
+      read: () => secrets.read("stravaRefreshToken"),
+      save: (value) => secrets.set("stravaRefreshToken", value),
     },
   );
 
@@ -242,12 +256,16 @@ export function registerIpcHandlers(): void {
     hasGithubToken: boolean;
     hasGithubActivityToken: boolean;
     hasNotionToken: boolean;
+    hasStravaClientSecret: boolean;
+    hasStravaRefreshToken: boolean;
     encryptionAvailable: boolean;
   }> => ({
     hasOpenAiKey: await secrets.has("openaiApiKey"),
     hasGithubToken: await secrets.has("githubToken"),
     hasGithubActivityToken: await secrets.has("githubActivityToken"),
     hasNotionToken: await secrets.has("notionToken"),
+    hasStravaClientSecret: await secrets.has("stravaClientSecret"),
+    hasStravaRefreshToken: await secrets.has("stravaRefreshToken"),
     encryptionAvailable: encryption.isAvailable(),
   });
 
@@ -472,6 +490,10 @@ export function registerIpcHandlers(): void {
     await integrations.saveNotionScope(scope);
     return await integrations.view();
   });
+  ipcMain.handle("integrations:saveStravaScope", async (_event, scope: unknown) => {
+    await integrations.saveStravaScope(scope);
+    return await integrations.view();
+  });
 
   ipcMain.handle("secrets:status", () => secretStatus());
   ipcMain.handle("secrets:setOpenAi", async (_event, value: unknown) => {
@@ -501,6 +523,28 @@ export function registerIpcHandlers(): void {
   });
   ipcMain.handle("secrets:clearNotion", async () => {
     await secrets.clear("notionToken");
+    return await secretStatus();
+  });
+  ipcMain.handle("secrets:setStravaClientSecret", async (_event, value: unknown) => {
+    if (typeof value !== "string") {
+      throw new Error("The credential must be text.");
+    }
+    await secrets.set("stravaClientSecret", value);
+    return await secretStatus();
+  });
+  ipcMain.handle("secrets:clearStravaClientSecret", async () => {
+    await secrets.clear("stravaClientSecret");
+    return await secretStatus();
+  });
+  ipcMain.handle("secrets:setStravaRefreshToken", async (_event, value: unknown) => {
+    if (typeof value !== "string") {
+      throw new Error("The credential must be text.");
+    }
+    await secrets.set("stravaRefreshToken", value);
+    return await secretStatus();
+  });
+  ipcMain.handle("secrets:clearStravaRefreshToken", async () => {
+    await secrets.clear("stravaRefreshToken");
     return await secretStatus();
   });
   ipcMain.handle("secrets:clearOpenAi", async () => {

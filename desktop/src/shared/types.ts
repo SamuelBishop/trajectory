@@ -93,6 +93,7 @@ export interface DesktopApi {
   setIntegrationsPaused(paused: boolean): Promise<IntegrationsView>;
   saveGitHubScope(scope: GitHubScopeView): Promise<IntegrationsView>;
   saveNotionScope(scope: NotionScopeView): Promise<IntegrationsView>;
+  saveStravaScope(scope: StravaScopeView): Promise<IntegrationsView>;
   /** Erases stored activity for one integration. There is no undo. */
   deleteIntegrationData(id: string): Promise<IntegrationsView>;
 
@@ -106,6 +107,10 @@ export interface DesktopApi {
   clearGithubActivityToken(): Promise<SecretStatus>;
   setNotionToken(value: string): Promise<SecretStatus>;
   clearNotionToken(): Promise<SecretStatus>;
+  setStravaClientSecret(value: string): Promise<SecretStatus>;
+  clearStravaClientSecret(): Promise<SecretStatus>;
+  setStravaRefreshToken(value: string): Promise<SecretStatus>;
+  clearStravaRefreshToken(): Promise<SecretStatus>;
   startSignIn(): Promise<LoginPrompt>;
   waitForSignIn(): Promise<LoginResult>;
   cancelSignIn(): Promise<LoginResult>;
@@ -180,6 +185,12 @@ export interface SecretStatus {
   /** Read-only repository access. Distinct from the model's credential. */
   hasGithubActivityToken: boolean;
   hasNotionToken: boolean;
+  hasStravaClientSecret: boolean;
+  /**
+   * Rotates. Unlike every other credential here the app may replace this one
+   * itself, so "stored" can become true without the user typing anything.
+   */
+  hasStravaRefreshToken: boolean;
   encryptionAvailable: boolean;
 }
 
@@ -258,6 +269,21 @@ export interface NotionScopeView {
   lookbackDays: number;
 }
 
+/**
+ * Which Strava application may be used, and which goal its workouts serve.
+ *
+ * The client secret and refresh token are not here on purpose. Those are
+ * credentials and live in `SecretStore`; this view crosses IPC to the renderer,
+ * which must never receive one ([HC-SECRETS-ENV-ONLY]).
+ */
+export interface StravaScopeView {
+  /** The API application's ID. Public — it appears in every authorize URL. */
+  clientId: string;
+  /** The goal domain every workout is filed under. */
+  defaultDomain: string;
+  lookbackDays: number;
+}
+
 export interface IntegrationsView {
   paused: boolean;
   integrations: IntegrationSummary[];
@@ -265,6 +291,7 @@ export interface IntegrationsView {
   encryptionAvailable: boolean;
   github: GitHubScopeView;
   notion: NotionScopeView;
+  strava: StravaScopeView;
   /** Goal domains the user actually has, so the UI can offer real targets. */
   goalDomains: string[];
 }
