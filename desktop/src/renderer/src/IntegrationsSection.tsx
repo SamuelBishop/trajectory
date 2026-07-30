@@ -24,7 +24,7 @@ import type {
   NotionScopeView,
   StravaScopeView,
 } from "../../shared/types";
-import { toErrorMessage } from "./errors";
+import { attempt, toErrorMessage } from "./errors";
 import { useSavedDraft } from "./draft";
 import { Field, NumberInput, Select, TagInput, TextInput, Toggle } from "./FormKit";
 
@@ -59,7 +59,9 @@ export function IntegrationsSection(): React.JSX.Element {
   const run = (action: () => Promise<IntegrationsView>): void => {
     setBusy(true);
     setProblem(null);
-    void action()
+    // `attempt` so a synchronous throw is reported rather than wedging `busy`
+    // on forever.
+    void attempt(action)
       .then(setView)
       .catch((error: unknown) => {
         setProblem(toErrorMessage(error));

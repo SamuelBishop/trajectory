@@ -18,7 +18,7 @@ import type {
   ProviderName,
   SecretStatus,
 } from "../../shared/types";
-import { toErrorMessage } from "./errors";
+import { attempt, toErrorMessage } from "./errors";
 import { Field, SaveBar, Select, TextInput } from "./FormKit";
 import { IntegrationsSection } from "./IntegrationsSection";
 
@@ -70,8 +70,7 @@ export function SettingsView({
     setSaving(true);
     setStatus(null);
     setProblem(null);
-    void window.trajectory
-      .saveSettings(draft)
+    void attempt(() => window.trajectory.saveSettings(draft))
       .then((saved) => {
         onSaved(saved);
         setStatus("Saved");
@@ -342,7 +341,10 @@ function CredentialSection({
   const run = (action: () => Promise<SecretStatus>, done: string): void => {
     setBusy(true);
     setNote(null);
-    void action()
+    // `attempt` because a bridge method the preload does not have throws
+    // synchronously, and the whole point of this screen is that a credential
+    // either stored or told you why not.
+    void attempt(action)
       .then((next) => {
         onChanged(next);
         setDraft("");
@@ -425,8 +427,7 @@ function SignInSection(): React.JSX.Element {
 
   const refresh = (): void => {
     setBusy(true);
-    void window.trajectory
-      .getAuthStatus()
+    void attempt(() => window.trajectory.getAuthStatus())
       .then(setStatus)
       .catch(() => setStatus({ isAuthenticated: false }))
       .finally(() => setBusy(false));
@@ -435,8 +436,7 @@ function SignInSection(): React.JSX.Element {
   const signIn = (): void => {
     setBusy(true);
     setNote(null);
-    void window.trajectory
-      .startSignIn()
+    void attempt(() => window.trajectory.startSignIn())
       .then((next) => {
         setPrompt(next);
         return window.trajectory.waitForSignIn();
