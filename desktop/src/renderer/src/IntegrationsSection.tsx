@@ -24,6 +24,7 @@ import type {
   NotionScopeView,
 } from "../../shared/types";
 import { toErrorMessage } from "./errors";
+import { useSavedDraft } from "./draft";
 import { Field, NumberInput, Select, TagInput, TextInput, Toggle } from "./FormKit";
 
 function formatSyncedAt(value: string | null): string {
@@ -141,14 +142,8 @@ function IntegrationCard({
   readonly onRun: (action: () => Promise<IntegrationsView>) => void;
   readonly children?: React.ReactNode;
 }): React.JSX.Element {
-  const [draft, setDraft] = useState<IntegrationPolicyView>(integration.policy);
+  const { draft, setDraft, dirty } = useSavedDraft(integration.policy);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-
-  useEffect(() => {
-    setDraft(integration.policy);
-  }, [integration.policy]);
-
-  const dirty = JSON.stringify(draft) !== JSON.stringify(integration.policy);
 
   return (
     <div className="integration-card">
@@ -326,11 +321,7 @@ function GitHubScopeEditor({
   readonly busy: boolean;
   readonly onRun: (action: () => Promise<IntegrationsView>) => void;
 }): React.JSX.Element {
-  const [draft, setDraft] = useState<GitHubScopeView>(scope);
-
-  useEffect(() => {
-    setDraft(scope);
-  }, [scope]);
+  const { draft, setDraft, dirty } = useSavedDraft(scope);
 
   const targets = [...draft.repositories, ...draft.organizations].filter(
     (entry) => entry.length > 0,
@@ -338,7 +329,6 @@ function GitHubScopeEditor({
   const unmapped = targets.filter(
     (entry) => (draft.domains[entry] ?? "").length === 0,
   );
-  const dirty = JSON.stringify(draft) !== JSON.stringify(scope);
 
   return (
     <>
@@ -472,13 +462,7 @@ function NotionScopeEditor({
   readonly busy: boolean;
   readonly onRun: (action: () => Promise<IntegrationsView>) => void;
 }): React.JSX.Element {
-  const [draft, setDraft] = useState<NotionScopeView>(scope);
-
-  useEffect(() => {
-    setDraft(scope);
-  }, [scope]);
-
-  const dirty = JSON.stringify(draft) !== JSON.stringify(scope);
+  const { draft, setDraft, dirty } = useSavedDraft(scope);
   const domainHint =
     goalDomains.length > 0 ? `e.g. ${goalDomains.join(", ")}` : "a goal domain";
 
