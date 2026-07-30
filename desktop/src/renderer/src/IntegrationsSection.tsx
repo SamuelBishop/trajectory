@@ -428,13 +428,16 @@ function GitHubScopeEditor({
       )}
 
       <div className="save-bar">
-        <span className="save-status" />
+        <span className="save-status">
+          {dirty ? "Unsaved GitHub settings." : ""}
+        </span>
         <button
           type="button"
+          className={dirty ? "primary" : undefined}
           disabled={busy || !dirty}
           onClick={() => onRun(() => window.trajectory.saveGitHubScope(draft))}
         >
-          Save scope
+          Save GitHub settings
         </button>
       </div>
     </>
@@ -641,13 +644,16 @@ function NotionScopeEditor({
       </p>
 
       <div className="save-bar">
-        <span className="save-status" />
+        <span className="save-status">
+          {dirty ? "Unsaved Notion settings." : ""}
+        </span>
         <button
           type="button"
+          className={dirty ? "primary" : undefined}
           disabled={busy || !dirty}
           onClick={() => onRun(() => window.trajectory.saveNotionScope(draft))}
         >
-          Save scope
+          Save Notion settings
         </button>
       </div>
     </>

@@ -435,6 +435,7 @@ export class NotionTasksAdapter {
     const signals: ActivitySignal[] = [];
     const budget = { remaining: MAX_BLOCK_REQUESTS };
     let sawDateProperty = false;
+    let skippedUnticked = 0;
 
     for (const page of pages.slice(0, MAX_CONTAINER_PAGES)) {
       const dated = dateStart(page.properties?.[config.date_property]);
@@ -455,6 +456,7 @@ export class NotionTasksAdapter {
       const domain = domainFor(page, config);
       for (const box of checkboxesIn(blocks)) {
         if (!box.checked && !config.include_open_tasks) {
+          skippedUnticked += 1;
           continue;
         }
         signals.push({
@@ -485,6 +487,20 @@ export class NotionTasksAdapter {
         `No page had a date property named "${config.date_property}". ` +
           `The database uses: ${describeProperties(pages)}. ` +
           "Set the date property in Settings, or clear it to date tasks by when the page was last edited.",
+      );
+    }
+
+    // Boxes were there and every one was thrown away by a setting. Reporting
+    // success with nothing stored would be indistinguishable from an empty
+    // page, and the one thing the user cannot see from outside is which of
+    // those happened. A planning page starts out entirely unticked, so this is
+    // the normal first run, not an edge case.
+    if (signals.length === 0 && skippedUnticked > 0) {
+      throw new Error(
+        `Found ${String(skippedUnticked)} ${skippedUnticked === 1 ? "checkbox" : "checkboxes"} ` +
+          "but none are ticked, and unticked boxes are not being collected. " +
+          'Turn on "Also collect boxes that are not ticked" to record what you ' +
+          "have planned and not yet done.",
       );
     }
 

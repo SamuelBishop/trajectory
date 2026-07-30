@@ -210,10 +210,9 @@ requirements those prompts satisfy; each prompt ticks its own.
       unrelated card silently reset the form. `useSavedDraft` tags an edit with
       the saved value it was made against, so an update that changes nothing
       keeps the edit and one that genuinely changes the value wins.
-- [ ] The Notion card has two Save buttons — the policy one on the card and the
-      scope one below it — and they persist different halves of the same form.
-      Nothing says which is which, so an edit saved with the wrong button looks
-      like it was accepted and is not.
+- [x] The Notion card has two Save buttons that persist different halves of the
+      same form. They now name what they save and announce unsaved changes, so
+      an edit left behind is visible instead of looking accepted.
 - [ ] Checkbox mode reads at most 31 pages and 100 block requests per sync. A
       long-running daily journal with deeply nested notes will hit the block
       budget before the page budget and quietly return a partial day. The

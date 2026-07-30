@@ -378,6 +378,65 @@ describe("the Notion tasks adapter in daily-page mode", () => {
     ).toHaveLength(2);
   });
 
+  it("says so when every box was thrown away by a setting", async () => {
+    // A planning page starts out entirely unticked, so this is the normal first
+    // run. Reporting success with nothing stored is indistinguishable from an
+    // empty page, and which one happened is the thing the user cannot see.
+    const { httpFetch } = daily([dailyPage()], {
+      "dddd1111-2222-3333-4444-555566667777": [
+        todo("aaaa1111bbbb2222cccc333344445555", "Strava", false),
+        todo("bbbb1111cccc2222dddd333344445555", "Screen Time", false),
+      ],
+    });
+    const error = await rejection(
+      adapter(checkboxConfig, httpFetch).fetch(null, "secret_token"),
+    );
+
+    expect(error.message).toContain("Found 2 checkboxes");
+    expect(error.message).toContain("Also collect boxes that are not ticked");
+  });
+
+  it("stays quiet when some boxes were ticked", async () => {
+    // Skipping unticked boxes is the point of the setting. Only a run that
+    // stored nothing at all is worth interrupting the user for.
+    const { httpFetch } = daily([dailyPage()], {
+      "dddd1111-2222-3333-4444-555566667777": [
+        todo("aaaa1111bbbb2222cccc333344445555", "Shipped it", true),
+        todo("bbbb1111cccc2222dddd333344445555", "Strava", false),
+      ],
+    });
+
+    expect(
+      await adapter(checkboxConfig, httpFetch).fetch(null, "secret_token"),
+    ).toHaveLength(1);
+  });
+
+  it("reports a wrong date property ahead of the unticked boxes", async () => {
+    // Both faults are present at once on a misconfigured first run. The date
+    // property is the one that corrupts every record, so hiding it behind the
+    // easier message would send the user to fix the wrong thing.
+    const { httpFetch } = daily(
+      [
+        dailyPage({
+          properties: {
+            Name: { type: "title", title: [{ plain_text: "July 30" }] },
+            Day: { type: "date", date: { start: "2026-07-30" } },
+          },
+        }),
+      ],
+      {
+        "dddd1111-2222-3333-4444-555566667777": [
+          todo("aaaa1111bbbb2222cccc333344445555", "Strava", false),
+        ],
+      },
+    );
+    const error = await rejection(
+      adapter(checkboxConfig, httpFetch).fetch(null, "secret_token"),
+    );
+
+    expect(error.message).toContain('date property named "Date"');
+  });
+
   it("walks into a toggle rather than missing the list inside it", async () => {
     // A daily note usually keeps its to-dos under a heading or inside a toggle,
     // so a flat read of the top level would find almost nothing.
