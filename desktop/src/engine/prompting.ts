@@ -51,8 +51,11 @@ seeing part of the record, so say the view is partial and never report the
 number of signals you can see as the number that exist. For any question about
 how many, how often, or how much, answer from rollups, which are counted over
 everything stored rather than over what you were shown, and name the window a
-rollup covers. If a question asks about a period the rollups do not cover, say
-so rather than counting the sample.`;
+rollup covers. An integration appears once per window, so rollups overlap:
+window_start and window_end say which period each one covers. Never add two
+rollups together — choose the one whose window matches the question, and if a
+question asks about a period the rollups do not cover, say so rather than
+counting the sample.`;
 
 export const SYSTEM_PROMPT = `You are Trajectory, a candid and calm decision mentor.
 

@@ -346,8 +346,20 @@ function countBounds(value: VoiceSelectionCount): {
  */
 export const ACTIVITY_SIGNAL_LIMIT = 40;
 
-/** How far back a rollup looks. */
-const ACTIVITY_WINDOW_DAYS = 30;
+/**
+ * How far back a rollup looks.
+ *
+ * Two windows rather than one. A month is the right frame for "is this project
+ * getting the effort I said it would"; a week is the right frame for "how did
+ * this week go", which is the question people actually ask, and the one a
+ * training block turns on. With only the month, a week that collapsed was
+ * invisible inside four that did not — and a mentor answering a question about
+ * this week from a thirty-day count is answering a different question.
+ *
+ * The short window comes first so the model reads the near frame before the
+ * broad one.
+ */
+const ACTIVITY_WINDOW_DAYS = [7, 30] as const;
 
 /**
  * How recent a signal must be to be shown without matching the question.
@@ -448,7 +460,6 @@ export function buildActivityContext(
   // integrations, not just the selected signals. The point of a rollup is the
   // shape of the whole window — a streak counted only over what selection
   // admitted would be an artifact of selection.
-  const window = windowEndingToday(ACTIVITY_WINDOW_DAYS, today);
   const integrationIds = [
     ...new Set(selected.map((signal) => signal.integration_id)),
   ].sort();
@@ -458,8 +469,13 @@ export function buildActivityContext(
     // Everything that qualified, not everything stored: the gap this reports is
     // the one between what selection admitted and what the model was handed.
     signals_available: qualifyingSignals(message, goals, signals, today).length,
-    rollups: integrationIds.map((integrationId) =>
-      buildRollup(integrationId, signals, window.start, window.end),
+    // Grouped by integration rather than by window, so the two windows for one
+    // integration stay adjacent and a reader compares like with like.
+    rollups: integrationIds.flatMap((integrationId) =>
+      ACTIVITY_WINDOW_DAYS.map((days) => {
+        const window = windowEndingToday(days, today);
+        return buildRollup(integrationId, signals, window.start, window.end);
+      }),
     ),
   };
 }

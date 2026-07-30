@@ -203,7 +203,27 @@ describe("activity selection", () => {
     const many = manySignals(ACTIVITY_SIGNAL_LIMIT + 8);
     const context = buildActivityContext(question, goals, many, today);
     expect(context?.signals).toHaveLength(ACTIVITY_SIGNAL_LIMIT);
-    expect(context?.rollups[0]?.signal_count).toBe(ACTIVITY_SIGNAL_LIMIT + 8);
+    // The month covers all forty-eight; the week covers only what fell in it.
+    const month = context?.rollups.find((item) => item.window_start === "2026-02-09");
+    expect(month?.signal_count).toBe(ACTIVITY_SIGNAL_LIMIT + 8);
+  });
+
+  it("reports a week and a month separately rather than one blended window", () => {
+    // "How did this week go" is the question people actually ask, and a
+    // thirty-day count answers a different one. The signals span ten days, so
+    // the two windows must disagree — if they matched, the short window would
+    // be decorative.
+    const many = manySignals(ACTIVITY_SIGNAL_LIMIT + 8);
+    const context = buildActivityContext(question, goals, many, today);
+    const windows = context?.rollups.map((item) => [
+      item.window_start,
+      item.window_end,
+      item.signal_count,
+    ]);
+    expect(windows).toEqual([
+      ["2026-03-04", today, 33],
+      ["2026-02-09", today, ACTIVITY_SIGNAL_LIMIT + 8],
+    ]);
   });
 
   it("says how many signals qualified when the cap truncates them", () => {
@@ -244,7 +264,7 @@ describe("activity selection", () => {
     expect(context?.signals_available).toBe(3);
   });
 
-  it("emits one rollup per contributing integration", () => {
+  it("emits a rollup per window for each contributing integration", () => {
     const context = buildActivityContext(
       question,
       goals,
@@ -255,8 +275,12 @@ describe("activity selection", () => {
       ],
       today,
     );
+    // Grouped by integration, so the two windows for one integration stay
+    // adjacent and a reader compares like with like.
     expect(context?.rollups.map((item) => item.integration_id)).toEqual([
       "alpha",
+      "alpha",
+      "beta",
       "beta",
     ]);
   });
@@ -313,8 +337,17 @@ describe("activity on the request", () => {
     }
   });
 
-  it("keeps observations and inferences in separate fields when activity is present", async () => {
-    const { recommendation, request } = await demoResult([
+  it("tells both prompts that overlapping rollup windows must not be added", () => {
+    // Two rollups per integration means the same commit is counted in both.
+    // Without this rule a model asked "how many this month" could sum the week
+    // and the month and report a number that never happened.
+    for (const prompt of [SYSTEM_PROMPT, CHAT_SYSTEM_PROMPT]) {
+      expect(prompt).toContain("Never add two");
+      expect(prompt).toContain("rollups overlap");
+    }
+  });
+
+  it("keeps observations and inferences in separate fields when activity is present", async () => {    const { recommendation, request } = await demoResult([
       signal({ id: "fixture_career", domain: "career" }),
     ]);
     expect(request.activity_context?.signals).toHaveLength(1);
