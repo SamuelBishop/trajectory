@@ -20,7 +20,6 @@ import { providerNameSchema } from "../engine/domain";
 import { integrationPolicySchema } from "../engine/integrations";
 import { localDate } from "../engine/integrations/rollup";
 import {
-  authorizationCodeFrom,
   authorizeUrl,
   exchangeAuthorizationCode,
 } from "../engine/integrations/strava";
@@ -533,7 +532,7 @@ export function registerIpcHandlers(): void {
       const refreshToken = await exchangeAuthorizationCode(
         clientId,
         clientSecret,
-        authorizationCodeFrom(pasted),
+        pasted,
         globalThis.fetch,
       );
       await secrets.set("stravaRefreshToken", refreshToken);

@@ -16,8 +16,9 @@ import {
   authorizeUrl,
   describeApiRejection,
   describeTokenRejection,
-  exchangeAuthorizationCode,
   earliestStart,
+  exchangeAuthorizationCode,
+  grantedScopes,
   humanizeSport,
   type StravaTokenStore,
 } from "../../../src/engine/integrations/strava";
@@ -933,5 +934,122 @@ describe("getting a refresh token that can read activities", () => {
       }),
     ).rejects.toThrow(/authorization code/);
     expect(called).toBe(false);
+  });
+});
+
+describe("checking the scope the athlete actually granted", () => {
+  // Strava draws every requested scope as a tickable box and returns whatever
+  // survived. An unticked box still yields a code, a successful exchange and a
+  // genuine refresh token that cannot read one workout.
+  it("reads the granted scopes out of the redirect", () => {
+    expect(
+      grantedScopes(
+        "http://localhost/exchange_token?state=&code=abc&scope=read,activity:read_all",
+      ),
+    ).toEqual(["read", "activity:read_all"]);
+  });
+
+  it("survives the scopes arriving percent-encoded", () => {
+    expect(
+      grantedScopes("http://localhost/exchange_token?code=abc&scope=read%2Cactivity%3Aread_all"),
+    ).toEqual(["read", "activity:read_all"]);
+  });
+
+  it("separates a paste that cannot answer from one that says nothing was granted", () => {
+    // null means "no scope list here, ask the token endpoint instead". An empty
+    // list means Strava said nothing was granted. Collapsing the two would make
+    // a bare code look like a refusal.
+    expect(grantedScopes("abc123def")).toBeNull();
+    expect(grantedScopes("http://localhost/exchange_token?code=abc&scope=")).toEqual([]);
+  });
+
+  it("refuses a redirect that withheld activity access, without calling Strava", async () => {
+    // The failure this whole gate exists for. Exchanging would succeed and
+    // store a token guaranteed to 401 on the next sync.
+    let called = false;
+    await expect(
+      exchangeAuthorizationCode(
+        "169093",
+        CLIENT_SECRET,
+        "http://localhost/exchange_token?state=&code=abc123def&scope=read",
+        () => {
+          called = true;
+          return Promise.resolve(new Response("{}"));
+        },
+      ),
+    ).rejects.toThrow(/not to your activities/);
+    expect(called).toBe(false);
+  });
+
+  it("names the box that has to stay ticked", async () => {
+    // "Grant the right scope" is not actionable while looking at Strava's page.
+    // The label is.
+    await expect(
+      exchangeAuthorizationCode(
+        "169093",
+        CLIENT_SECRET,
+        "http://localhost/exchange_token?code=abc&scope=read",
+        () => Promise.resolve(new Response("{}")),
+      ),
+    ).rejects.toThrow(/View data about your private activities/);
+  });
+
+  it("exchanges normally when the activity scope survived", async () => {
+    const refreshToken = await exchangeAuthorizationCode(
+      "169093",
+      CLIENT_SECRET,
+      "http://localhost/exchange_token?state=&code=abc123def&scope=read,activity:read_all",
+      () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              refresh_token: "minted-token",
+              scope: "read activity:read_all",
+            }),
+          ),
+        ),
+    );
+    expect(refreshToken).toBe("minted-token");
+  });
+
+  it("still refuses when only the token response reveals the missing scope", async () => {
+    // A bare-code paste carries no scope list, so the response is the only
+    // place the truth appears.
+    await expect(
+      exchangeAuthorizationCode("169093", CLIENT_SECRET, "abc123def", () =>
+        Promise.resolve(
+          new Response(JSON.stringify({ refresh_token: "minted-token", scope: "read" })),
+        ),
+      ),
+    ).rejects.toThrow(/not to your activities/);
+  });
+
+  it("reports a declined authorization as declined, not as a bad paste", async () => {
+    await expect(
+      exchangeAuthorizationCode(
+        "169093",
+        CLIENT_SECRET,
+        "http://localhost/exchange_token?state=&error=access_denied",
+        () => Promise.resolve(new Response("{}")),
+      ),
+    ).rejects.toThrow(/declined/);
+  });
+
+  it("does not read like the sync-time missing-permission failure", async () => {
+    // Two different moments with two different fixes: one is "tick the box on
+    // the page in front of you", the other is "the stored grant is wrong".
+    // Identical wording is what sent the user round the loop twice already.
+    const atConsent = await exchangeAuthorizationCode(
+      "169093",
+      CLIENT_SECRET,
+      "http://localhost/exchange_token?code=abc&scope=read",
+      () => Promise.resolve(new Response("{}")),
+    ).catch((error: unknown) => (error as Error).message);
+    const atSync = describeApiRejection(
+      401,
+      { errors: [{ resource: "AccessToken", field: "activity:read_permission", code: "missing" }] },
+      "reading activities",
+    );
+    expect(atConsent).not.toBe(atSync);
   });
 });

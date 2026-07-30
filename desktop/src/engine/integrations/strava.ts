@@ -108,14 +108,29 @@ export function authorizationCodeFrom(pasted: string): string {
 export async function exchangeAuthorizationCode(
   clientId: string,
   clientSecret: string,
-  code: string,
+  pasted: string,
   httpFetch: typeof fetch = globalThis.fetch,
 ): Promise<string> {
+  if (/[?&]error=/.test(pasted)) {
+    throw new StravaAuthError(
+      "The authorization was declined on Strava's page, so no permission was " +
+        "granted. Press Authorize on Strava again and choose Authorize.",
+    );
+  }
+  const code = authorizationCodeFrom(pasted);
   if (code.length === 0) {
     throw new StravaAuthError(
       "That does not look like an authorization code. Paste the whole address " +
         "the browser landed on, including the ?code= part.",
     );
+  }
+  // Strava returns the scopes the athlete actually agreed to, which is not
+  // necessarily the set that was requested. Checking here means an opted-out
+  // permission is reported while the user is still on the consent screen in
+  // their head, instead of surfacing hours later as a failed sync.
+  const grantedInRedirect = grantedScopes(pasted);
+  if (grantedInRedirect !== null && !grantedInRedirect.includes(REQUIRED_SCOPE)) {
+    throw new StravaAuthError(MISSING_SCOPE_AT_CONSENT);
   }
   const response = await httpFetch(TOKEN_URL, {
     method: "POST",
@@ -134,12 +149,52 @@ export async function exchangeAuthorizationCode(
   }
 
   const body = (await response.json()) as TokenResponse;
+  // Second gate, for a paste that carried a bare code and so had no scope list
+  // to read. Storing a token known to be unusable would only move the failure.
+  const granted = splitScopes(body.scope ?? "");
+  if (granted.length > 0 && !granted.includes(REQUIRED_SCOPE)) {
+    throw new StravaAuthError(MISSING_SCOPE_AT_CONSENT);
+  }
   const refreshToken = body.refresh_token ?? "";
   if (refreshToken.length === 0) {
     throw new StravaAuthError("Strava returned no refresh token.");
   }
   return refreshToken;
 }
+
+/**
+ * The scopes Strava says were granted, or null if the paste did not carry them.
+ *
+ * Null and empty mean different things: null is "this paste cannot answer the
+ * question", empty is "nothing was granted". Only the second is a failure.
+ */
+export function grantedScopes(pasted: string): string[] | null {
+  const match = /[?&]scope=([^&\s]*)/.exec(pasted.trim());
+  if (match?.[1] === undefined) {
+    return null;
+  }
+  return splitScopes(decodeURIComponent(match[1]));
+}
+
+/** Redirect scopes are comma-delimited, token-response scopes space-delimited. */
+function splitScopes(raw: string): string[] {
+  return raw.split(/[,\s]+/).filter((scope) => scope.length > 0);
+}
+
+/**
+ * Shown when the athlete authorized the app but withheld activity access.
+ *
+ * Strava draws each requested scope as a tickable box. Untick the activity one
+ * and the flow still succeeds — a code comes back, the exchange returns a
+ * genuine refresh token, and every activity request 401s. Naming the box is the
+ * only part of this that helps.
+ */
+const MISSING_SCOPE_AT_CONSENT =
+  "Strava granted access but not to your activities. On the authorization " +
+  'page, the box for viewing activity data ("View data about your private ' +
+  'activities") has to stay ticked — leaving it unticked still returns a ' +
+  "working token that cannot read a single workout. Press Authorize on " +
+  "Strava again and check the boxes before approving.";
 const ACTIVITIES_URL = `https://${STRAVA_HOST}/api/v3/athlete/activities`;
 
 /** Strava's own maximum. Fewer pages for the same history means fewer requests. */
@@ -225,6 +280,7 @@ interface TokenResponse {
   refresh_token?: string;
   expires_at?: number;
   expires_in?: number;
+  scope?: string;
 }
 
 /**
