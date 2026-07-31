@@ -1,0 +1,16 @@
+# Keep LF in the working tree on every platform.
+#
+# Git for Windows defaults to core.autocrlf=true, which checks these files out
+# as CRLF. Mentor profiles and YAML config are parsed byte-for-byte, and the
+# shell scripts under scripts/ will not run with CRLF endings.
+* text=auto eol=lf
+
+# Binaries git should never touch.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.pdf binary
+*.zip binary

@@ -133,11 +133,16 @@ function splitLimited(value: string, separator: string, maxSplit: number): strin
  * Parse a mentor profile from text. Exported so the editor can validate what
  * the user typed without writing it first, using exactly the same rules the
  * loader applies.
+ *
+ * Line endings are normalized first: a profile written by a Windows editor, or
+ * checked out through git with `core.autocrlf`, arrives as CRLF and would
+ * otherwise be rejected as having no front matter at all.
  */
 export function parseMentorProfileText(
   filePath: string,
-  text: string,
+  rawText: string,
 ): MentorProfile {
+  const text = rawText.replace(/\r\n?/g, "\n");
   if (!text.startsWith("---\n")) {
     throw new ConfigurationError(
       `Mentor profile must start with YAML front matter: ${filePath}`,

@@ -1,5 +1,5 @@
 import path from "node:path";
-import { rm, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 
 import { describe, expect, it } from "vitest";
 
@@ -89,6 +89,20 @@ describe("configuration loading", () => {
     });
 
     await expect(loadMentorResources(copied)).rejects.toThrow(AttributionError);
+  });
+
+  it("loads a mentor profile saved with Windows line endings", async () => {
+    const copied = await copyFixture(mentorDirectory, "mentor");
+    const profilePath = path.join(copied, "profile.md");
+    const original = await readFile(profilePath, "utf8");
+    // What a Windows editor writes, and what git checks out under
+    // core.autocrlf=true. Byte-for-byte front matter matching rejected it.
+    await writeFile(profilePath, original.replace(/\n/g, "\r\n"), "utf8");
+
+    const resources = await loadMentorResources(copied);
+
+    expect(resources.profile.fictional).toBe(true);
+    expect(resources.profile.body).not.toContain("\r");
   });
 
   it("loads an existing mentor without an optional voice profile", async () => {
