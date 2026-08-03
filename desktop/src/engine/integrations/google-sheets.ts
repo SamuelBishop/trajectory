@@ -264,7 +264,23 @@ interface TokenErrorBody {
 }
 
 interface ApiErrorBody {
-  error?: { code?: number; message?: string; status?: string };
+  error?: {
+    code?: number;
+    message?: string;
+    status?: string;
+    /**
+     * `ErrorInfo.reason`, lifted out of `error.details[]`.
+     *
+     * AIP-193 requires every error response to carry an `ErrorInfo` here and
+     * says the point of it is that "machine actors do not need to parse error
+     * messages to extract information". Three unrelated problems arrive as 403
+     * `PERMISSION_DENIED` — the API is switched off, the token lacks the scope,
+     * and the file was never shared — and they are only told apart by this
+     * field. Reading the prose instead means telling someone to share a sheet
+     * that is already shared.
+     */
+    reason?: string;
+  };
 }
 
 function tokenErrorFacets(detail: unknown): TokenErrorBody {
@@ -292,7 +308,32 @@ function apiErrorFacets(detail: unknown): NonNullable<ApiErrorBody["error"]> {
     code: typeof record.code === "number" ? record.code : undefined,
     message: typeof record.message === "string" ? record.message : undefined,
     status: typeof record.status === "string" ? record.status : undefined,
+    reason: errorInfoReason(record.details),
   };
+}
+
+/**
+ * The `reason` of the `ErrorInfo` in `error.details[]`.
+ *
+ * The array is heterogeneous — `BadRequest`, `Help` and `LocalizedMessage` can
+ * sit beside `ErrorInfo` — so it is searched for the first entry carrying a
+ * `reason` rather than indexed. Absent for older endpoints, which is why every
+ * caller still has a fallback.
+ */
+function errorInfoReason(details: unknown): string | undefined {
+  if (!Array.isArray(details)) {
+    return undefined;
+  }
+  for (const entry of details) {
+    if (typeof entry !== "object" || entry === null) {
+      continue;
+    }
+    const reason = (entry as Record<string, unknown>).reason;
+    if (typeof reason === "string" && reason.length > 0) {
+      return reason;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -355,29 +396,54 @@ export function describeApiRejection(
   status: number,
   detail: unknown,
   clientEmail: string,
+  spreadsheetId = "",
 ): string {
-  const { message, status: googleStatus } = apiErrorFacets(detail);
+  const { message, status: googleStatus, reason } = apiErrorFacets(detail);
   const text = message ?? "";
   const shareWith = clientEmail.length > 0 ? clientEmail : "the service account's address";
 
   if (status === 429 || googleStatus === "RESOURCE_EXHAUSTED") {
     return "Google is rate limiting this app. The next sync will try again.";
   }
-  // Checked before PERMISSION_DENIED: a disabled API also returns 403, and the
-  // fix is in the Cloud console rather than in the sheet's sharing dialog.
-  if (googleStatus === "SERVICE_DISABLED" || /has not been used in project|is disabled/i.test(text)) {
+  // Checked before the sharing case: a disabled API also returns 403 with
+  // status PERMISSION_DENIED, and the fix is in the Cloud console rather than
+  // in the sheet's sharing dialog. The message regex is a fallback for
+  // endpoints that omit ErrorInfo.
+  if (
+    reason === "SERVICE_DISABLED" ||
+    (reason === undefined && /has not been used in project|is disabled/i.test(text))
+  ) {
     return (
       "The Google Sheets API is not enabled for the project that owns this " +
       "service account. Enable it in the Cloud console, wait a minute, then " +
       "sync again."
     );
   }
+  // Also a 403 PERMISSION_DENIED, and the one where the obvious advice is
+  // actively wrong: sharing the sheet again cannot add a scope to a token that
+  // was issued without it.
+  if (
+    reason === "ACCESS_TOKEN_SCOPE_INSUFFICIENT" ||
+    (reason === undefined && /insufficient authentication scopes/i.test(text))
+  ) {
+    return (
+      "Google issued a token without permission to read spreadsheets, so the " +
+      "sheet's sharing is not the problem. This is a fault in Trajectory's " +
+      "token request rather than anything you can fix in the console."
+    );
+  }
   if (status === 403 || googleStatus === "PERMISSION_DENIED") {
+    const which =
+      spreadsheetId.length > 0
+        ? ` Trajectory is trying to open the sheet with ID ${spreadsheetId} — check that is the one you shared.`
+        : "";
     return (
       `The service account cannot open that spreadsheet. Share the sheet with ` +
       `${shareWith} — open it in Google Sheets, press Share, paste that ` +
-      `address, and give it Viewer. A service account can only read files that ` +
-      `have been shared with it explicitly.`
+      `address, and give it Viewer.${which} If you have already done that and ` +
+      `it still fails, the account that owns the sheet may be under a Google ` +
+      `Workspace policy that blocks sharing outside the organization, which ` +
+      `silently drops an address like this one.`
     );
   }
   if (status === 404 || googleStatus === "NOT_FOUND") {
@@ -717,7 +783,7 @@ export class GoogleSheetsAdapter {
     const url = `${SHEETS_BASE}/${encodeURIComponent(spreadsheetId)}?fields=${encodeURIComponent(
       "sheets.properties.title,sheets.properties.sheetId",
     )}`;
-    const response = await this.request(url, token, clientEmail);
+    const response = await this.request(url, token, clientEmail, spreadsheetId);
     return (await response.json()) as SpreadsheetMeta;
   }
 
@@ -733,12 +799,17 @@ export class GoogleSheetsAdapter {
     const url =
       `${SHEETS_BASE}/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}` +
       `?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`;
-    const response = await this.request(url, token, clientEmail);
+    const response = await this.request(url, token, clientEmail, spreadsheetId);
     const body = (await response.json()) as ValueRange;
     return body.values ?? [];
   }
 
-  private async request(url: string, token: string, clientEmail: string): Promise<Response> {
+  private async request(
+    url: string,
+    token: string,
+    clientEmail: string,
+    spreadsheetId = "",
+  ): Promise<Response> {
     const target = new URL(url);
     // Checked rather than assumed. See isDeclaredHost: unreachable from here
     // today, kept so a future response-derived URL cannot slip past.
@@ -752,7 +823,12 @@ export class GoogleSheetsAdapter {
       return response;
     }
     const detail: unknown = await response.json().catch(() => null);
-    const message = describeApiRejection(response.status, detail, clientEmail);
+    const message = describeApiRejection(
+      response.status,
+      detail,
+      clientEmail,
+      spreadsheetId,
+    );
     if (response.status === 429) {
       throw new GoogleSheetsRateLimitError(message);
     }

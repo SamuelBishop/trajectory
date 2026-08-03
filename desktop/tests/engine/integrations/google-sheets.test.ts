@@ -891,16 +891,25 @@ describe("explaining why Google refused", () => {
   });
 
   it("separates a disabled API from an unshared sheet", () => {
-    // Both are 403 and the fixes are in different places entirely — one in the
-    // Cloud console, one in the sheet's sharing dialog.
+    // Both are 403 with status PERMISSION_DENIED, and the fixes are in
+    // different places entirely — one in the Cloud console, one in the sheet's
+    // sharing dialog. Only ErrorInfo.reason tells them apart.
     expect(
       describeApiRejection(
         403,
         {
           error: {
             code: 403,
-            message: "Google Sheets API has not been used in project 12345 before or it is disabled",
-            status: "SERVICE_DISABLED",
+            message:
+              "Google Sheets API has not been used in project 12345 before or it is disabled",
+            status: "PERMISSION_DENIED",
+            details: [
+              {
+                "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                reason: "SERVICE_DISABLED",
+                domain: "googleapis.com",
+              },
+            ],
           },
         },
         "reader@example.iam.gserviceaccount.com",
@@ -914,6 +923,99 @@ describe("explaining why Google refused", () => {
         "reader@example.iam.gserviceaccount.com",
       ),
     ).toMatch(/Share the sheet with reader@example.iam.gserviceaccount.com/);
+  });
+
+  it("does not blame the sharing when the token lacks the scope", () => {
+    // The third 403. Telling someone to share a sheet they have already shared
+    // is worse than saying nothing: re-sharing cannot add a scope to a token
+    // issued without one, so the advice sends them round a loop that has no
+    // exit. This is the Strava mistake in a different API.
+    const message = describeApiRejection(
+      403,
+      {
+        error: {
+          code: 403,
+          message: "Request had insufficient authentication scopes.",
+          status: "PERMISSION_DENIED",
+          details: [
+            {
+              "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+              reason: "ACCESS_TOKEN_SCOPE_INSUFFICIENT",
+              domain: "googleapis.com",
+            },
+          ],
+        },
+      },
+      "reader@example.iam.gserviceaccount.com",
+    );
+
+    expect(message).toMatch(/sharing is not the problem/);
+    expect(message).not.toMatch(/press Share/);
+  });
+
+  it("finds ErrorInfo when it is not the first entry in details", () => {
+    // details[] is heterogeneous — Help and LocalizedMessage sit beside
+    // ErrorInfo and the order is not guaranteed. Reading details[0] blindly
+    // yields no reason and falls back to reading the prose.
+    //
+    // So the prose here deliberately contradicts the reason. AIP-193 exists
+    // precisely so clients stop parsing messages, and a message is free to
+    // change wording in a way a regex was never written for; the
+    // machine-readable field has to win whenever both are present.
+    expect(
+      describeApiRejection(
+        403,
+        {
+          error: {
+            status: "PERMISSION_DENIED",
+            message:
+              "Google Sheets API has not been used in project 12345 before or it is disabled",
+            details: [
+              {
+                "@type": "type.googleapis.com/google.rpc.Help",
+                links: [{ description: "Google developers console" }],
+              },
+              {
+                "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                reason: "ACCESS_TOKEN_SCOPE_INSUFFICIENT",
+              },
+            ],
+          },
+        },
+        "a@b.c",
+      ),
+    ).toMatch(/sharing is not the problem/);
+  });
+
+  it("names the spreadsheet it actually tried to open", () => {
+    // Sharing one sheet and configuring another produces this exact 403, and
+    // the user cannot see the difference without being told which ID was used.
+    expect(
+      describeApiRejection(
+        403,
+        { error: { status: "PERMISSION_DENIED" } },
+        "reader@example.iam.gserviceaccount.com",
+        "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd",
+      ),
+    ).toContain("1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd");
+  });
+
+  it("still reads a disabled API that arrives without ErrorInfo", () => {
+    // Older endpoints omit details[]. The prose fallback stays for those, but
+    // only where there is no machine-readable reason to prefer.
+    expect(
+      describeApiRejection(
+        403,
+        {
+          error: {
+            message:
+              "Google Sheets API has not been used in project 12345 before or it is disabled",
+            status: "PERMISSION_DENIED",
+          },
+        },
+        "a@b.c",
+      ),
+    ).toMatch(/not enabled for the project/);
   });
 
   it("points at the tab when the range will not parse", () => {
@@ -962,7 +1064,26 @@ describe("explaining why Google refused", () => {
       describeTokenRejection({ error: "invalid_client", error_description: "not found" }),
       describeTokenRejection({ error: "invalid_scope" }),
       describeTokenRejection(null),
-      describeApiRejection(403, { error: { status: "SERVICE_DISABLED" } }, "a@b.c"),
+      describeApiRejection(
+        403,
+        {
+          error: {
+            status: "PERMISSION_DENIED",
+            details: [{ reason: "SERVICE_DISABLED" }],
+          },
+        },
+        "a@b.c",
+      ),
+      describeApiRejection(
+        403,
+        {
+          error: {
+            status: "PERMISSION_DENIED",
+            details: [{ reason: "ACCESS_TOKEN_SCOPE_INSUFFICIENT" }],
+          },
+        },
+        "a@b.c",
+      ),
       describeApiRejection(403, { error: { status: "PERMISSION_DENIED" } }, "a@b.c"),
       describeApiRejection(404, null, "a@b.c"),
       describeApiRejection(400, { error: { message: "Unable to parse range: x" } }, "a@b.c"),
