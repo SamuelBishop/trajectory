@@ -47,12 +47,14 @@ export const SECRETS_FILE = "trajectory-secrets.enc.json";
  * together would mean rewriting the application's identity every time a token
  * refreshed, which is a good way to lose the half that was still correct.
  *
- * `googleServiceAccountKey` holds only the PEM private key out of the service
- * account's JSON file. The rest of that file — `client_email`, `project_id`,
- * the key id — is identifying rather than secret and lives in integrations
- * config, where the user can see which account they are using and which
- * address to share their sheet with. Keeping the whole JSON blob here would
- * bury that address inside an encrypted value nothing is allowed to read back.
+ * `googleServiceAccountKey` holds the service account's private key together
+ * with the address it belongs to, taken out of the JSON file Google hands out.
+ * Together and not split, because those two values are signed into one
+ * assertion: keeping the address elsewhere would let an edit there produce a
+ * JWT claiming to be an account the key cannot speak for. The copy of the
+ * address in integrations config is for display only — it is what the user has
+ * to share their sheet with, and a value nothing can read back is a setup step
+ * nobody can complete.
  */
 export type SecretName =
   | "openaiApiKey"

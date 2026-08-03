@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { generateKeyPairSync } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 
@@ -34,8 +35,69 @@ const githubStub = ((url: string) =>
     ),
   )) as unknown as typeof fetch;
 
-const temporaryDirectories: string[] = [];
+/**
+ * Invented training log. The key is generated here so none is committed.
+ *
+ * Replies in the order the adapter asks: token, tab metadata, then values.
+ */
+const { privateKey: sheetsKey } = generateKeyPairSync("rsa", {
+  modulusLength: 2048,
+  privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  publicKeyEncoding: { type: "spki", format: "pem" },
+});
 
+const SHEETS_ACCOUNT = JSON.stringify({
+  client_email: "trajectory-reader@example-project.iam.gserviceaccount.com",
+  private_key: sheetsKey,
+});
+
+/**
+ * A local calendar date, offset in days from today.
+ *
+ * Relative rather than fixed, because this test drives the real service and so
+ * the real clock. A hard-coded date would sit outside the lookback window the
+ * moment it aged past it, and the suite would go quietly green with no signals.
+ */
+function sheetsDay(offset: number): string {
+  const day = new Date();
+  day.setDate(day.getDate() + offset);
+  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+}
+
+const sheetsStub = ((url: string) => {
+  const address = String(url);
+  if (address.includes("oauth2.googleapis.com")) {
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({ access_token: "access-value", expires_in: 3600 }),
+        { status: 200 },
+      ),
+    );
+  }
+  if (address.includes("/values/")) {
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          values: [
+            ["Date", "Workout", "Actual", "Running \nMiles"],
+            ["", "what was planned", "what happened", "miles run"],
+            [sheetsDay(-1), "6 mi easy", "6.2 mi easy", 6.2],
+            [sheetsDay(0), "8 x 400m", "", ""],
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+  }
+  return Promise.resolve(
+    new Response(
+      JSON.stringify({ sheets: [{ properties: { title: "2026 Log" } }] }),
+      { status: 200 },
+    ),
+  );
+}) as unknown as typeof fetch;
+
+const temporaryDirectories: string[] = [];
 const testEncryption = {
   isAvailable: () => true,
   encrypt: (value: string) =>
@@ -462,6 +524,54 @@ describe("IntegrationService", () => {
 
     const view = await service.view();
     expect(view.googleSheets.tabName).toBe("2026");
+  });
+
+  it("carries a skipped training session all the way to the mentor's context", async () => {
+    // End to end through the real service, not the adapter alone. The stored
+    // credential has to be exactly what the adapter can parse — storing the
+    // private key on its own typechecks, saves without complaint, and then
+    // fails on the first sync, which no unit test on either side would catch.
+    const service = new IntegrationService(
+      await userDataPath(),
+      testEncryption,
+      () => Promise.resolve(SHEETS_ACCOUNT),
+      () => Promise.resolve(["training"]),
+      sheetsStub,
+    );
+    await service.saveGoogleSheetsScope({
+      spreadsheetId: "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd",
+      tabName: "2026 Log",
+      firstDataRow: 3,
+      metricColumns: ["Running \nMiles"],
+      defaultDomain: "training",
+      lookbackDays: 30,
+    });
+    await service.savePolicy("google_sheets", enabledPolicy);
+    await service.sync("google_sheets", "manual");
+
+    const view = await service.view();
+    const sheets = view.integrations.find(
+      (entry) => entry.id === "google_sheets",
+    );
+    expect(sheets?.lastError).toBeNull();
+    expect(sheets?.signalCount).toBe(2);
+
+    const signals = await service.signalsForPrompt();
+    const context = buildActivityContext(
+      "How is my training going?",
+      [{ domain: "training" }],
+      signals,
+      sheetsDay(0),
+    );
+    const done = context?.signals.find((signal) => signal.completed);
+    const missed = context?.signals.find((signal) => !signal.completed);
+
+    // The whole reason this integration exists: a session that was prescribed
+    // and not done is observable, which no other source can report.
+    expect(done?.summary).toContain("6.2 mi easy");
+    expect(done?.metrics.running_miles).toBe(6.2);
+    expect(missed?.summary).toContain("8 x 400m");
+    expect(missed?.completed).toBe(false);
   });
 
   it("refuses a GitHub scope it cannot validate", async () => {

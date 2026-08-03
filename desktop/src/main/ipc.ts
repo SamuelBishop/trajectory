@@ -524,7 +524,19 @@ export function registerIpcHandlers(): void {
     }
     try {
       const account = parseServiceAccount(pasted);
-      await secrets.set("googleServiceAccountKey", account.privateKey);
+      // Stored as the two fields the adapter needs, not as the raw paste: the
+      // downloaded file also carries a project id, a key id and three URLs
+      // that nothing here reads. Kept together rather than split, because the
+      // key and the address that identifies it are what get signed into one
+      // assertion — separating them would let a config edit sign a JWT
+      // claiming to be an account the key does not belong to.
+      await secrets.set(
+        "googleServiceAccountKey",
+        JSON.stringify({
+          client_email: account.clientEmail,
+          private_key: account.privateKey,
+        }),
+      );
       await integrations.saveGoogleServiceAccountEmail(account.clientEmail);
       return { ok: true, problem: null };
     } catch (error) {
