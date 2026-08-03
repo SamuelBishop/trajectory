@@ -1,6 +1,6 @@
 # Activity integration prompts
 
-Eight prompts that give the mentor access to what you actually did, rather than
+Nine prompts that give the mentor access to what you actually did, rather than
 only what you told it in `current_state.yaml`. Each is self-contained and meant
 to be handed to a coding agent on its own.
 
@@ -21,7 +21,8 @@ dashboard that tells you what you already know is not worth an integration.
 ```
 P0 ──▶ P1 ──▶ P2 ──┬──▶ P3 ──┬──▶ P4
                    │         └──▶ P6
-                   └──▶ P5
+                   ├──▶ P5
+                   └──▶ P8
        └──▶ P7
 ```
 
@@ -35,6 +36,7 @@ P0 ──▶ P1 ──▶ P2 ──┬──▶ P3 ──┬──▶ P4
 | [P5](P5-manual-import-lane.md) | Reviewed manual import, Azure DevOps PRs first | No |
 | [P6](P6-strava-training-adapter.md) | Strava training log | Yes |
 | [P7](P7-screen-time-interface.md) | Attention interface, deliberately no adapter | No |
+| [P8](P8-google-sheets-training-log.md) | One Google Sheet: a coached training log | Yes |
 
 P1 and P2 ship a synthetic fixture adapter on purpose. The entire
 ingest → store → select → prompt → attribution path is proven before a single

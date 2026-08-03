@@ -289,6 +289,30 @@ requirements those prompts satisfy; each prompt ticks its own.
       persist the returned token, and make stale data visible rather than
       silently green. Written down here so the failure has an explanation
       waiting for it.
+- [x] Read a coached training log out of a Google Sheet. — P8.
+      `desktop/src/engine/integrations/google-sheets.ts`. The first source that
+      supplies `completed` from evidence rather than inference: the coach's
+      prescription and the athlete's execution sit in two columns of the same
+      row, so a session that was planned and skipped is observable. A service
+      account rather than user OAuth, because Google issues a seven-day refresh
+      token to any app whose consent screen is external and in "Testing", and
+      the way out is verification for a sensitive scope.
+- [ ] Surface upcoming sessions and races from the same sheet. Future-dated
+      rows are deliberately excluded today: as `completed: false` they land in
+      `open_count` and suppress `streak_days`, so a training block would read
+      as a backlog of failures. Knowing that a goal race is in three weeks is
+      real value, but it needs its own lane rather than being smuggled through
+      the field that means "did not happen".
+- [ ] Read more than one tab. One sheet is one subject and one goal domain
+      today, so a workbook with a tab per year — the normal shape after a
+      couple of seasons — can only be read one year at a time.
+- [ ] The metric name for a numeric column is derived from its header and
+      cannot be overridden. Two columns that normalize to the same identifier
+      would collide silently, with the second overwriting the first.
+- [ ] Trajectory cannot tell whether the sheet has actually been shared with
+      the service account until a sync fails. The failure names the address to
+      share with, which is the important half, but the setup screen still
+      accepts a configuration that has never been able to read anything.
 - [ ] Add exported or manually created screen-time data before attempting platform collectors.
 - [ ] Document future platform-specific collectors.
 - [ ] Add calendar ingestion with explicit scope selection.
