@@ -144,4 +144,30 @@ describe("the renderer bridge", () => {
       methods.filter((name) => /^(get|read|fetch).*(Key|Secret|Token)$/.test(name)),
     ).toEqual([]);
   });
+
+  it("invokes no channel the main process does not handle", async () => {
+    // The one wiring mistake TypeScript cannot catch. `DesktopApi` forces the
+    // preload to have every method, but the channel name inside it is a bare
+    // string on both sides — a typo compiles, ships, and fails at runtime as a
+    // button that does nothing.
+    const preload = await readFile(
+      path.resolve(__dirname, "../src/preload/index.ts"),
+      "utf8",
+    );
+    const main = await readFile(
+      path.resolve(__dirname, "../src/main/ipc.ts"),
+      "utf8",
+    );
+    const invoked = [
+      ...preload.matchAll(/ipcRenderer\.invoke\(\s*"([^"]+)"/g),
+    ].map((match) => match[1] ?? "");
+    const handled = new Set(
+      [...main.matchAll(/ipcMain\.handle\(\s*"([^"]+)"/g)].map(
+        (match) => match[1] ?? "",
+      ),
+    );
+
+    expect(invoked.length).toBeGreaterThan(0);
+    expect(invoked.filter((channel) => !handled.has(channel))).toEqual([]);
+  });
 });
