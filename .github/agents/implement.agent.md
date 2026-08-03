@@ -31,6 +31,10 @@ still apply to bug fixes. Refuse, and say why, when:
   change and its motivating failure; a human approves it
   (`[HC-PROPOSE-NEVER-COMMIT]`).
 
+You do not commit or push. Finish the work, run verification, report what
+changed, and leave it in the working tree — the author runs `/cap` when they
+want it to land (`[HC-LAND-ON-REQUEST]`).
+
 Never write "I couldn't capture that, but I verified it manually." Either the
 output exists or the claim does not.
 

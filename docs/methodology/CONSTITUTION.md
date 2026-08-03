@@ -52,9 +52,9 @@ data sent to a third party cannot be un-shipped. So:
 
 **Never suspended, because they are free and irreversible:**
 `[HC-NO-PLAINTEXT-HISTORY]`, `[HC-NO-PRIVATE-DATA-COMMITS]`,
-`[HC-SECRETS-ENV-ONLY]`, `[HC-NO-EXFILTRATION]`. These are constraints on what
-you write, not gates that run, so they cost nothing to keep — and each one
-protects something you cannot repair after the fact.
+`[HC-SECRETS-ENV-ONLY]`, `[HC-NO-EXFILTRATION]`, `[HC-LAND-ON-REQUEST]`. These
+are constraints on what you write, not gates that run, so they cost nothing to
+keep — and each one protects something you cannot repair after the fact.
 
 **Always required, because it takes 2.7 seconds:** `./scripts/verify.sh`.
 `[HC-VERIFY-BEFORE-DONE]` and `[HC-EVIDENCE]` still apply to it. Never report
@@ -453,6 +453,26 @@ required for bug fixes, where the reproduction is the whole proof.
   else and broken once installed, so run it before you actually use the app.
 - **Verification**: The command output in the report.
 
+### `[HC-LAND-ON-REQUEST]`
+
+- **Bar**: An agent does not run `git commit` or `git push` on its own
+  initiative. Finished work is left in the working tree for the author, who
+  runs `/cap` when they want it to land.
+- **Pattern**: This rule was written after a session pushed seven commits to
+  `main` unprompted. Each one was verified and each one was fine, but the
+  author's review then had to happen against published history, where the
+  choice is amend-and-force or live with it — and the whole point of a
+  single-author prototype is that changing your mind is supposed to be cheap.
+  Being asked to build something is not being asked to land it. The tell is
+  reaching for `git` because the work feels finished; finishing is
+  `[HC-VERIFY-BEFORE-DONE]`, and landing is a separate decision that belongs to
+  the author. Report what changed and stop. `/cap` is the only path, and the
+  author invoking it *is* the request — inside that skill, committing and
+  pushing is the job. Staging (`git add`), `git status`, and diffs are always
+  fine; they change nothing.
+- **Verification**: `git log` on `main` — every commit traces to an explicit
+  `/cap`.
+
 ### `[HC-TEST-WITH-BEHAVIOR]`
 
 - **Bar**: A behavior change ships with a test, or the missing coverage is
@@ -523,7 +543,9 @@ required for bug fixes, where the reproduction is the whole proof.
 
 - **Bar**: An agent proposes changes to this document; a human approves them.
 - **Pattern**: Constitution edits arrive as a proposal with the failure that
-  motivated them. Code changes may go straight to `main` via `/cap`, which is
-  sanctioned for this repository — `[HC-VERIFY-BEFORE-DONE]` is what protects
-  that branch, not a gate.
+  motivated them. Code changes reach `main` through `/cap`, which is sanctioned
+  for this repository — `[HC-VERIFY-BEFORE-DONE]` is what protects that branch,
+  not a gate. That sanction is about the *route* being allowed to skip review,
+  not about who starts it: `[HC-LAND-ON-REQUEST]` still means the author is the
+  one who invokes it.
 - **Verification**: Review.

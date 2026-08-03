@@ -49,6 +49,7 @@ work, or state plainly that the change rests on review alone.
 | `[HC-ATOMIC-SERIALIZED-WRITES]` | Partial | `desktop/tests/store.test.ts` — "serializes concurrent mutations without losing conversations" | Serialization is covered. Atomicity — temp file, `fsync`, `rename` — is not directly asserted; a regression to a plain in-place write would pass. |
 | `[HC-EVIDENCE]` | Not verified | — | Adversarial review only. This is structural: nothing mechanical can distinguish captured output from convincing prose. |
 | `[HC-VERIFY-BEFORE-DONE]` | Not verified | — | `scripts/verify.sh` exists but is invoked on request. Nothing forces it to run. |
+| `[HC-LAND-ON-REQUEST]` | Not verified | — | Nothing intercepts `git`. An agent that decides to commit can. Detectable after the fact — a commit on `main` with no `/cap` behind it — but not preventable from inside the repository. |
 | `[HC-TEST-WITH-BEHAVIOR]` | Not verified | — | No coverage threshold and no diff-versus-tests check. |
 | `[HC-NARROW-DIFF]` | Not verified | — | Review only. |
 | `[HC-CITE-SLUG-VERBATIM]` | Not verified | — | No checker greps claimed slugs against `CONSTITUTION.md`. Doing it by hand is cheap: every cited slug should appear in that file. |
@@ -56,11 +57,11 @@ work, or state plainly that the change rests on review alone.
 | `[HC-CANON-PRECEDENCE]` | Not verified | — | Review only. |
 | `[HC-ROUTE-DONT-ROOT]` | Not verified | — | `AGENTS.md` has a stated line budget but nothing enforces it. Check the line count when editing it. |
 | `[HC-REAL-MISTAKES-ONLY]` | Not verified | — | Review of the justification attached to a proposed rule. |
-| `[HC-PROPOSE-NEVER-COMMIT]` | Not verified | — | `/cap` can push to `main` unconditionally by design. |
+| `[HC-PROPOSE-NEVER-COMMIT]` | Not verified | — | `/cap` can push to `main` unconditionally by design. `[HC-LAND-ON-REQUEST]` narrows who may start it, not what it does. |
 
 ## Summary
 
-Of 32 bars: 9 automated, 12 partial, 11 not verified.
+Of 33 bars: 9 automated, 12 partial, 12 not verified.
 
 The shape of that is expected rather than alarming. The verified end is the
 engine's grounding and attribution logic — the part that is pure functions over

@@ -9,7 +9,7 @@ Keep it under 60 lines (`[HC-ROUTE-DONT-ROOT]`).
 
 ## Read in this order
 
-1. **`docs/methodology/CONSTITUTION.md`** — the canon. 32 `[HC-*]` / `[SC-*]`
+1. **`docs/methodology/CONSTITUTION.md`** — the canon. 33 `[HC-*]` / `[SC-*]`
    bars and the 6-step loop. It supersedes everything (`[HC-CANON-PRECEDENCE]`).
 2. **`docs/methodology/coverage-gaps.md`** — which bars nothing actually checks.
    Read before implementing in an area marked *Not verified*.
@@ -55,6 +55,5 @@ write, different model vendor). Skills: `/verify`, `/reflect`, `/cap`.
 - Paraphrase a rule slug — `[HC-CITE-SLUG-VERBATIM]`
 - Edit `CONSTITUTION.md` without a human approving — `[HC-PROPOSE-NEVER-COMMIT]`
 - Widen the diff beyond the task — `[HC-NARROW-DIFF]`
-
-`/cap` pushing straight to `main` is sanctioned here. Verification is what
-protects that branch, not a gate.
+- Commit or push unless the author ran `/cap` — `[HC-LAND-ON-REQUEST]`. Inside
+  `/cap`, pushing straight to `main` is sanctioned; verification protects it.
