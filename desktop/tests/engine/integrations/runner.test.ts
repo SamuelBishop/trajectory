@@ -174,23 +174,27 @@ describe("runSync", () => {
 });
 
 describe("adapter registry", () => {
-  it("ships the offline fixture, GitHub commits, Notion tasks, and Strava activities", () => {
+  it("ships the offline fixture, GitHub commits, Notion tasks, Strava activities, and the sheet", () => {
     const adapters = createAdapters({ now: () => now });
     expect(adapters.map((adapter) => adapter.id)).toEqual([
       "fixture",
       "github",
       "notion",
       "strava",
+      "google_sheets",
     ]);
   });
 
   it("contacts only the hosts the constitution names", () => {
     // [HC-NO-EXFILTRATION] fixes the allowlist at api.github.com,
-    // api.notion.com, and www.strava.com. A fourth host is a constitution
-    // change, so this assertion is the machine-readable half of that promise.
+    // api.notion.com, www.strava.com, oauth2.googleapis.com, and
+    // sheets.googleapis.com. A new host is a constitution change, so this
+    // assertion is the machine-readable half of that promise.
     expect(declaredHosts(createAdapters({ now: () => now }))).toEqual([
       "api.github.com",
       "api.notion.com",
+      "oauth2.googleapis.com",
+      "sheets.googleapis.com",
       "www.strava.com",
     ]);
   });
@@ -201,7 +205,13 @@ describe("adapter registry", () => {
       Object.fromEntries(
         adapters.map((adapter) => [adapter.id, adapter.requiresCredential]),
       ),
-    ).toEqual({ fixture: false, github: true, notion: true, strava: true });
+    ).toEqual({
+      fixture: false,
+      github: true,
+      notion: true,
+      strava: true,
+      google_sheets: true,
+    });
   });
 });
 

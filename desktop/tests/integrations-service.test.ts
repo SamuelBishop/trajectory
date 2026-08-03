@@ -87,6 +87,7 @@ describe("IntegrationService", () => {
       "github",
       "notion",
       "strava",
+      "google_sheets",
     ]);
     for (const entry of view.integrations) {
       expect(entry).toMatchObject({

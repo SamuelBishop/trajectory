@@ -219,6 +219,90 @@ export const stravaConfigSchema = z.strictObject({
   lookback_days: z.number().int().min(1).max(365).default(30),
 });
 
+/**
+ * What the Google Sheets adapter is allowed to look at, and how to read it.
+ *
+ * Implements: [HC-NO-EXFILTRATION], [HC-EXPLICIT-CONFIG-PATHS]
+ *
+ * One spreadsheet, named explicitly. A service account can only see files that
+ * have been shared with it, so the credential's reach is already narrow — but
+ * "the sheet you named" is narrower still, and it is the difference between an
+ * integration and a crawler.
+ *
+ * `client_email` lives here rather than in `SecretStore` for the same reason
+ * Strava's `client_id` does: it is an identifier, not a credential. The user
+ * has to read it back and paste it into Google's own sharing dialog, so a
+ * store that deliberately has no getter is the wrong home for it. The private
+ * key is the credential and that is in `SecretStore`.
+ *
+ * Every column is named rather than positional. A training log is a personal
+ * document that gets columns inserted into it, and a layout pinned to
+ * spreadsheet letters breaks silently the first time that happens — the
+ * adapter would keep working and start reading the wrong column.
+ */
+export const googleSheetsConfigSchema = z.strictObject({
+  /**
+   * The spreadsheet to read. Empty means the adapter makes no request.
+   *
+   * Accepts a pasted `docs.google.com` URL as well as a bare ID;
+   * `normalizeSpreadsheetId` does the extraction, because copying the address
+   * bar is what people actually do.
+   */
+  spreadsheet_id: z.string().trim().default(""),
+  /** Which tab. Empty means the first one, which is the common case. */
+  tab_name: z.string().trim().default(""),
+  /** 1-based row holding the column names. */
+  header_row: z.number().int().min(1).max(1000).default(1),
+  /**
+   * 1-based row where data starts.
+   *
+   * Not `header_row + 1`. Real logs put a second explanatory row under the
+   * headers — "Effort on a scale of 1 to 5" — and reading it as data produces
+   * one undated junk signal on every sync.
+   */
+  first_data_row: z.number().int().min(1).max(1000).default(2),
+  /** The service account's address, which is also what the sheet is shared with. */
+  client_email: z.string().trim().default(""),
+  /** Column holding the date the row describes. */
+  date_column: z.string().trim().default("Date"),
+  /**
+   * Column holding what was *planned*.
+   *
+   * Kept separate from `actual_column` because that separation is the whole
+   * value of this source. `[HC-OBSERVATION-VS-INFERENCE]` exists to stop a plan
+   * being read as an achievement, and a coached training log is the one place
+   * that distinction arrives already made, per day, by hand.
+   */
+  planned_column: z.string().trim().default("Workout"),
+  /** Column holding what was actually done. Empty cell means it was not. */
+  actual_column: z.string().trim().default("Actual"),
+  /**
+   * Free-text columns appended to the summary, in order.
+   *
+   * Defaults to empty. These carry the most personal material in the sheet —
+   * injury notes, life context, another person's feedback — so including them
+   * is a decision the user makes rather than one the defaults make quietly.
+   */
+  note_columns: z.array(z.string().trim()).default([]),
+  /**
+   * Numeric columns to keep, as header name to metric key.
+   *
+   * The key is what the model sees, so it is separate from the header: a column
+   * called "Work load" and a metric called `work_load` are the same number, but
+   * only one of them is a legal identifier.
+   */
+  metric_columns: z.record(z.string(), z.string()).default({}),
+  /**
+   * The goal domain every row is filed under.
+   *
+   * One value, because one sheet is one subject. `ActivitySignal.domain` has to
+   * match a `Goal.domain` for selection to connect them.
+   */
+  default_domain: z.string().trim().default("training"),
+  /** How far back the first sync reaches. Later syncs resume from the last one. */
+  lookback_days: z.number().int().min(1).max(365).default(30),
+});
+
 export const integrationsConfigSchema = z.strictObject({
   /** Stops every automatic sync across every integration at once. */
   paused: z.boolean().default(false),
@@ -226,6 +310,7 @@ export const integrationsConfigSchema = z.strictObject({
   github: githubConfigSchema.prefault({}),
   notion: notionConfigSchema.prefault({}),
   strava: stravaConfigSchema.prefault({}),
+  google_sheets: googleSheetsConfigSchema.prefault({}),
 });
 
 export type QuietHours = z.infer<typeof quietHoursSchema>;
@@ -234,6 +319,7 @@ export type IntegrationPolicy = z.infer<typeof integrationPolicySchema>;
 export type GitHubConfig = z.infer<typeof githubConfigSchema>;
 export type NotionConfig = z.infer<typeof notionConfigSchema>;
 export type StravaConfig = z.infer<typeof stravaConfigSchema>;
+export type GoogleSheetsConfig = z.infer<typeof googleSheetsConfigSchema>;
 export type IntegrationsConfig = z.infer<typeof integrationsConfigSchema>;
 
 export const DEFAULT_POLICY: IntegrationPolicy =

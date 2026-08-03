@@ -12,10 +12,12 @@
 
 import { FixtureAdapter } from "./fixture";
 import { GitHubCommitsAdapter } from "./github";
+import { GoogleSheetsAdapter } from "./google-sheets";
 import { NotionTasksAdapter } from "./notion";
 import {
   DEFAULT_INTEGRATIONS_CONFIG,
   type GitHubConfig,
+  type GoogleSheetsConfig,
   type NotionConfig,
   type StravaConfig,
 } from "./policy";
@@ -39,6 +41,8 @@ export interface AdapterOptions {
    * so this one credential has to travel in both directions.
    */
   stravaTokens?: StravaTokenStore;
+  /** Reads the Google Sheets scope, injected for the same reason. */
+  googleSheetsConfig?: () => Promise<GoogleSheetsConfig>;
   /** Injected so tests run against recorded payloads rather than the network. */
   httpFetch?: typeof fetch;
 }
@@ -56,11 +60,15 @@ export function createAdapters(options: AdapterOptions = {}): ActivityAdapter[] 
     read: () => Promise.resolve(undefined),
     save: () => Promise.resolve(),
   };
+  const googleSheetsConfig =
+    options.googleSheetsConfig ??
+    (() => Promise.resolve(DEFAULT_INTEGRATIONS_CONFIG.google_sheets));
   return [
     new FixtureAdapter(now),
     new GitHubCommitsAdapter(githubConfig, httpFetch, now),
     new NotionTasksAdapter(notionConfig, httpFetch, now),
     new StravaActivitiesAdapter(stravaConfig, stravaTokens, httpFetch, now),
+    new GoogleSheetsAdapter(googleSheetsConfig, httpFetch, now),
   ];
 }
 
@@ -106,6 +114,23 @@ export {
   humanizeSport,
   type StravaTokenStore,
 } from "./strava";
+export {
+  GoogleSheetsAdapter,
+  GoogleSheetsAuthError,
+  GoogleSheetsRateLimitError,
+  GOOGLE_SHEETS_INTEGRATION_ID,
+  buildAssertion,
+  describeApiRejection as describeSheetsApiRejection,
+  describeTokenRejection as describeSheetsTokenRejection,
+  headerIndex,
+  normalizeHeader,
+  normalizeSpreadsheetId,
+  parseServiceAccount,
+  parseSheetDate,
+  rowSummary,
+  type ServiceAccount,
+  type SkipCounts,
+} from "./google-sheets";
 export * from "./policy";
 export * from "./rollup";
 export * from "./runner";
