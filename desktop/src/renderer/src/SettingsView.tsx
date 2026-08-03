@@ -277,6 +277,16 @@ export function SettingsView({
 
         <div className="editor">
           <div className="editor-body">
+            <ServiceAccountSection
+              stored={secretStatus?.hasGoogleServiceAccountKey === true}
+              encryptionAvailable={secretStatus?.encryptionAvailable !== false}
+              onChanged={setSecretStatus}
+            />
+          </div>
+        </div>
+
+        <div className="editor">
+          <div className="editor-body">
             <CredentialSection
               title="OpenAI credential"
               stored={secretStatus?.hasOpenAiKey === true}
@@ -397,6 +407,135 @@ function CredentialSection({
               className="primary"
               disabled={busy || draft.trim().length === 0}
               onClick={() => run(() => onStore(draft), "Stored.")}
+            >
+              {busy ? "Saving…" : "Store"}
+            </button>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+/**
+ * The Google service account key, pasted whole.
+ *
+ * Not a `CredentialSection`, for two reasons. The value is a JSON file rather
+ * than a token, so it needs room and must be readable while pasting — a masked
+ * one-line box gives no way to tell a truncated paste from a complete one. And
+ * only part of it is secret: the private key goes to the encrypted store, the
+ * account's address goes to integrations config, because that address is what
+ * the user has to type into Google's share dialog afterwards.
+ *
+ * Taking the whole file rather than asking for the PEM is deliberate. That key
+ * is a multi-line value with escaped newlines inside a JSON string; extracting
+ * it by hand is a step people get wrong, and `JSON.parse` does it correctly.
+ */
+function ServiceAccountSection({
+  stored,
+  encryptionAvailable,
+  onChanged,
+}: {
+  readonly stored: boolean;
+  readonly encryptionAvailable: boolean;
+  readonly onChanged: (status: SecretStatus) => void;
+}): React.JSX.Element {
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const settle = (
+    action: () => Promise<{ ok: boolean; problem: string | null }>,
+    done: string,
+  ): void => {
+    setBusy(true);
+    setNote(null);
+    // `attempt` because a bridge method an older preload does not have throws
+    // synchronously, which would otherwise leave the button disabled forever.
+    void attempt(action)
+      .then(async (outcome) => {
+        setNote(outcome.ok ? done : outcome.problem);
+        if (outcome.ok) {
+          setDraft("");
+        }
+        onChanged(await window.trajectory.getSecretStatus());
+      })
+      .catch((error: unknown) => {
+        setNote(toErrorMessage(error));
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  };
+
+  return (
+    <>
+      <h2 className="section-title">Google service account</h2>
+      {!encryptionAvailable ? (
+        <p className="empty-note">
+          This device cannot encrypt local storage, so Trajectory will not save
+          a key here. The spreadsheet integration stays unavailable until
+          encryption is.
+        </p>
+      ) : (
+        <>
+          <p className="empty-note">
+            {stored
+              ? "A key is stored and encrypted on this device. It is never displayed again."
+              : "Only needed to read a Google Sheet. In the Google Cloud console: create a project, enable the Google Sheets API, create a service account, then create a JSON key and download it. Paste the whole file below."}
+          </p>
+          <Field
+            label={stored ? "Replace" : "Key file"}
+            hint="The private key is stored encrypted. The account's address is kept in plain sight, because you need it to share the sheet."
+          >
+            <textarea
+              className="text-input"
+              rows={5}
+              value={draft}
+              placeholder={'{ "type": "service_account", … }'}
+              autoComplete="off"
+              spellCheck={false}
+              disabled={busy}
+              onChange={(event) => setDraft(event.target.value)}
+            />
+          </Field>
+          <div className="save-bar">
+            <span className="save-status">{note ?? ""}</span>
+            {stored && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true);
+                  setNote(null);
+                  void attempt(() =>
+                    window.trajectory.clearGoogleServiceAccount(),
+                  )
+                    .then((next) => {
+                      onChanged(next);
+                      setNote("Removed.");
+                    })
+                    .catch((error: unknown) => {
+                      setNote(toErrorMessage(error));
+                    })
+                    .finally(() => {
+                      setBusy(false);
+                    });
+                }}
+              >
+                Remove
+              </button>
+            )}
+            <button
+              type="button"
+              className="primary"
+              disabled={busy || draft.trim().length === 0}
+              onClick={() =>
+                settle(
+                  () => window.trajectory.saveGoogleServiceAccount(draft),
+                  "Stored. Share the sheet with the address shown in the Activity pane.",
+                )
+              }
             >
               {busy ? "Saving…" : "Store"}
             </button>

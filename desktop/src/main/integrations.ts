@@ -14,7 +14,9 @@ import { z } from "zod";
 import {
   createAdapters,
   githubConfigSchema,
+  googleSheetsConfigSchema,
   loadIntegrationsConfig,
+  metricKey,
   notionConfigSchema,
   policyFor,
   runSync,
@@ -72,8 +74,46 @@ const stravaScopeViewSchema = z.object({
   lookbackDays: z.number().default(30),
 });
 
-interface Encryption {
-  isAvailable(): boolean;
+/**
+ * The renderer's shape for the Google Sheets scope. Parsed, never cast.
+ *
+ * `clientEmail` is here rather than in the credential path because it is an
+ * address, not a secret — and it is the address the user has to share their
+ * sheet with, so Settings has to be able to show it back to them.
+ */
+const googleSheetsScopeViewSchema = z.object({
+  spreadsheetId: z.string().default(""),
+  tabName: z.string().default(""),
+  headerRow: z.number().default(1),
+  firstDataRow: z.number().default(2),
+  clientEmail: z.string().default(""),
+  dateColumn: z.string().default("Date"),
+  plannedColumn: z.string().default("Workout"),
+  actualColumn: z.string().default("Actual"),
+  noteColumns: z.array(z.string()).default([]),
+  metricColumns: z.array(z.string()).default([]),
+  defaultDomain: z.string().default("training"),
+  lookbackDays: z.number().default(30),
+});
+
+/**
+ * Column headers to the metric names the model sees.
+ *
+ * A header with no letters or digits yields no key, so it is dropped rather
+ * than stored as a metric with an empty name that nothing could ever cite.
+ */
+function metricMap(headers: readonly string[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const header of headers) {
+    const key = metricKey(header);
+    if (key.length > 0) {
+      map[header] = key;
+    }
+  }
+  return map;
+}
+
+interface Encryption {  isAvailable(): boolean;
   encrypt(value: string): Buffer;
   decrypt(value: Buffer): string;
 }
@@ -134,6 +174,8 @@ export class IntegrationService {
         (await loadIntegrationsConfig(this.userDataPath)).notion,
       stravaConfig: async () =>
         (await loadIntegrationsConfig(this.userDataPath)).strava,
+      googleSheetsConfig: async () =>
+        (await loadIntegrationsConfig(this.userDataPath)).google_sheets,
       stravaTokens,
     });
     this.encryptionAvailable = () => encryption.isAvailable();
@@ -206,6 +248,22 @@ export class IntegrationService {
         clientId: config.strava.client_id,
         defaultDomain: config.strava.default_domain,
         lookbackDays: config.strava.lookback_days,
+      },
+      googleSheets: {
+        spreadsheetId: config.google_sheets.spreadsheet_id,
+        tabName: config.google_sheets.tab_name,
+        headerRow: config.google_sheets.header_row,
+        firstDataRow: config.google_sheets.first_data_row,
+        clientEmail: config.google_sheets.client_email,
+        dateColumn: config.google_sheets.date_column,
+        plannedColumn: config.google_sheets.planned_column,
+        actualColumn: config.google_sheets.actual_column,
+        noteColumns: config.google_sheets.note_columns,
+        // The stored map's keys. The renderer edits which columns to keep; the
+        // metric names it maps them to are derived on the way in.
+        metricColumns: Object.keys(config.google_sheets.metric_columns),
+        defaultDomain: config.google_sheets.default_domain,
+        lookbackDays: config.google_sheets.lookback_days,
       },
       goalDomains: await this.readGoalDomains().catch(() => []),
     };
@@ -285,6 +343,57 @@ export class IntegrationService {
         client_id: view.clientId,
         default_domain: view.defaultDomain,
         lookback_days: view.lookbackDays,
+      }),
+    });
+  }
+
+  /**
+   * Replace the Google Sheets scope.
+   *
+   * The service account's private key is a credential and goes to
+   * `SecretStore`; `clientEmail` is only an address and stays here so Settings
+   * can show which account to share the sheet with. Sharing is a manual step
+   * the user performs in Google's UI, and it cannot be done against an address
+   * they are unable to read back.
+   */
+  async saveGoogleSheetsScope(scope: unknown): Promise<void> {
+    const view = googleSheetsScopeViewSchema.parse(scope);
+    const config = await loadIntegrationsConfig(this.userDataPath);
+    await saveIntegrationsConfig(this.userDataPath, {
+      ...config,
+      // Rebuilt field by field rather than spread, so the renderer cannot
+      // smuggle an unexpected key into stored config. The schema re-validates.
+      google_sheets: googleSheetsConfigSchema.parse({
+        spreadsheet_id: view.spreadsheetId,
+        tab_name: view.tabName,
+        header_row: view.headerRow,
+        first_data_row: view.firstDataRow,
+        client_email: view.clientEmail,
+        date_column: view.dateColumn,
+        planned_column: view.plannedColumn,
+        actual_column: view.actualColumn,
+        note_columns: view.noteColumns,
+        metric_columns: metricMap(view.metricColumns),
+        default_domain: view.defaultDomain,
+        lookback_days: view.lookbackDays,
+      }),
+    });
+  }
+
+  /**
+   * Record which service account is in use, after its key has been stored.
+   *
+   * Separate from `saveGoogleSheetsScope` because it is driven by a paste of
+   * the downloaded JSON rather than by the scope form, and it must not
+   * overwrite the columns the user has already configured.
+   */
+  async saveGoogleServiceAccountEmail(email: string): Promise<void> {
+    const config = await loadIntegrationsConfig(this.userDataPath);
+    await saveIntegrationsConfig(this.userDataPath, {
+      ...config,
+      google_sheets: googleSheetsConfigSchema.parse({
+        ...config.google_sheets,
+        client_email: email,
       }),
     });
   }

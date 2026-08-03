@@ -123,6 +123,7 @@ export {
   describeApiRejection as describeSheetsApiRejection,
   describeTokenRejection as describeSheetsTokenRejection,
   headerIndex,
+  metricKey,
   normalizeHeader,
   normalizeSpreadsheetId,
   parseServiceAccount,

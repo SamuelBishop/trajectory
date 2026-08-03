@@ -408,6 +408,22 @@ export function normalizeHeader(value: string): string {
 }
 
 /**
+ * Turn a column header into a metric key the model can read.
+ *
+ * `metric_columns` maps header to key because the two are rarely the same
+ * string: "Running \nMiles" is a header, `running_miles` is an identifier.
+ * Deriving the key rather than asking for it removes a field whose only correct
+ * answer is mechanical, and a header of pure punctuation yields "" so the
+ * caller can decline it rather than storing a nameless metric.
+ */
+export function metricKey(header: string): string {
+  return normalizeHeader(header)
+    .replaceAll(/[^a-z0-9]+/g, "_")
+    .replace(/^_+/, "")
+    .replace(/_+$/, "");
+}
+
+/**
  * Locate a column by name.
  *
  * By name and not by letter. A training log is a living document, and a layout

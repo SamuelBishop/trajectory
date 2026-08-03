@@ -94,6 +94,19 @@ export interface DesktopApi {
   saveGitHubScope(scope: GitHubScopeView): Promise<IntegrationsView>;
   saveNotionScope(scope: NotionScopeView): Promise<IntegrationsView>;
   saveStravaScope(scope: StravaScopeView): Promise<IntegrationsView>;
+  saveGoogleSheetsScope(
+    scope: GoogleSheetsScopeView,
+  ): Promise<IntegrationsView>;
+  /**
+   * Store a pasted service-account JSON key file.
+   *
+   * Takes the whole file rather than a PEM, because asking someone to extract a
+   * multi-line key with escaped newlines out of JSON by hand is a support
+   * round-trip. The private key goes to `SecretStore`; `client_email` goes to
+   * integrations config so Settings can show what to share the sheet with.
+   */
+  saveGoogleServiceAccount(pastedJson: string): Promise<AuthorizeOutcome>;
+  clearGoogleServiceAccount(): Promise<SecretStatus>;
   /**
    * Open Strava's consent page for the configured application.
    *
@@ -201,6 +214,8 @@ export interface SecretStatus {
    * itself, so "stored" can become true without the user typing anything.
    */
   hasStravaRefreshToken: boolean;
+  /** The service account's private key, taken out of its pasted JSON file. */
+  hasGoogleServiceAccountKey: boolean;
   encryptionAvailable: boolean;
 }
 
@@ -300,6 +315,48 @@ export interface StravaScopeView {
   lookbackDays: number;
 }
 
+/**
+ * Which spreadsheet may be read, and how to interpret its columns.
+ *
+ * The private key is not here on purpose — it lives in `SecretStore`. The
+ * service account's `clientEmail` is, because the user has to paste that
+ * address into Google's share dialog by hand, and a value they cannot read
+ * back is a setup step they cannot complete.
+ */
+export interface GoogleSheetsScopeView {
+  /** A pasted `docs.google.com` URL is accepted; the adapter extracts the ID. */
+  spreadsheetId: string;
+  /** Empty means the first tab. */
+  tabName: string;
+  headerRow: number;
+  /**
+   * Not `headerRow + 1`. Training logs often carry an explanatory row under the
+   * headers, and reading it as data produces one undated junk signal per sync.
+   */
+  firstDataRow: number;
+  /** Shown, not editable in practice: it comes from the pasted key file. */
+  clientEmail: string;
+  dateColumn: string;
+  /** What the coach prescribed. */
+  plannedColumn: string;
+  /** What was actually done. Empty means it was not. */
+  actualColumn: string;
+  /** Free-text columns appended to the summary. Off unless the user opts in. */
+  noteColumns: string[];
+  /**
+   * Numeric column headers to keep, by name.
+   *
+   * A list rather than the stored header-to-key map. The key is mechanical —
+   * "Running Miles" can only reasonably become `running_miles` — so the main
+   * process derives it. Asking for it here would be a second field whose only
+   * correct answer is a transformation of the first, and would put the
+   * derivation in the renderer, which is not allowed to hold engine code.
+   */
+  metricColumns: string[];
+  defaultDomain: string;
+  lookbackDays: number;
+}
+
 export interface IntegrationsView {
   paused: boolean;
   integrations: IntegrationSummary[];
@@ -308,6 +365,7 @@ export interface IntegrationsView {
   github: GitHubScopeView;
   notion: NotionScopeView;
   strava: StravaScopeView;
+  googleSheets: GoogleSheetsScopeView;
   /** Goal domains the user actually has, so the UI can offer real targets. */
   goalDomains: string[];
 }

@@ -19,6 +19,7 @@ import { loadUserConfig } from "../engine/config";
 import { providerNameSchema } from "../engine/domain";
 import { integrationPolicySchema } from "../engine/integrations";
 import { localDate } from "../engine/integrations/rollup";
+import { parseServiceAccount } from "../engine/integrations/google-sheets";
 import {
   authorizeUrl,
   exchangeAuthorizationCode,
@@ -190,6 +191,11 @@ export function registerIpcHandlers(): void {
       if (id === "strava") {
         return secrets.read("stravaClientSecret");
       }
+      // The service account's PEM private key. The adapter signs a JWT with it
+      // locally; unlike the others this credential is never sent anywhere.
+      if (id === "google_sheets") {
+        return secrets.read("googleServiceAccountKey");
+      }
       return Promise.resolve(undefined);
     },
     // Lazy on purpose: `localConfig` is declared below and this runs only when
@@ -262,6 +268,7 @@ export function registerIpcHandlers(): void {
     hasNotionToken: boolean;
     hasStravaClientSecret: boolean;
     hasStravaRefreshToken: boolean;
+    hasGoogleServiceAccountKey: boolean;
     encryptionAvailable: boolean;
   }> => ({
     hasOpenAiKey: await secrets.has("openaiApiKey"),
@@ -270,6 +277,7 @@ export function registerIpcHandlers(): void {
     hasNotionToken: await secrets.has("notionToken"),
     hasStravaClientSecret: await secrets.has("stravaClientSecret"),
     hasStravaRefreshToken: await secrets.has("stravaRefreshToken"),
+    hasGoogleServiceAccountKey: await secrets.has("googleServiceAccountKey"),
     encryptionAvailable: encryption.isAvailable(),
   });
 
@@ -498,6 +506,37 @@ export function registerIpcHandlers(): void {
     await integrations.saveStravaScope(scope);
     return await integrations.view();
   });
+  ipcMain.handle("integrations:saveGoogleSheetsScope", async (_event, scope: unknown) => {
+    await integrations.saveGoogleSheetsScope(scope);
+    return await integrations.view();
+  });
+
+  // Takes the whole downloaded key file rather than a PEM. The private key in
+  // that JSON is a multi-line value with escaped newlines; asking a user to
+  // extract it by hand is a guaranteed support round-trip, and `JSON.parse`
+  // unescapes it correctly for free. The key goes straight to the secret store
+  // and is never returned. The address beside it is not a secret — it is what
+  // the sheet has to be shared with — so it goes to integrations config where
+  // Settings can show it back.
+  ipcMain.handle("integrations:saveGoogleServiceAccount", async (_event, pasted: unknown) => {
+    if (typeof pasted !== "string") {
+      throw new Error("The service account file must be text.");
+    }
+    try {
+      const account = parseServiceAccount(pasted);
+      await secrets.set("googleServiceAccountKey", account.privateKey);
+      await integrations.saveGoogleServiceAccountEmail(account.clientEmail);
+      return { ok: true, problem: null };
+    } catch (error) {
+      return {
+        ok: false,
+        problem:
+          error instanceof Error
+            ? error.message
+            : "That service account file could not be read.",
+      };
+    }
+  });
 
   // Setup help for the one credential a user cannot obtain by copying a field.
   // The URL is built here from stored configuration, never handed in by the
@@ -596,6 +635,13 @@ export function registerIpcHandlers(): void {
   });
   ipcMain.handle("secrets:clearStravaRefreshToken", async () => {
     await secrets.clear("stravaRefreshToken");
+    return await secretStatus();
+  });
+  // No setter beside this one: the key is only ever stored by parsing the
+  // pasted JSON file, so there is no path that accepts a bare PEM and no way
+  // to store a key without also recording which account it belongs to.
+  ipcMain.handle("secrets:clearGoogleServiceAccountKey", async () => {
+    await secrets.clear("googleServiceAccountKey");
     return await secretStatus();
   });
   ipcMain.handle("secrets:clearOpenAi", async () => {

@@ -19,6 +19,7 @@ import { useEffect, useState } from "react";
 import type {
   AuthorizeOutcome,
   GitHubScopeView,
+  GoogleSheetsScopeView,
   IntegrationPolicyView,
   IntegrationSummary,
   IntegrationsView,
@@ -130,6 +131,14 @@ export function IntegrationsSection(): React.JSX.Element {
               {integration.id === "strava" && (
                 <StravaScopeEditor
                   scope={view.strava}
+                  goalDomains={view.goalDomains}
+                  busy={busy}
+                  onRun={run}
+                />
+              )}
+              {integration.id === "google_sheets" && (
+                <GoogleSheetsScopeEditor
+                  scope={view.googleSheets}
                   goalDomains={view.goalDomains}
                   busy={busy}
                   onRun={run}
@@ -760,6 +769,205 @@ function StravaScopeEditor({
           onClick={() => onRun(() => window.trajectory.saveStravaScope(draft))}
         >
           Save Strava settings
+        </button>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Which spreadsheet may be read, and how to interpret its columns.
+ *
+ * Longer than Strava's because a spreadsheet has no schema. A workout recorded
+ * by a watch has one shape; a training log has whatever shape its author chose,
+ * so every column name is a setting.
+ *
+ * The two rows at the top are the field people get wrong. A log written by a
+ * coach usually has an explanatory row under the headers — "effort, 1 to 5" —
+ * and reading it as data produces one undated junk row on every sync.
+ */
+function GoogleSheetsScopeEditor({
+  scope,
+  goalDomains,
+  busy,
+  onRun,
+}: {
+  readonly scope: GoogleSheetsScopeView;
+  readonly goalDomains: readonly string[];
+  readonly busy: boolean;
+  readonly onRun: (action: () => Promise<IntegrationsView>) => void;
+}): React.JSX.Element {
+  const { draft, setDraft, dirty } = useSavedDraft(scope);
+  const domainHint =
+    goalDomains.length > 0 ? `e.g. ${goalDomains.join(", ")}` : "a goal domain";
+
+  return (
+    <>
+      <Field
+        label="Spreadsheet"
+        hint="Paste the address of the sheet. Empty means nothing is read at all."
+      >
+        <TextInput
+          value={draft.spreadsheetId}
+          disabled={busy}
+          placeholder="https://docs.google.com/spreadsheets/d/…"
+          onChange={(spreadsheetId) => setDraft({ ...draft, spreadsheetId })}
+        />
+      </Field>
+
+      {draft.clientEmail.length === 0 ? (
+        <p className="field-hint">
+          No service account stored yet. Add one under Credentials in Settings,
+          then share this sheet with the address it shows.
+        </p>
+      ) : (
+        <p className="field-hint">
+          Share the sheet with <code>{draft.clientEmail}</code> as a Viewer.
+          Trajectory can read nothing until you do — a service account starts
+          with access to no file at all.
+        </p>
+      )}
+
+      <Field label="Tab" hint="Empty means the first tab in the workbook.">
+        <TextInput
+          value={draft.tabName}
+          disabled={busy}
+          placeholder="2026"
+          onChange={(tabName) => setDraft({ ...draft, tabName })}
+        />
+      </Field>
+
+      <Field label="Header row" hint="The row holding the column names.">
+        <NumberInput
+          value={draft.headerRow}
+          min={1}
+          max={1000}
+          disabled={busy}
+          onChange={(headerRow) => setDraft({ ...draft, headerRow })}
+        />
+      </Field>
+
+      <Field
+        label="First row of data"
+        hint="Not always the row after the headers. Set it past any explanatory row, or that row is read as a workout."
+      >
+        <NumberInput
+          value={draft.firstDataRow}
+          min={1}
+          max={1000}
+          disabled={busy}
+          onChange={(firstDataRow) => setDraft({ ...draft, firstDataRow })}
+        />
+      </Field>
+
+      <Field label="Date column" hint="Which day the row describes.">
+        <TextInput
+          value={draft.dateColumn}
+          disabled={busy}
+          placeholder="Date"
+          onChange={(dateColumn) => setDraft({ ...draft, dateColumn })}
+        />
+      </Field>
+
+      <Field
+        label="Planned column"
+        hint="What the session was supposed to be."
+      >
+        <TextInput
+          value={draft.plannedColumn}
+          disabled={busy}
+          placeholder="Workout"
+          onChange={(plannedColumn) => setDraft({ ...draft, plannedColumn })}
+        />
+      </Field>
+
+      <Field
+        label="Completed column"
+        hint="What was actually done. An empty cell is read as a session that did not happen."
+      >
+        <TextInput
+          value={draft.actualColumn}
+          disabled={busy}
+          placeholder="Actual"
+          onChange={(actualColumn) => setDraft({ ...draft, actualColumn })}
+        />
+      </Field>
+
+      <p className="field-hint">
+        These two columns are the reason this integration is worth having.
+        Nothing else Trajectory reads can tell the difference between a session
+        you skipped and a session you never planned — a fitness tracker has no
+        record of a run that did not happen. This sheet does.
+      </p>
+
+      <Field
+        label="Numeric columns"
+        hint="Comma separated. Kept as numbers the mentor can compare week to week."
+      >
+        <TagInput
+          value={draft.metricColumns}
+          disabled={busy}
+          placeholder="Running Miles, RPE, Work load"
+          onChange={(metricColumns) => setDraft({ ...draft, metricColumns })}
+        />
+      </Field>
+
+      <Field
+        label="Note columns"
+        hint="Comma separated. Off by default — these carry the most personal text in the sheet."
+      >
+        <TagInput
+          value={draft.noteColumns}
+          disabled={busy}
+          placeholder="Notes, Comments from coach"
+          onChange={(noteColumns) => setDraft({ ...draft, noteColumns })}
+        />
+      </Field>
+
+      <Field
+        label="Goal domain"
+        hint={`Which goal these sessions count towards — ${domainHint}.`}
+      >
+        <TextInput
+          value={draft.defaultDomain}
+          disabled={busy}
+          placeholder="training"
+          onChange={(defaultDomain) => setDraft({ ...draft, defaultDomain })}
+        />
+      </Field>
+
+      <Field
+        label="Days to look back"
+        hint="How far back to read. The whole window is re-read each time, so a row filled in late is still picked up."
+      >
+        <NumberInput
+          value={draft.lookbackDays}
+          min={1}
+          max={365}
+          disabled={busy}
+          onChange={(lookbackDays) => setDraft({ ...draft, lookbackDays })}
+        />
+      </Field>
+
+      <p className="field-hint">
+        Rows dated in the future are not collected. A session planned for next
+        week has not been missed, and counting it as one would turn a training
+        block into a list of failures.
+      </p>
+
+      <div className="save-bar">
+        <span className="save-status">
+          {dirty ? "Unsaved spreadsheet settings." : ""}
+        </span>
+        <button
+          type="button"
+          className={dirty ? "primary" : undefined}
+          disabled={busy || !dirty}
+          onClick={() =>
+            onRun(() => window.trajectory.saveGoogleSheetsScope(draft))
+          }
+        >
+          Save spreadsheet settings
         </button>
       </div>
     </>

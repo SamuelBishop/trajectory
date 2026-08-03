@@ -70,6 +70,12 @@ const api: DesktopApi = {
     ipcRenderer.invoke("integrations:openStravaAuthorize"),
   completeStravaAuthorize: (pasted: string) =>
     ipcRenderer.invoke("integrations:completeStravaAuthorize", pasted),
+  saveGoogleSheetsScope: (scope: unknown) =>
+    ipcRenderer.invoke("integrations:saveGoogleSheetsScope", scope),
+  saveGoogleServiceAccount: (pastedJson: string) =>
+    ipcRenderer.invoke("integrations:saveGoogleServiceAccount", pastedJson),
+  clearGoogleServiceAccount: () =>
+    ipcRenderer.invoke("secrets:clearGoogleServiceAccountKey"),
 
   // No getter for either credential. The renderer can learn that one exists
   // and can replace or remove it, but no channel returns a value

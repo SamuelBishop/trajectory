@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { IntegrationService } from "../src/main/integrations";
+import { loadIntegrationsConfig } from "../src/engine/integrations";
 import { buildActivityContext } from "../src/engine/selection";
 
 /** Invented commit payload. No test here touches the network. */
@@ -376,6 +377,91 @@ describe("IntegrationService", () => {
     const view = await service.view();
     expect(view.github.login).toBe("sample-user");
     expect(view.notion.databaseId).toBe("11112222333344445555666677778888");
+  });
+
+  it("round-trips the Google Sheets scope through stored config", async () => {
+    const service = new IntegrationService(await userDataPath(), testEncryption);
+    await service.saveGoogleSheetsScope({
+      spreadsheetId:
+        "https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd/edit",
+      tabName: "2026",
+      headerRow: 1,
+      firstDataRow: 3,
+      clientEmail: "log-reader@sample-project.iam.gserviceaccount.com",
+      noteColumns: ["Notes", "Comments from Coach"],
+      metricColumns: ["Running \nMiles", "RPE"],
+      defaultDomain: "running",
+      lookbackDays: 45,
+    });
+
+    const view = await service.view();
+    // Stored as typed, like Notion: normalizing the URL away here would mean a
+    // bad paste came back as a blank field with nothing to correct.
+    expect(view.googleSheets.spreadsheetId).toContain("docs.google.com");
+    expect(view.googleSheets.firstDataRow).toBe(3);
+    expect(view.googleSheets.noteColumns).toEqual([
+      "Notes",
+      "Comments from Coach",
+    ]);
+    // Round-trips as the headers the user chose, not as the derived keys.
+    expect(view.googleSheets.metricColumns).toEqual(["Running \nMiles", "RPE"]);
+    expect(view.googleSheets.lookbackDays).toBe(45);
+  });
+
+  it("derives a metric name for every numeric column it keeps", async () => {
+    // The adapter reads a header-to-key map. The renderer only says which
+    // columns to keep, so the key has to be derived here or the metrics arrive
+    // with no name and cannot be cited.
+    const directory = await userDataPath();
+    const service = new IntegrationService(directory, testEncryption);
+    await service.saveGoogleSheetsScope({
+      spreadsheetId: "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd",
+      metricColumns: ["Running \nMiles", "Work load", "—"],
+    });
+
+    const stored = await loadIntegrationsConfig(directory);
+    expect(stored.google_sheets.metric_columns).toEqual({
+      "Running \nMiles": "running_miles",
+      "Work load": "work_load",
+    });
+  });
+
+  it("records the service account without disturbing the columns", async () => {
+    // Storing a key arrives from a JSON paste, the columns from a form. The two
+    // must not overwrite each other, or re-pasting the key after a rotation
+    // would quietly reset the sheet back to its default column names.
+    const service = new IntegrationService(await userDataPath(), testEncryption);
+    await service.saveGoogleSheetsScope({
+      spreadsheetId: "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd",
+      plannedColumn: "Prescribed",
+      actualColumn: "Completed",
+      firstDataRow: 3,
+    });
+
+    await service.saveGoogleServiceAccountEmail(
+      "log-reader@sample-project.iam.gserviceaccount.com",
+    );
+
+    const view = await service.view();
+    expect(view.googleSheets.clientEmail).toBe(
+      "log-reader@sample-project.iam.gserviceaccount.com",
+    );
+    expect(view.googleSheets.plannedColumn).toBe("Prescribed");
+    expect(view.googleSheets.actualColumn).toBe("Completed");
+    expect(view.googleSheets.firstDataRow).toBe(3);
+  });
+
+  it("keeps the Google Sheets scope when an unrelated policy is saved", async () => {
+    const service = new IntegrationService(await userDataPath(), testEncryption);
+    await service.saveGoogleSheetsScope({
+      spreadsheetId: "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd",
+      tabName: "2026",
+    });
+
+    await service.savePolicy("fixture", enabledPolicy);
+
+    const view = await service.view();
+    expect(view.googleSheets.tabName).toBe("2026");
   });
 
   it("refuses a GitHub scope it cannot validate", async () => {

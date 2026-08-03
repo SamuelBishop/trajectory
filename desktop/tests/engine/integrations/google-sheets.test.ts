@@ -22,6 +22,7 @@ import {
   describeTokenRejection,
   headerIndex,
   isDeclaredHost,
+  metricKey,
   normalizeHeader,
   normalizeSpreadsheetId,
   parseServiceAccount,
@@ -338,6 +339,26 @@ describe("parseSheetDate", () => {
     expect(parseSheetDate("Week of the 9th", "2026-03-10")).toBeNull();
     expect(parseSheetDate("", "2026-03-10")).toBeNull();
     expect(parseSheetDate(null, "2026-03-10")).toBeNull();
+  });
+});
+
+describe("metricKey", () => {
+  it("turns a wrapped header into a legal identifier", () => {
+    expect(metricKey("Running \nMiles")).toBe("running_miles");
+    expect(metricKey("X-training \nMiles")).toBe("x_training_miles");
+    expect(metricKey("Work load")).toBe("work_load");
+    expect(metricKey("RPE")).toBe("rpe");
+  });
+
+  it("does not leave an identifier starting or ending in an underscore", () => {
+    expect(metricKey("  Miles!  ")).toBe("miles");
+    expect(metricKey("(RPE)")).toBe("rpe");
+  });
+
+  it("returns nothing for a header with no letters or digits", () => {
+    // The caller declines rather than storing a metric with an empty name.
+    expect(metricKey("—")).toBe("");
+    expect(metricKey("   ")).toBe("");
   });
 });
 

@@ -46,6 +46,13 @@ export const SECRETS_FILE = "trajectory-secrets.enc.json";
  * refresh token identifies the athlete's grant and **rotates**. Storing them
  * together would mean rewriting the application's identity every time a token
  * refreshed, which is a good way to lose the half that was still correct.
+ *
+ * `googleServiceAccountKey` holds only the PEM private key out of the service
+ * account's JSON file. The rest of that file — `client_email`, `project_id`,
+ * the key id — is identifying rather than secret and lives in integrations
+ * config, where the user can see which account they are using and which
+ * address to share their sheet with. Keeping the whole JSON blob here would
+ * bury that address inside an encrypted value nothing is allowed to read back.
  */
 export type SecretName =
   | "openaiApiKey"
@@ -53,7 +60,8 @@ export type SecretName =
   | "githubActivityToken"
   | "notionToken"
   | "stravaClientSecret"
-  | "stravaRefreshToken";
+  | "stravaRefreshToken"
+  | "googleServiceAccountKey";
 
 export class SecretStore {
   constructor(
