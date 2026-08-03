@@ -434,16 +434,15 @@ export function describeApiRejection(
   }
   if (status === 403 || googleStatus === "PERMISSION_DENIED") {
     const which =
-      spreadsheetId.length > 0
-        ? ` Trajectory is trying to open the sheet with ID ${spreadsheetId} — check that is the one you shared.`
-        : "";
+      spreadsheetId.length > 0 ? ` The sheet it tried to open is ${spreadsheetId}.` : "";
     return (
-      `The service account cannot open that spreadsheet. Share the sheet with ` +
-      `${shareWith} — open it in Google Sheets, press Share, paste that ` +
-      `address, and give it Viewer.${which} If you have already done that and ` +
-      `it still fails, the account that owns the sheet may be under a Google ` +
-      `Workspace policy that blocks sharing outside the organization, which ` +
-      `silently drops an address like this one.`
+      `The service account cannot open that spreadsheet.${which} Open the ` +
+      `sheet, press Share, and add ${shareWith} as a Viewer — untick "Notify ` +
+      `people" first, because a service account has no mailbox and Google can ` +
+      `refuse the whole share when the notification bounces. If the address is ` +
+      `already listed there, the file is probably owned by a Google Workspace ` +
+      `account whose administrator blocks sharing outside the organization, ` +
+      `which drops an address like this one without reporting it.`
     );
   }
   if (status === 404 || googleStatus === "NOT_FOUND") {

@@ -574,6 +574,31 @@ describe("IntegrationService", () => {
     expect(missed?.completed).toBe(false);
   });
 
+  it("keeps the service account address when a stale form saves over it", async () => {
+    // The pane holding the scope form may have loaded before the key was
+    // pasted, so its copy of the address is empty or belongs to a previous
+    // key. Taking it would leave Settings telling the user to share their
+    // sheet with an account that is not the one signing the request — and the
+    // resulting error says "share it with this address" for a sheet already
+    // shared with the address on screen.
+    const service = new IntegrationService(await userDataPath(), testEncryption);
+    await service.saveGoogleServiceAccountEmail(
+      "log-reader@sample-project.iam.gserviceaccount.com",
+    );
+
+    await service.saveGoogleSheetsScope({
+      spreadsheetId: "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd",
+      clientEmail: "",
+      tabName: "2026",
+    });
+
+    const view = await service.view();
+    expect(view.googleSheets.clientEmail).toBe(
+      "log-reader@sample-project.iam.gserviceaccount.com",
+    );
+    expect(view.googleSheets.tabName).toBe("2026");
+  });
+
   it("refuses a GitHub scope it cannot validate", async () => {
     const service = new IntegrationService(await userDataPath(), testEncryption);
     await expect(

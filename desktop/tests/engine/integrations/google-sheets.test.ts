@@ -922,7 +922,7 @@ describe("explaining why Google refused", () => {
         { error: { code: 403, message: "The caller does not have permission", status: "PERMISSION_DENIED" } },
         "reader@example.iam.gserviceaccount.com",
       ),
-    ).toMatch(/Share the sheet with reader@example.iam.gserviceaccount.com/);
+    ).toMatch(/add reader@example.iam.gserviceaccount.com as a Viewer/);
   });
 
   it("does not blame the sharing when the token lacks the scope", () => {

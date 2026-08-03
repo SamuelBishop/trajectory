@@ -86,6 +86,11 @@ const googleSheetsScopeViewSchema = z.object({
   tabName: z.string().default(""),
   headerRow: z.number().default(1),
   firstDataRow: z.number().default(2),
+  /**
+   * Ignored on save. Present only because the view round-trips through the
+   * renderer, and dropping it from the schema would make the form fail to
+   * parse rather than fail safely.
+   */
   clientEmail: z.string().default(""),
   dateColumn: z.string().default("Date"),
   plannedColumn: z.string().default("Workout"),
@@ -355,6 +360,14 @@ export class IntegrationService {
    * can show which account to share the sheet with. Sharing is a manual step
    * the user performs in Google's UI, and it cannot be done against an address
    * they are unable to read back.
+   *
+   * The address is **not** taken from the form, even though the form carries
+   * it. It is derived from the stored key, and the pane holding this form may
+   * have been loaded before that key was pasted — saving column settings from
+   * a stale pane would write back an old or empty address, and the user would
+   * then share their sheet with an account that is not the one signing. The
+   * failure is invisible: the sync keeps returning "share it with this
+   * address" for a sheet already shared with the address it was showing.
    */
   async saveGoogleSheetsScope(scope: unknown): Promise<void> {
     const view = googleSheetsScopeViewSchema.parse(scope);
@@ -368,7 +381,7 @@ export class IntegrationService {
         tab_name: view.tabName,
         header_row: view.headerRow,
         first_data_row: view.firstDataRow,
-        client_email: view.clientEmail,
+        client_email: config.google_sheets.client_email,
         date_column: view.dateColumn,
         planned_column: view.plannedColumn,
         actual_column: view.actualColumn,
