@@ -135,13 +135,16 @@ section exists because that data must not leak.
   `desktop/src/engine/integrations/` is **ingress-only** and sends none of it:
   read-only HTTP methods carrying credentials, query parameters, and pagination
   cursors, and nothing else. The single permitted exception is an OAuth token
-  exchange, which posts client credentials and an authorization code and no user
-  content. An adapter that transmits goals, values, constraints, journal text,
+  exchange, which posts credentials proving which application is asking — a
+  client secret with an authorization code, or a refresh token, or a JWT
+  assertion signed by a service account's private key — and no user content.
+  An adapter that transmits goals, values, constraints, journal text,
   chat history, or mentor content has left the exemption and is a violation.
   Each adapter declares the exact hosts it contacts — the full list is
-  `api.github.com`, `api.notion.com`, and `www.strava.com` — and runs only when
+  `api.github.com`, `api.notion.com`, `www.strava.com`, `oauth2.googleapis.com`,
+  and `sheets.googleapis.com` — and runs only when
   the user has enabled it and supplied its credential. Disabled means no call.
-  Adding an outbound call in a third directory, or a fourth host, is a
+  Adding an outbound call in a third directory, or a new host, is a
   constitution change rather than an implementation detail. Employer systems are
   out of scope for network adapters: that data enters through the reviewed
   manual import lane, where a human approves each batch before it is stored.
@@ -152,9 +155,13 @@ section exists because that data must not leak.
   (`mode: "empty"`, `skipCustomInstructions`, `enableSessionTelemetry: false`)
   and run in an application-owned directory chosen by the main process.
 - **Verification**: `desktop/tests/engine/providers.test.ts` —
-  "gives the runtime no ambient context to read". Manual review of new network
-  calls and dependencies. Nothing asserts the host allowlist or the ingress-only
-  restriction; `coverage-gaps.md` records what closing that would take.
+  "gives the runtime no ambient context to read".
+  `desktop/tests/engine/integrations/runner.test.ts` — "contacts only the hosts
+  the constitution names", which asserts the allowlist above verbatim, so a new
+  host cannot reach `main` without this paragraph changing with it. Manual
+  review of new network calls and dependencies. Nothing asserts the
+  ingress-only restriction; `coverage-gaps.md` records what closing that would
+  take.
 
 ### `[HC-NO-PRIVATE-DATA-COMMITS]`
 
