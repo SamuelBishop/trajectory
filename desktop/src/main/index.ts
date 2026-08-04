@@ -49,7 +49,7 @@ function createWindow(): void {
 app.setName("Trajectory");
 
 void app.whenReady().then(() => {
-  registerIpcHandlers();
+  registerIpcHandlers({ createWindow });
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

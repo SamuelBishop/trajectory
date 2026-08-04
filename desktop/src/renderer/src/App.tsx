@@ -13,16 +13,18 @@ import type {
   MentorSummary,
   ProviderName,
 } from "../../shared/types";
+import { BriefingsView } from "./BriefingsView";
 import { ChatView } from "./ChatView";
 import { toErrorMessage } from "./errors";
 import { MentorsView } from "./MentorsView";
 import { ProfileView } from "./ProfileView";
 import { SettingsView } from "./SettingsView";
 
-type ViewName = "chat" | "profile" | "mentors" | "settings";
+type ViewName = "chat" | "briefings" | "profile" | "mentors" | "settings";
 
 const VIEWS: readonly { name: ViewName; label: string; icon: string }[] = [
   { name: "chat", label: "Chat", icon: "◆" },
+  { name: "briefings", label: "Briefing", icon: "☀" },
   { name: "profile", label: "Profile", icon: "◇" },
   { name: "mentors", label: "Mentors", icon: "◈" },
   { name: "settings", label: "Settings", icon: "⚙" },
@@ -32,6 +34,9 @@ const FALLBACK_SETTINGS: AppSettings = {
   provider: "copilot",
   model: "",
   activeMentorId: "demo_mentor",
+  briefingEnabled: false,
+  briefingMinute: 12 * 60,
+  briefingHeadlineInNotification: true,
 };
 
 export function App(): React.JSX.Element {
@@ -59,6 +64,14 @@ export function App(): React.JSX.Element {
       });
     refreshMentors();
   }, [refreshMentors]);
+
+  useEffect(() => {
+    // Clicking the notification should land on the briefing it was about, not
+    // on whatever view happened to be open when the window was last closed.
+    return window.trajectory.onShowBriefing(() => {
+      setView("briefings");
+    });
+  }, []);
 
   const persist = useCallback((next: AppSettings): void => {
     setSettings(next);
@@ -125,6 +138,9 @@ export function App(): React.JSX.Element {
             persist({ ...settings, provider });
           }}
         />
+      )}
+      {view === "briefings" && (
+        <BriefingsView briefingEnabled={settings.briefingEnabled} />
       )}
       {view === "profile" && <ProfileView />}
       {view === "mentors" && (

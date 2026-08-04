@@ -139,8 +139,8 @@ coverage.
 - [ ] Select up to three supporting priorities.
 - [ ] Identify one likely distraction or failure mode.
 - [ ] Protect one recovery or relationship commitment.
-- [ ] Add a minimal midday check-in for intended work, actual progress, current energy, and current obstacle.
-- [ ] Let midday guidance choose continue, redirect, reduce scope, take a break, or deliberately abandon.
+- [x] Add a minimal midday check-in for intended work, actual progress, current energy, and current obstacle. *(P9: composed from observed activity rather than asked as questions.)*
+- [x] Let midday guidance choose continue, redirect, reduce scope, take a break, or deliberately abandon. *(P9: `on_track` plus `priorities` and `watch_out`.)*
 - [ ] Add an evening reflection.
 - [ ] Capture meaningful progress, avoided work, unexpected demands, energy patterns, priority alignment, one lesson, and tomorrow's unresolved priority.
 - [ ] Ensure evening reflection never reduces a day to a productivity score.

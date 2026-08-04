@@ -1,8 +1,8 @@
 # Activity integration prompts
 
-Nine prompts that give the mentor access to what you actually did, rather than
-only what you told it in `current_state.yaml`. Each is self-contained and meant
-to be handed to a coding agent on its own.
+Ten prompts that give the mentor access to what you actually did, rather than
+only what you told it in `current_state.yaml`, and then let it speak first. Each
+is self-contained and meant to be handed to a coding agent on its own.
 
 ## Why this exists
 
@@ -24,7 +24,13 @@ P0 ──▶ P1 ──▶ P2 ──┬──▶ P3 ──┬──▶ P4
                    ├──▶ P5
                    └──▶ P8
        └──▶ P7
+
+P3, P4, P6, P8 ──▶ P9
 ```
+
+P9 is the only one that is not an integration. It is worth doing *after* the
+adapters rather than before, because a briefing composed from nothing observed
+is just a restatement of your own goals back at you.
 
 | Prompt | Builds | Needs network |
 | --- | --- | --- |
@@ -37,6 +43,7 @@ P0 ──▶ P1 ──▶ P2 ──┬──▶ P3 ──┬──▶ P4
 | [P6](P6-strava-training-adapter.md) | Strava training log | Yes |
 | [P7](P7-screen-time-interface.md) | Attention interface, deliberately no adapter | No |
 | [P8](P8-google-sheets-training-log.md) | One Google Sheet: a coached training log | Yes |
+| [P9](P9-midday-briefing.md) | A daily briefing and a macOS notification | Via adapters |
 
 P1 and P2 ship a synthetic fixture adapter on purpose. The entire
 ingest → store → select → prompt → attribution path is proven before a single
@@ -61,9 +68,21 @@ treat a commit as support for a principle, which quietly defeats
 model concluded stay in three separate fields, so you can reject the third
 without doubting the second.
 
+## The line P9 crosses
+
+P0 through P8 are pull-only: the app answers when asked. P9 is the first thing
+that initiates, and that changes what a mistake costs. An unhelpful chat reply is
+ignored. An unhelpful notification is an interruption, and an indiscreet one is a
+disclosure to whoever is looking at the lock screen.
+
+That is why the briefing headline is a schema field with its own prompt rules
+rather than the first hundred characters of the answer, and why a failed briefing
+is never notified — only recorded.
+
 ## What is deliberately not here
 
-Calendar ingestion, Telegram delivery, intervention policy, proactive
-notification, and cross-integration correlation. Those remain in
-`FUTURE_ITERATIONS.md`. Screen Time adapters of any kind are out — P7 defines the
-interface and explains why nothing implements it.
+Calendar ingestion, Telegram delivery, intervention policy, and cross-integration
+correlation. Those remain in `FUTURE_ITERATIONS.md`. Screen Time adapters of any
+kind are out — P7 defines the interface and explains why nothing implements it,
+and a later investigation of the undocumented `knowledgeC.db` route concluded the
+cost is not high but *permanent*: a maintenance bill every OS release.

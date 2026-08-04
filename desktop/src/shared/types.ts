@@ -84,6 +84,11 @@ export interface DesktopApi {
   getSettings(): Promise<AppSettings>;
   saveSettings(settings: AppSettings): Promise<AppSettings>;
 
+  listBriefings(): Promise<BriefingView[]>;
+  runBriefingNow(): Promise<BriefingRunResult>;
+  /** Fires when a notification is clicked, so the pane can be opened. */
+  onShowBriefing(handler: () => void): () => void;
+
   listIntegrations(): Promise<IntegrationsView>;
   refreshIntegration(id: string): Promise<IntegrationsView>;
   saveIntegrationPolicy(
@@ -179,6 +184,43 @@ export interface AppSettings {
   provider: ProviderName;
   model: string;
   activeMentorId: string;
+  briefingEnabled: boolean;
+  /** Minutes since local midnight; 720 is noon. */
+  briefingMinute: number;
+  briefingHeadlineInNotification: boolean;
+}
+
+/**
+ * One day's briefing as the renderer sees it.
+ *
+ * Restated here rather than imported: the renderer must not reach into the
+ * engine. `briefing` is null when the run failed, and `error` says why.
+ */
+export interface BriefingView {
+  date: string;
+  generatedAt: string;
+  briefing: {
+    headline: string;
+    body: string;
+    on_track: "yes" | "partly" | "no" | "unclear";
+    priorities: string[];
+    watch_out: string;
+    goal_ids: string[];
+    principle_ids: string[];
+    source_ids: string[];
+    activity_ids: string[];
+    confidence: number;
+    uncertainties: string[];
+  } | null;
+  error: string | null;
+  staleSources: string[];
+  notified: boolean;
+}
+
+export interface BriefingRunResult {
+  status: "completed" | "failed" | "skipped";
+  reason: string;
+  record: BriefingView | null;
 }
 
 /**

@@ -51,6 +51,17 @@ const api: DesktopApi = {
   saveSettings: (settings: AppSettings) =>
     ipcRenderer.invoke("settings:save", settings),
 
+  listBriefings: () => ipcRenderer.invoke("briefing:list"),
+  runBriefingNow: () => ipcRenderer.invoke("briefing:runNow"),
+  onShowBriefing: (handler: () => void) => {
+    const channel = "briefing:show";
+    const wrapped = (): void => handler();
+    ipcRenderer.on(channel, wrapped);
+    return () => {
+      ipcRenderer.removeListener(channel, wrapped);
+    };
+  },
+
   listIntegrations: () => ipcRenderer.invoke("integrations:list"),
   refreshIntegration: (id: string) =>
     ipcRenderer.invoke("integrations:refresh", id),

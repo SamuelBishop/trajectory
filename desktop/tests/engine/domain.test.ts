@@ -2,6 +2,7 @@ import { zodResponseFormat } from "openai/helpers/zod";
 import { describe, expect, it } from "vitest";
 
 import {
+  briefingSchema,
   chatResponseSchema,
   goalSchema,
   mentorPrincipleSchema,
@@ -123,6 +124,7 @@ describe("strict response schemas", () => {
   const cases = [
     ["recommendation", recommendationSchema],
     ["chat response", chatResponseSchema],
+    ["briefing", briefingSchema],
   ] as const;
 
   for (const [name, schema] of cases) {

@@ -170,4 +170,29 @@ describe("the renderer bridge", () => {
     expect(invoked.length).toBeGreaterThan(0);
     expect(invoked.filter((channel) => !handled.has(channel))).toEqual([]);
   });
+
+  it("listens on no channel the main process never sends", async () => {
+    // The same wiring mistake as above, in the other direction. `invoke`/
+    // `handle` is covered; `send`/`on` is not, and there are now two push
+    // channels — a stream and a notification click — so a typo here would be a
+    // listener that never fires and a feature that looks broken for no visible
+    // reason.
+    const preload = await readFile(
+      path.resolve(__dirname, "../src/preload/index.ts"),
+      "utf8",
+    );
+    const main = await readFile(
+      path.resolve(__dirname, "../src/main/ipc.ts"),
+      "utf8",
+    );
+    const listened = [
+      ...preload.matchAll(/const channel = "([^"]+)"/g),
+    ].map((match) => match[1] ?? "");
+    const sent = new Set(
+      [...main.matchAll(/\.send\(\s*"([^"]+)"/g)].map((match) => match[1] ?? ""),
+    );
+
+    expect(listened.length).toBeGreaterThan(0);
+    expect(listened.filter((channel) => !sent.has(channel))).toEqual([]);
+  });
 });

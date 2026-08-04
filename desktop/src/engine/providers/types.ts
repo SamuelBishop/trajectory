@@ -5,6 +5,8 @@
  */
 
 import type {
+  Briefing,
+  BriefingRequest,
   ChatRequest,
   ChatResponse,
   DecisionRequest,
@@ -15,4 +17,5 @@ export interface MentorProvider {
   readonly name: string;
   generate(request: DecisionRequest): Promise<Recommendation>;
   chat(request: ChatRequest): Promise<ChatResponse>;
+  briefing(request: BriefingRequest): Promise<Briefing>;
 }

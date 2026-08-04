@@ -8,6 +8,8 @@
  */
 
 import type {
+  Briefing,
+  BriefingRequest,
   ChatRequest,
   ChatResponse,
   DecisionRequest,
@@ -126,6 +128,60 @@ export class DeterministicProvider implements MentorProvider {
       confidence: 0.72,
       uncertainties: [
         "The system cannot inspect unreported production or security risk.",
+      ],
+    };
+  }
+
+  /**
+   * A briefing has no question to recognise, so the demo gate is the committed
+   * grounding itself. Refusing outside the demo keeps this provider honest:
+   * a credential-free build must never look like a working mentor.
+   */
+  async briefing(request: BriefingRequest): Promise<Briefing> {
+    const goal = request.goals[0];
+    const principle = request.principles[0];
+    const source = request.sources[0];
+    if (
+      goal?.id !== "career_001" ||
+      principle?.id !== "demo_opportunity_cost_001" ||
+      source === undefined
+    ) {
+      throw new ProviderError(
+        "The deterministic provider supports only the committed pull-request " +
+          "demo. Choose copilot or openai for a real briefing.",
+      );
+    }
+    const stale =
+      request.stale_sources.length > 0
+        ? ` Treating ${request.stale_sources.join(", ")} as unknown rather than idle.`
+        : "";
+    return {
+      headline: "Design proposal still waiting — worth the afternoon.",
+      body:
+        "**On track, with one thing slipping.**\n\n" +
+        "The pull request is functionally complete, while the postponed design " +
+        `proposal more directly supports your architectural-ownership goal.${stale}`,
+      on_track: "partly",
+      priorities: [
+        "Outline the postponed design proposal.",
+        "Submit the pull request after a short correctness check.",
+      ],
+      watch_out:
+        "Further polishing on a complete pull request, in place of the harder design work.",
+      goal_ids: [goal.id],
+      principle_ids: [principle.id],
+      source_ids: [source.id],
+      activity_ids: [],
+      observations: [
+        "The current state describes the pull request as functionally complete.",
+        "The design proposal has been postponed twice.",
+      ],
+      inferences: [
+        "Additional polish may have lower opportunity value than the design work.",
+      ],
+      confidence: 0.72,
+      uncertainties: [
+        "The system cannot see work done away from the connected sources.",
       ],
     };
   }

@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
-import { app, ipcMain, safeStorage, shell } from "electron";
+import { app, BrowserWindow, ipcMain, Notification, safeStorage, shell } from "electron";
 
 import {
   isMentorDocumentName,
@@ -30,8 +30,7 @@ import {
   duplicateMentor,
   listMentors,
 } from "../engine/mentors";
-import { chatWithMentor } from "../engine/mentorship";
-import {
+import { chatWithMentor } from "../engine/mentorship";import {
   ensureLocalConfig,
   resolveBundledData,
   type LocalConfig,
@@ -42,6 +41,8 @@ import { loadSettings, saveSettings } from "../engine/settings";
 import type { ProviderName, SendMessageInput } from "../shared/types";
 import { CopilotLogin } from "./copilot-login";
 import { revealChatAnswer } from "./chat-stream";
+import { BriefingService } from "./briefing-service";
+import { EncryptedBriefingStore } from "./briefing-store";
 import { IntegrationService } from "./integrations";
 import { SecretStore } from "./secrets";
 import { EncryptedChatStore } from "./store";
@@ -155,7 +156,10 @@ function requireName(value: unknown): string {
   return name;
 }
 
-export function registerIpcHandlers(): void {
+export function registerIpcHandlers(options: {
+  /** Recreates the window when a notification is clicked and none are open. */
+  createWindow: () => void;
+}): void {
   const encryption = {
     isAvailable: () =>
       safeStorage.isEncryptionAvailable() &&
@@ -292,8 +296,58 @@ export function registerIpcHandlers(): void {
     return runtimeDirectory;
   };
 
-  ipcMain.handle("chat:list", () => store.list());
-  ipcMain.handle("chat:get", (_event, id: unknown) => store.get(requireId(id)));
+  const briefings = new EncryptedBriefingStore(
+    EncryptedBriefingStore.defaultPath(userData),
+    encryption,
+  );
+
+  const briefingService = new BriefingService({
+    store: briefings,
+    loadSettings: () => loadSettings(userData),
+    createProvider: async (settings) =>
+      createProvider(settings.provider, {
+        runtimeDirectory: await ensureRuntimeDirectory(),
+        model: settings.model,
+        openaiApiKey: await secrets.read("openaiApiKey"),
+        githubToken: await secrets.read("githubToken"),
+      }),
+    directories: () => localConfig(),
+    syncForBriefing: () => integrations.syncForBriefing(),
+    signalsForPrompt: () => integrations.signalsForPrompt(),
+    notifier: {
+      // Linux without a notification daemon, and any platform where the user
+      // has denied permission, report false. Silence is the correct outcome
+      // there; the briefing is still stored and the pane still shows it.
+      isSupported: () => Notification.isSupported(),
+      notify: ({ title, body }) => {
+        const notification = new Notification({ title, body });
+        notification.on("click", () => {
+          // The window may well be closed: on macOS the app deliberately
+          // survives its last window, which is what makes a midday
+          // notification possible in the first place. Recreating it is the
+          // whole point of handling the click.
+          const [existing] = BrowserWindow.getAllWindows();
+          if (existing) {
+            if (existing.isMinimized()) {
+              existing.restore();
+            }
+            existing.show();
+            existing.focus();
+            existing.webContents.send("briefing:show");
+          } else {
+            options.createWindow();
+          }
+        });
+        notification.show();
+      },
+    },
+  });
+  briefingService.start();
+
+  ipcMain.handle("briefing:list", () => briefings.list());
+  ipcMain.handle("briefing:runNow", () => briefingService.runNow());
+
+  ipcMain.handle("chat:list", () => store.list());  ipcMain.handle("chat:get", (_event, id: unknown) => store.get(requireId(id)));
   ipcMain.handle("chat:create", () => store.create());
   ipcMain.handle("chat:delete", (_event, id: unknown) =>
     store.delete(requireId(id)),

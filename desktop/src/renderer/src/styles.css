@@ -1037,3 +1037,128 @@ button {
   padding-top: 12px;
   border-top: 1px solid #24241f;
 }
+
+/*
+ * Daily briefing.
+ *
+ * Reuses `.integration-card` for the frame so a briefing reads as the same kind
+ * of object as an integration — a thing the app maintains for you — rather than
+ * as a message.
+ */
+.briefing-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.briefing-card.failed {
+  border-color: #4a2f2b;
+}
+
+.briefing-status {
+  display: inline-block;
+  margin-top: 5px;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid #33322c;
+  color: #8b8980;
+}
+
+.briefing-status.yes {
+  border-color: #3f5735;
+  color: #9dbb80;
+}
+
+.briefing-status.partly {
+  border-color: #5c5330;
+  color: #c8b473;
+}
+
+.briefing-status.no {
+  border-color: #66423d;
+  color: #e5aaa1;
+}
+
+.briefing-headline {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/*
+ * Stale sources are called out above the prose, not buried under it. A failed
+ * sync that reads as "you did nothing" is the failure this notice exists to
+ * prevent, so it has to be seen before the briefing is read.
+ */
+.briefing-stale {
+  margin: 0;
+  border-left: 2px solid #5c5330;
+  padding-left: 10px;
+  color: #c8b473;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.briefing-error {
+  margin: 0;
+  color: #e5aaa1;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.briefing-body {
+  color: #cdcabf;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.briefing-body h4 {
+  margin: 18px 0 6px;
+  color: #8b8980;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.briefing-body p {
+  margin: 0 0 10px;
+}
+
+.briefing-priorities,
+.briefing-uncertainties {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.briefing-priorities li,
+.briefing-uncertainties li {
+  margin-bottom: 5px;
+}
+
+.briefing-grounding {
+  margin-top: 18px;
+  border-top: 1px solid #24241f;
+  padding-top: 10px;
+  color: #77766f;
+  font-size: 11px;
+}
+
+button.ghost {
+  border: 1px solid #2b2a25;
+  border-radius: 6px;
+  padding: 4px 10px;
+  background: transparent;
+  color: #8b8980;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+button.ghost:hover {
+  border-color: #3a3932;
+  color: #cdcabf;
+}

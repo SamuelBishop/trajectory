@@ -45,6 +45,7 @@ work, or state plainly that the change rests on review alone.
 | `[HC-RENDERER-LEAST-PRIVILEGE]` | Partial | `desktop/scripts/smoke-packaged.mjs` — "the renderer has no Node access" | The observable effect is now asserted in a launched packaged app: `require`, `process`, and `module` must all be undefined. The `webPreferences` flags themselves are still unasserted, and the smoke test only runs when someone runs it. |
 | `[HC-PRELOAD-CJS]` | Automated | `desktop/scripts/smoke-packaged.mjs` — "the preload bridge is exposed" | Gap closed. The smoke test copies the packaged app outside the repository, launches it, and reads `window.trajectory` from the real renderer. It is not part of `scripts/verify.sh` because it needs `npm run package` first, so it still depends on someone running it. |
 | `[HC-VALIDATE-IPC-INPUT]` | Partial | `desktop/scripts/smoke-packaged.mjs` — "an invalid profile edit is refused", "a traversing mentor ID is refused"; `desktop/tests/engine/mentors.test.ts` (13 cases on the ID guard and its containment check); `desktop/tests/engine/documents.test.ts` — "accepts the five user files and rejects anything else", "accepts the three mentor files and rejects anything else" | The arguments that became file paths are now exercised through the real bridge in a packaged launch. `requireId` and `requireMessage` on the chat channels are still unexercised, and the smoke test only runs when someone runs it. |
+| `[HC-NOTIFICATION-CONTENT]` (no bar yet — see below) | Partial | `desktop/tests/engine/notification-text.test.ts` (9 cases) — "collapses a headline to a single line", "caps a headline longer than the notification limit", "substitutes a generic line when the user has opted out", "never returns a multi-line body, whatever it is given"; `desktop/tests/briefing-service.test.ts` — "never notifies when the provider fails", "sends a generic body when the headline is opted out"; `desktop/tests/engine/briefing.test.ts` — the system prompt names every forbidden category | **The tests prove shape, not discretion.** They guarantee a notification body is one line, bounded, and absent on failure. Whether the *content* is discreet rests entirely on `BRIEFING_SYSTEM_PROMPT` and the model obeying it — nothing mechanical can tell a safe headline from an indiscreet one. Separately, no test can prove a notification appeared: `npm run dev` attributes it to "Electron", and macOS Focus or DND suppresses it silently. That needs `npm run package` and a look at the screen. |
 | `[HC-NO-RENDERER-URL-FROM-ENV]` | Not verified | — | Requires a packaged build with the environment variable set. Not covered. |
 | `[HC-ATOMIC-SERIALIZED-WRITES]` | Partial | `desktop/tests/store.test.ts` — "serializes concurrent mutations without losing conversations" | Serialization is covered. Atomicity — temp file, `fsync`, `rename` — is not directly asserted; a regression to a plain in-place write would pass. |
 | `[HC-EVIDENCE]` | Not verified | — | Adversarial review only. This is structural: nothing mechanical can distinguish captured output from convincing prose. |
@@ -62,6 +63,21 @@ work, or state plainly that the change rests on review alone.
 ## Summary
 
 Of 33 bars: 9 automated, 12 partial, 12 not verified.
+
+## An area with no bar governing it
+
+P9 hands mentor-written prose to the macOS notification system, where it may
+appear on a lock screen and mirror to a paired iPhone via Continuity.
+
+`[HC-NO-EXFILTRATION]` governs *network* egress, so this is not a breach of it.
+But it is the first time private content leaves the application by any route,
+and the canon currently says nothing about it. The row above is filed under a
+slug that **does not exist yet** — deliberately, so the gap is visible rather
+than quietly assumed to be covered by a neighbouring bar.
+
+Proposing that bar is a separate change for the author to approve
+(`[HC-PROPOSE-NEVER-COMMIT]`). Until then the protections are ordinary code and
+review, not canon.
 
 The shape of that is expected rather than alarming. The verified end is the
 engine's grounding and attribution logic — the part that is pure functions over

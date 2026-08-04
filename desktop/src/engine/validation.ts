@@ -9,6 +9,8 @@
  */
 
 import type {
+  Briefing,
+  BriefingRequest,
   ChatRequest,
   ChatResponse,
   DecisionRequest,
@@ -24,7 +26,7 @@ function validateCitations(
   goalIds: string[],
   principleIds: string[],
   sourceIds: string[],
-  request: DecisionRequest | ChatRequest,
+  request: DecisionRequest | ChatRequest | BriefingRequest,
 ): void {
   const unknownGoals = unknown(
     goalIds,
@@ -101,7 +103,7 @@ function validateCitations(
  */
 function validateActivityCitations(
   activityIds: string[],
-  request: DecisionRequest | ChatRequest,
+  request: DecisionRequest | ChatRequest | BriefingRequest,
 ): void {
   if (activityIds.length === 0) {
     return;
@@ -143,8 +145,21 @@ export function validateChatResponse(
   validateActivityCitations(response.activity_ids, request);
 }
 
+export function validateBriefing(
+  briefing: Briefing,
+  request: BriefingRequest,
+): void {
+  validateCitations(
+    briefing.goal_ids,
+    briefing.principle_ids,
+    briefing.source_ids,
+    request,
+  );
+  validateActivityCitations(briefing.activity_ids, request);
+}
+
 export function validateDemoGrounding(
-  request: DecisionRequest | ChatRequest,
+  request: DecisionRequest | ChatRequest | BriefingRequest,
 ): void {
   if (!request.mentor_profile.fictional) {
     return;

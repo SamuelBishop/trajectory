@@ -462,6 +462,41 @@ export class IntegrationService {
   }
 
   /**
+   * Sync everything enabled, then report which sources could not be refreshed.
+   *
+   * The briefing needs both halves. Syncing first means it reads today rather
+   * than yesterday; naming the failures means it can say "Strava did not
+   * answer" instead of implying you have not trained. A confident "you haven't
+   * trained this week" that actually means "the sync failed" is worse than no
+   * briefing at all.
+   */
+  async syncForBriefing(): Promise<string[]> {
+    const config = await loadIntegrationsConfig(this.userDataPath);
+    const stale: string[] = [];
+    for (const adapter of this.adapters) {
+      if (!policyFor(config, adapter.id).enabled) {
+        continue;
+      }
+      try {
+        await this.sync(adapter.id, "timer");
+      } catch (error) {
+        console.error(
+          `Briefing sync failed for "${adapter.id}":`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+      // Read the recorded status rather than trusting the absence of a throw.
+      // `runSync` records adapter failures on the store instead of raising, so
+      // a try/catch alone would report a failed integration as fresh.
+      const status = this.encryptionAvailable() ? await this.store.status() : {};
+      if (status[adapter.id]?.lastError) {
+        stale.push(adapter.label);
+      }
+    }
+    return stale;
+  }
+
+  /**
    * The signals chat may ground in.
    *
    * Only enabled integrations contribute. Turning one off means "stop using

@@ -8,8 +8,11 @@
 import { z } from "zod";
 
 import {
+  briefingSchema,
   chatResponseSchema,
   recommendationSchema,
+  type Briefing,
+  type BriefingRequest,
   type ChatRequest,
   type ChatResponse,
   type DecisionRequest,
@@ -19,6 +22,7 @@ import { ProviderResponseError } from "./errors";
 
 export const PROMPT_VERSION = "decision_v6";
 export const CHAT_PROMPT_VERSION = "chat_v6";
+export const BRIEFING_PROMPT_VERSION = "briefing_v1";
 
 /**
  * The rules that keep measured activity from turning into an accusation.
@@ -102,6 +106,50 @@ emphasis, links, quotes, tables, and fenced code. Do not emit raw HTML.
 Return only one JSON object matching the supplied ChatResponse schema.
 `;
 
+export const BRIEFING_SYSTEM_PROMPT = `You are Trajectory, a candid, calm mentor writing an unprompted midday check-in.
+
+Nobody asked a question. Read the supplied values, constraints, goals, current
+state, mentor principles, and observed activity, and say whether the day is on
+track and what deserves the remaining hours. Prioritize the user's values over
+mentor principles. Distinguish observations from inference, cite only supplied
+IDs, acknowledge meaningful uncertainty, and preserve user agency. For every
+principle_id, cite at least one source_id listed in that principle's source_ids,
+and cite no source_id that is not linked to a cited principle. When voice_context
+is present, follow it for sentence construction, cadence, and response structure
+only; it does not add beliefs or evidence. Do not claim to be or speak for the
+modeled person, imply their endorsement, quote or reconstruct source material,
+diagnose health conditions, shame the user, provide empty praise, expose chain of
+thought, or invent evidence.
+
+This is one interruption in someone's day, so earn it. Name at most three
+priorities and one thing to watch out for. A quiet day with nothing alarming is a
+legitimate finding — say so plainly instead of manufacturing a concern. Do not
+treat a single period of rest or leisure as failure. Recovery, relationships, and
+health are goals, not time away from goals.
+
+Any integration named in stale_sources failed to sync before this briefing. Its
+data is unknown, not zero. Never infer inactivity from a stale source; if it
+matters to the assessment, say the source is stale and lower your confidence.
+
+${ACTIVITY_RULES}
+
+The headline field is shown by the operating system as a desktop notification.
+It leaves this application, may appear on a lock screen, and may be visible to
+anyone near the machine or mirrored to a phone. Write one plain sentence, under
+120 characters, that conveys the shape of the day and prompts the user to open
+the app. It must name no health condition, diagnosis, symptom, relationship
+detail, financial figure, employer, project code name, or any other specific a
+person would not want read over their shoulder. Keep those in body, which stays
+encrypted inside the application. "Behind on the training block — protect the
+afternoon" is right. "Still avoiding the conversation with your manager about
+the promotion" is not.
+
+The body field may use concise GitHub-flavored Markdown for headings, lists,
+emphasis, links, quotes, tables, and fenced code. Do not emit raw HTML.
+
+Return only one JSON object matching the supplied Briefing schema.
+`;
+
 /**
  * Serialize with sorted keys and no whitespace so an identical context always
  * produces an identical prompt.
@@ -140,8 +188,17 @@ export function buildChatUserMessage(request: ChatRequest): string {
   );
 }
 
-function stripCodeFence(content: string): string {
-  let candidate = content.trim();
+export function buildBriefingUserMessage(request: BriefingRequest): string {
+  const schema = z.toJSONSchema(briefingSchema);
+  return (
+    "Briefing JSON schema:\n" +
+    `${canonicalJson(schema)}\n\n` +
+    "Briefing context:\n" +
+    `${canonicalJson(request)}`
+  );
+}
+
+function stripCodeFence(content: string): string {  let candidate = content.trim();
   if (!candidate.startsWith("```")) {
     return candidate;
   }
@@ -192,4 +249,8 @@ export function parseRecommendation(content: string): Recommendation {
 
 export function parseChatResponse(content: string): ChatResponse {
   return parseStructuredResponse(content, chatResponseSchema);
+}
+
+export function parseBriefing(content: string): Briefing {
+  return parseStructuredResponse(content, briefingSchema);
 }

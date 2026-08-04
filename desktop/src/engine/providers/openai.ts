@@ -8,8 +8,11 @@
 import type { z } from "zod";
 
 import {
+  briefingSchema,
   chatResponseSchema,
   recommendationSchema,
+  type Briefing,
+  type BriefingRequest,
   type ChatRequest,
   type ChatResponse,
   type DecisionRequest,
@@ -21,13 +24,16 @@ import {
   ProviderResponseError,
 } from "../errors";
 import {
+  BRIEFING_SYSTEM_PROMPT,
   CHAT_SYSTEM_PROMPT,
   SYSTEM_PROMPT,
+  buildBriefingUserMessage,
   buildChatUserMessage,
   buildUserMessage,
   parseStructuredResponse,
 } from "../prompting";
 import {
+  validateBriefing,
   validateChatResponse,
   validateRecommendation,
 } from "../validation";
@@ -227,6 +233,16 @@ export class OpenAICompatibleProvider implements MentorProvider {
       chatResponseSchema,
       "trajectory_chat_response",
       (response) => validateChatResponse(response, request),
+    );
+  }
+
+  async briefing(request: BriefingRequest): Promise<Briefing> {
+    return await this.generateStructured(
+      BRIEFING_SYSTEM_PROMPT,
+      buildBriefingUserMessage(request),
+      briefingSchema,
+      "trajectory_briefing",
+      (briefing) => validateBriefing(briefing, request),
     );
   }
 }

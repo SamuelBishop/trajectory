@@ -19,7 +19,7 @@ import type {
   SecretStatus,
 } from "../../shared/types";
 import { attempt, toErrorMessage } from "./errors";
-import { Field, SaveBar, Select, TextInput } from "./FormKit";
+import { Field, SaveBar, Select, TextInput, Toggle } from "./FormKit";
 import { IntegrationsSection } from "./IntegrationsSection";
 
 const PROVIDERS: readonly { value: ProviderName; label: string }[] = [
@@ -33,6 +33,31 @@ const MODEL_HINTS: Readonly<Record<ProviderName, string>> = {
   openai: "For example gpt-4o-mini. Required for this provider.",
   deterministic: "Ignored. The demo provider makes no network calls.",
 };
+
+/** Minutes since local midnight, shown as a 24-hour clock. */
+function formatMinute(minuteOfDay: number): string {
+  const hours = Math.floor(minuteOfDay / 60);
+  const minutes = minuteOfDay % 60;
+  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+}
+
+/**
+ * Parses "12:00" back to minutes. Returns null for anything unparseable so the
+ * caller keeps the previous value rather than storing a NaN that would make the
+ * schedule silently never fire.
+ */
+function parseMinute(value: string): number | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!match) {
+    return null;
+  }
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) {
+    return null;
+  }
+  return hours * 60 + minutes;
+}
 
 export function SettingsView({
   settings,
@@ -64,7 +89,11 @@ export function SettingsView({
   const dirty =
     draft.provider !== settings.provider ||
     draft.model !== settings.model ||
-    draft.activeMentorId !== settings.activeMentorId;
+    draft.activeMentorId !== settings.activeMentorId ||
+    draft.briefingEnabled !== settings.briefingEnabled ||
+    draft.briefingMinute !== settings.briefingMinute ||
+    draft.briefingHeadlineInNotification !==
+      settings.briefingHeadlineInNotification;
 
   const save = (): void => {
     setSaving(true);
@@ -128,6 +157,54 @@ export function SettingsView({
                 }))}
                 onChange={(activeMentorId) =>
                   setDraft({ ...draft, activeMentorId })
+                }
+              />
+            </Field>
+
+            <hr className="settings-divider" />
+
+            <Field
+              label="Daily briefing"
+              hint="Once a day, Trajectory reads your goals and everything the connected integrations have observed, then tells you whether you are on track and what to prioritise."
+            >
+              <Toggle
+                checked={draft.briefingEnabled}
+                disabled={saving}
+                label="Run a daily briefing"
+                onChange={(briefingEnabled) =>
+                  setDraft({ ...draft, briefingEnabled })
+                }
+              />
+            </Field>
+
+            <Field
+              label="Time"
+              hint="Local time. If the app is closed at this time, the briefing runs when you next open it — the same day only."
+            >
+              <TextInput
+                value={formatMinute(draft.briefingMinute)}
+                placeholder="12:00"
+                disabled={saving || !draft.briefingEnabled}
+                onChange={(value) => {
+                  const parsed = parseMinute(value);
+                  setDraft({
+                    ...draft,
+                    briefingMinute: parsed ?? draft.briefingMinute,
+                  });
+                }}
+              />
+            </Field>
+
+            <Field
+              label="Notification text"
+              hint="With this on, the notification carries a one-line summary written by the mentor. macOS may show it on the lock screen and mirror it to a paired iPhone. With it off, the notification says only that a briefing is ready; the summary stays in the app."
+            >
+              <Toggle
+                checked={draft.briefingHeadlineInNotification}
+                disabled={saving || !draft.briefingEnabled}
+                label="Show the summary in the notification"
+                onChange={(briefingHeadlineInNotification) =>
+                  setDraft({ ...draft, briefingHeadlineInNotification })
                 }
               />
             </Field>

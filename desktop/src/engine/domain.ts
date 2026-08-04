@@ -466,6 +466,56 @@ export const chatResponseSchema = z.strictObject({
   uncertainties: z.array(text).min(1),
 });
 
+export const briefingRequestSchema = z.strictObject({
+  /** Local calendar date the briefing covers. */
+  today: calendarDate,
+  values: valuesConfigSchema,
+  current_state: currentStateConfigSchema,
+  constraints: constraintsConfigSchema,
+  communication: communicationConfigSchema,
+  goals: z.array(goalSchema).min(1),
+  mentor_profile: mentorProfileSchema,
+  principles: z.array(mentorPrincipleSchema).min(1),
+  sources: z.array(sourceRecordSchema).min(1),
+  voice_context: voiceRuntimeContextSchema.nullable(),
+  activity_context: activityContextSchema.nullable(),
+  /**
+   * Integrations whose sync failed before this briefing was composed. The
+   * model is told to treat their absence as unknown rather than as evidence
+   * of inactivity, so a failed Strava sync cannot become "you have not
+   * trained this week".
+   */
+  stale_sources: z.array(text),
+  provider: identifier,
+  prompt_version: identifier,
+});
+
+/**
+ * Sent to the model as a strict response schema. Every field is required.
+ *
+ * `headline` is displayed by the operating system, outside this application's
+ * encrypted store and potentially on a lock screen. It is a first-class field
+ * rather than a slice of `body` because truncating prose would put whatever
+ * happened to fall in the first hundred characters onto that screen. Asking
+ * for it explicitly lets the prompt constrain what may appear there.
+ */
+export const briefingSchema = z.strictObject({
+  headline: z.string().trim().min(1).max(120),
+  body: chatText,
+  on_track: z.enum(["yes", "partly", "no", "unclear"]),
+  priorities: z.array(text).min(1).max(3),
+  watch_out: text,
+  goal_ids: z.array(identifier).min(1),
+  principle_ids: z.array(identifier).min(1),
+  source_ids: z.array(identifier).min(1),
+  /** See `recommendationSchema.activity_ids`. Required, may be empty. */
+  activity_ids: z.array(identifier),
+  observations: z.array(text),
+  inferences: z.array(text),
+  confidence,
+  uncertainties: z.array(text).min(1),
+});
+
 export const decisionResultSchema = z.strictObject({
   recommendation: recommendationSchema,
   request: decisionRequestSchema,
@@ -474,6 +524,11 @@ export const decisionResultSchema = z.strictObject({
 export const chatResultSchema = z.strictObject({
   response: chatResponseSchema,
   request: chatRequestSchema,
+});
+
+export const briefingResultSchema = z.strictObject({
+  briefing: briefingSchema,
+  request: briefingRequestSchema,
 });
 
 export const providerNameSchema = z.enum([
@@ -509,7 +564,10 @@ export type ActivityContext = z.infer<typeof activityContextSchema>;
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
 export type DecisionRequest = z.infer<typeof decisionRequestSchema>;
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
+export type BriefingRequest = z.infer<typeof briefingRequestSchema>;
 export type Recommendation = z.infer<typeof recommendationSchema>;
 export type ChatResponse = z.infer<typeof chatResponseSchema>;
+export type Briefing = z.infer<typeof briefingSchema>;
 export type DecisionResult = z.infer<typeof decisionResultSchema>;
 export type ChatResult = z.infer<typeof chatResultSchema>;
+export type BriefingResult = z.infer<typeof briefingResultSchema>;

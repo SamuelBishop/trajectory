@@ -2,9 +2,17 @@ import { join, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import type { ChatRequest, DecisionRequest } from "../../src/engine/domain";
+import type {
+  BriefingRequest,
+  ChatRequest,
+  DecisionRequest,
+} from "../../src/engine/domain";
 import { ProviderError, ProviderResponseError } from "../../src/engine/errors";
-import { chatWithMentor, reviewDecision } from "../../src/engine/mentorship";
+import {
+  chatWithMentor,
+  dailyBriefing,
+  reviewDecision,
+} from "../../src/engine/mentorship";
 import {
   CopilotProvider,
   DEFAULT_COPILOT_MODEL,
@@ -14,6 +22,7 @@ import {
   type CopilotSessionLike,
 } from "../../src/engine/providers/copilot";
 import { DeterministicProvider } from "../../src/engine/providers/deterministic";
+import { BRIEFING_SYSTEM_PROMPT } from "../../src/engine/prompting";
 import {
   OpenAICompatibleProvider,
   type CompletionClient,
@@ -72,6 +81,32 @@ function chatJson(request: ChatRequest): string {
     inferences: ["Additional polish may have lower opportunity value."],
     confidence: 0.75,
     uncertainties: ["Unreported production risk may exist."],
+  });
+}
+
+async function demoBriefingRequest(): Promise<BriefingRequest> {
+  const result = await dailyBriefing(new DeterministicProvider(), directories, {
+    signals: [],
+    today: "2026-03-10",
+  });
+  return result.request;
+}
+
+function briefingJson(request: BriefingRequest): string {
+  return JSON.stringify({
+    headline: "Design proposal still waiting — worth the afternoon.",
+    body: "The pull request is complete; the design proposal is not.",
+    on_track: "partly",
+    priorities: ["Outline the postponed design proposal."],
+    watch_out: "Polishing a finished pull request instead of designing.",
+    goal_ids: [request.goals[0]!.id],
+    principle_ids: [request.principles[0]!.id],
+    source_ids: [request.sources[0]!.id],
+    activity_ids: [],
+    observations: ["The pull request is described as complete."],
+    inferences: ["Additional polish may have lower opportunity value."],
+    confidence: 0.7,
+    uncertainties: ["Work away from connected sources is invisible."],
   });
 }
 
@@ -282,6 +317,72 @@ describe("OpenAI-compatible provider", () => {
     // it, must not reach anything that might display or log this message.
     expect(error?.message).not.toContain(LEAKED_SECRET);
     expect(error?.message).not.toContain("Incorrect API key");
+  });
+
+  it("requests a strict briefing schema in which every property is required", async () => {
+    const request = await demoBriefingRequest();
+    const client = new FakeOpenAIClient([briefingJson(request)]);
+
+    const briefing = await new OpenAICompatibleProvider({
+      model: "test-model",
+      client,
+    }).briefing(request);
+
+    expect(briefing.headline).toMatch(/^Design proposal still waiting/);
+    const format = client.calls[0]!.response_format as {
+      json_schema: { name: string; strict: boolean; schema: Record<string, any> };
+    };
+    expect(format.json_schema.name).toBe("trajectory_briefing");
+    expect(format.json_schema.strict).toBe(true);
+    expect(format.json_schema.schema.required).toEqual(
+      Object.keys(format.json_schema.schema.properties),
+    );
+  });
+
+  it("sends the briefing system prompt, not the chat one", async () => {
+    // A copy-paste of `CHAT_SYSTEM_PROMPT` here would still pass every schema
+    // and attribution test, while silently dropping the only instruction that
+    // keeps private specifics off a lock screen.
+    const request = await demoBriefingRequest();
+    const client = new FakeOpenAIClient([briefingJson(request)]);
+
+    await new OpenAICompatibleProvider({ model: "test-model", client }).briefing(
+      request,
+    );
+
+    const messages = client.calls[0]!.messages as { role: string; content: string }[];
+    const system = messages.find((message) => message.role === "system")!.content;
+    expect(system).toBe(BRIEFING_SYSTEM_PROMPT);
+    expect(system).toMatch(/notification/i);
+  });
+
+  it("retries a briefing whose citations do not resolve", async () => {
+    const request = await demoBriefingRequest();
+    const invalid = JSON.parse(briefingJson(request)) as Record<string, unknown>;
+    invalid.goal_ids = ["invented_goal"];
+    const client = new FakeOpenAIClient([
+      JSON.stringify(invalid),
+      briefingJson(request),
+    ]);
+
+    const briefing = await new OpenAICompatibleProvider({
+      model: "test-model",
+      client,
+    }).briefing(request);
+
+    expect(briefing.goal_ids).toEqual(["career_001"]);
+    expect(client.calls).toHaveLength(2);
+  });
+
+  it("does not fall back after a second unusable briefing", async () => {
+    const request = await demoBriefingRequest();
+
+    await expect(
+      new OpenAICompatibleProvider({
+        model: "test-model",
+        client: new FakeOpenAIClient(["bad", "still bad"]),
+      }).briefing(request),
+    ).rejects.toThrow(ProviderResponseError);
   });
 
   it("requires credentials from the environment", () => {
@@ -531,6 +632,38 @@ describe("Copilot provider", () => {
     expect(response.answer).toMatch(/^Focus on the design proposal/);
   });
 
+  it("supports the daily briefing", async () => {
+    const request = await demoBriefingRequest();
+
+    const briefing = await new CopilotProvider({
+      model: "test-model",
+      baseDirectory: RUNTIME_DIRECTORY,
+      clientFactory: (options) =>
+        new FakeCopilotClient([briefingJson(request)], options),
+    }).briefing(request);
+
+    expect(briefing.headline).toMatch(/^Design proposal still waiting/);
+    expect(briefing.on_track).toBe("partly");
+  });
+
+  it("retries a briefing whose citations do not resolve", async () => {
+    const request = await demoBriefingRequest();
+    const invalid = JSON.parse(briefingJson(request)) as Record<string, unknown>;
+    invalid.principle_ids = ["invented_principle"];
+
+    const briefing = await new CopilotProvider({
+      model: "test-model",
+      baseDirectory: RUNTIME_DIRECTORY,
+      clientFactory: (options) =>
+        new FakeCopilotClient(
+          [JSON.stringify(invalid), briefingJson(request)],
+          options,
+        ),
+    }).briefing(request);
+
+    expect(briefing.principle_ids).toEqual(["demo_opportunity_cost_001"]);
+  });
+
   it("wraps SDK errors", async () => {
     const request = await demoRequest();
 
@@ -688,5 +821,29 @@ describe("deterministic provider", () => {
         question: "Should I polish the design proposal?",
       }),
     ).rejects.toThrow(/supports only the committed/);
+  });
+
+  it("refuses a briefing outside the committed demo", async () => {
+    // Parity matters most here: a stub that invented a plausible headline
+    // would put fiction into a real notification.
+    const request = await demoBriefingRequest();
+
+    await expect(
+      new DeterministicProvider().briefing({
+        ...request,
+        goals: [{ ...request.goals[0]!, id: "career_999" }],
+      }),
+    ).rejects.toThrow(ProviderError);
+  });
+
+  it("names its stale sources rather than reporting them as idle", async () => {
+    const request = await demoBriefingRequest();
+
+    const briefing = await new DeterministicProvider().briefing({
+      ...request,
+      stale_sources: ["strava"],
+    });
+
+    expect(briefing.body).toContain("strava");
   });
 });
