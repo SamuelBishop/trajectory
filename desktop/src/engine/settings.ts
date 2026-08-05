@@ -25,6 +25,13 @@ export const SETTINGS_FILE = "settings.json";
 export const settingsSchema = z.strictObject({
   provider: providerNameSchema.default("copilot"),
   model: z.string().trim().default(""),
+  /**
+   * What the briefing calls the user. Optional, and empty by default: nothing
+   * else in the product knows a name, and a greeting is not worth prompting
+   * for one during setup. The screen drops the name when this is blank rather
+   * than guessing at a login or a directory name.
+   */
+  displayName: z.string().trim().max(60).default(""),
   activeMentorId: z.string().trim().min(1).default(DEMO_MENTOR_ID),
   /**
    * Off by default. A notification the user did not ask for is an

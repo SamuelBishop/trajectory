@@ -1,9 +1,9 @@
 /**
- * Application shell: a rail of views over one window.
+ * Application shell: four destinations over one window.
  *
  * Settings are loaded once here and passed down, so the chat header's provider
  * control and the Settings view cannot disagree about which provider is
- * selected.
+ * selected. Navigation is held here for the same reason — see `route.ts`.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -13,26 +13,18 @@ import type {
   MentorSummary,
   ProviderName,
 } from "../../shared/types";
-import { BriefingsView } from "./BriefingsView";
 import { ChatView } from "./ChatView";
+import { ContextView } from "./context/ContextView";
 import { toErrorMessage } from "./errors";
-import { MentorsView } from "./MentorsView";
-import { ProfileView } from "./ProfileView";
-import { SettingsView } from "./SettingsView";
-
-type ViewName = "chat" | "briefings" | "profile" | "mentors" | "settings";
-
-const VIEWS: readonly { name: ViewName; label: string; icon: string }[] = [
-  { name: "chat", label: "Chat", icon: "◆" },
-  { name: "briefings", label: "Briefing", icon: "☀" },
-  { name: "profile", label: "Profile", icon: "◇" },
-  { name: "mentors", label: "Mentors", icon: "◈" },
-  { name: "settings", label: "Settings", icon: "⚙" },
-];
+import { HOME, routeTo, type Route } from "./route";
+import { SettingsView } from "./settings/SettingsView";
+import { TodayView } from "./today/TodayView";
+import { Rail } from "./ui/Rail";
 
 const FALLBACK_SETTINGS: AppSettings = {
   provider: "copilot",
   model: "",
+  displayName: "",
   activeMentorId: "demo_mentor",
   briefingEnabled: false,
   briefingMinute: 12 * 60,
@@ -40,10 +32,15 @@ const FALLBACK_SETTINGS: AppSettings = {
 };
 
 export function App(): React.JSX.Element {
-  const [view, setView] = useState<ViewName>("chat");
+  const [route, setRoute] = useState<Route>(HOME);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [mentors, setMentors] = useState<MentorSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * A question Today handed to Chat. Consumed once, so returning to Chat later
+   * does not refill the composer with a priority the user already dismissed.
+   */
+  const [chatSeed, setChatSeed] = useState<string | null>(null);
 
   const refreshMentors = useCallback((): void => {
     void window.trajectory
@@ -57,8 +54,8 @@ export function App(): React.JSX.Element {
       .getSettings()
       .then(setSettings)
       .catch((settingsError: unknown) => {
-        // Settings are a convenience; chat still works on defaults, so surface
-        // the problem rather than blocking the window on it.
+        // Settings are a convenience; the briefing still renders on defaults,
+        // so surface the problem rather than blocking the window on it.
         setError(toErrorMessage(settingsError));
         setSettings(FALLBACK_SETTINGS);
       });
@@ -69,8 +66,23 @@ export function App(): React.JSX.Element {
     // Clicking the notification should land on the briefing it was about, not
     // on whatever view happened to be open when the window was last closed.
     return window.trajectory.onShowBriefing(() => {
-      setView("briefings");
+      setRoute(HOME);
     });
+  }, []);
+
+  const navigate = useCallback(
+    (next: Route): void => {
+      setRoute(next);
+      if (next.view !== "chat") {
+        refreshMentors();
+      }
+    },
+    [refreshMentors],
+  );
+
+  const askInChat = useCallback((question: string): void => {
+    setChatSeed(question);
+    setRoute(routeTo("chat"));
   }, []);
 
   const persist = useCallback((next: AppSettings): void => {
@@ -80,79 +92,58 @@ export function App(): React.JSX.Element {
     });
   }, []);
 
-  const activate = useCallback(
-    (id: string): void => {
-      setSettings((current) => {
-        const next = { ...(current ?? FALLBACK_SETTINGS), activeMentorId: id };
-        void window.trajectory.saveSettings(next).catch((saveError: unknown) => {
-          setError(toErrorMessage(saveError));
-        });
-        return next;
-      });
-    },
-    [],
-  );
-
   if (!settings) {
     return <div className="center-state">Starting Trajectory…</div>;
   }
 
-  const activeMentor = mentors.find(
-    (mentor) => mentor.id === settings.activeMentorId,
-  );
+  const activeMentor =
+    mentors.find((mentor) => mentor.id === settings.activeMentorId) ?? null;
 
   return (
     <div className="app-shell">
-      <nav className="rail">
-        <div className="brand-mark" title="Trajectory">
-          T
-        </div>
-        {VIEWS.map((entry) => (
-          <button
-            key={entry.name}
-            className={`rail-button ${view === entry.name ? "active" : ""}`}
-            title={entry.label}
-            aria-label={entry.label}
-            aria-current={view === entry.name}
-            onClick={() => {
-              setView(entry.name);
-              if (entry.name !== "chat") {
-                refreshMentors();
-              }
-            }}
-          >
-            <span aria-hidden>{entry.icon}</span>
-            <em>{entry.label}</em>
-          </button>
-        ))}
-      </nav>
+      <Rail route={route} onNavigate={navigate} />
 
       {error && <div className="error-banner floating">{error}</div>}
 
-      {view === "chat" && (
+      {route.view === "today" && (
+        <TodayView
+          route={route}
+          settings={settings}
+          mentor={activeMentor}
+          onNavigate={navigate}
+          onAsk={askInChat}
+        />
+      )}
+      {route.view === "chat" && (
         <ChatView
           provider={settings.provider}
           mentorName={activeMentor?.name ?? "Context-aware mentorship"}
           mentorDisclaimer={activeMentor?.disclaimer ?? ""}
+          seed={chatSeed}
+          onSeedUsed={() => setChatSeed(null)}
           onChangeProvider={(provider: ProviderName) => {
             persist({ ...settings, provider });
           }}
         />
       )}
-      {view === "briefings" && (
-        <BriefingsView briefingEnabled={settings.briefingEnabled} />
-      )}
-      {view === "profile" && <ProfileView />}
-      {view === "mentors" && (
-        <MentorsView
+      {route.view === "context" && (
+        <ContextView
+          route={route}
+          mentors={mentors}
           activeMentorId={settings.activeMentorId}
-          onActivate={activate}
+          onNavigate={navigate}
+          onMentorsChanged={setMentors}
+          onActivate={(id) => {
+            persist({ ...settings, activeMentorId: id });
+          }}
         />
       )}
-      {view === "settings" && (
+      {route.view === "settings" && (
         <SettingsView
+          route={route}
           settings={settings}
           mentors={mentors}
+          onNavigate={navigate}
           onSaved={(next) => {
             setSettings(next);
             refreshMentors();

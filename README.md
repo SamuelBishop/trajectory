@@ -344,7 +344,7 @@ trajectory/
 │   │   ├── engine/     Mentorship engine, schemas, model providers
 │   │   ├── main/       Electron main process, IPC, encrypted stores
 │   │   ├── preload/    The only bridge the renderer can see
-│   │   ├── renderer/   React UI: chat, profile, mentors, settings
+│   │   ├── renderer/   React UI: today, chat, context, settings
 │   │   └── shared/     Types crossing the process boundary
 │   ├── tests/
 │   └── scripts/        Packaged-app smoke test

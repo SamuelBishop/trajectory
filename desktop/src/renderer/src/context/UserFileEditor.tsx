@@ -9,9 +9,7 @@
  * code cannot reach it.
  */
 
-import { useState } from "react";
-
-import type { ConfigDocument, UserConfigFile } from "../../shared/types";
+import type { ConfigDocument, UserConfigFile } from "../../../shared/types";
 import {
   Field,
   ListEditor,
@@ -21,8 +19,8 @@ import {
   TagInput,
   TextArea,
   TextInput,
-} from "./FormKit";
-import { useDocument } from "./useDocument";
+} from "../FormKit";
+import { useDocument } from "../useDocument";
 
 interface Goal {
   id: string;
@@ -36,7 +34,7 @@ interface Goal {
   tags: string[];
 }
 
-const SECTIONS: readonly {
+export const USER_SECTIONS: readonly {
   readonly file: UserConfigFile;
   readonly label: string;
   readonly blurb: string;
@@ -286,7 +284,11 @@ function GenericForm({
   );
 }
 
-function SectionEditor({ file }: { readonly file: UserConfigFile }) {
+export function UserFileEditor({
+  file,
+}: {
+  readonly file: UserConfigFile;
+}): React.JSX.Element {
   const editor = useDocument<Record<string, unknown>>(source(file), [file]);
   const { model, mode, saving } = editor;
 
@@ -353,51 +355,5 @@ function SectionEditor({ file }: { readonly file: UserConfigFile }) {
         onRevert={editor.revert}
       />
     </div>
-  );
-}
-
-export function ProfileView(): React.JSX.Element {
-  const [active, setActive] = useState<UserConfigFile>("goals");
-  const section = SECTIONS.find((item) => item.file === active) ?? SECTIONS[0]!;
-
-  return (
-    <>
-      <aside className="sidebar">
-        <div className="sidebar-heading">Your profile</div>
-        <div className="conversation-list">
-          {SECTIONS.map((item) => (
-            <div
-              className={`conversation-item ${
-                item.file === active ? "active" : ""
-              }`}
-              key={item.file}
-            >
-              <button
-                className="conversation-open"
-                onClick={() => setActive(item.file)}
-              >
-                <span className="conversation-title">{item.label}</span>
-              </button>
-            </div>
-          ))}
-        </div>
-        <div className="sidebar-footer">
-          <span className="lock">●</span>
-          Stored only on this device
-        </div>
-      </aside>
-
-      <main className="chat-panel">
-        <header className="chat-header">
-          <div>
-            <h1>{section.label}</h1>
-            <span>{section.blurb}</span>
-          </div>
-        </header>
-        <section className="view-body">
-          <SectionEditor key={active} file={active} />
-        </section>
-      </main>
-    </>
   );
 }

@@ -183,6 +183,11 @@ export interface MentorSummary {
 export interface AppSettings {
   provider: ProviderName;
   model: string;
+  /**
+   * What Today calls you. Empty is a legitimate answer — the greeting drops the
+   * name rather than inventing one.
+   */
+  displayName: string;
   activeMentorId: string;
   briefingEnabled: boolean;
   /** Minutes since local midnight; 720 is noon. */
@@ -209,6 +214,13 @@ export interface BriefingView {
     principle_ids: string[];
     source_ids: string[];
     activity_ids: string[];
+    /**
+     * What the mentor read, and what it concluded from it. Two fields rather
+     * than one narrative ([HC-OBSERVATION-VS-INFERENCE]) — the user has to be
+     * able to reject the reasoning without doubting the reading.
+     */
+    observations: string[];
+    inferences: string[];
     confidence: number;
     uncertainties: string[];
   } | null;

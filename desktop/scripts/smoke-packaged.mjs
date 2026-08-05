@@ -262,38 +262,56 @@ try {
 
   // The IPC checks below would all pass on a build whose React tree crashed on
   // mount, because the bridge lives in preload. Drive the actual UI too.
+  //
+  // The path driven here is the daily loop: land on Today, open the context a
+  // briefing would cite, then reach one integration's own page. A build whose
+  // rail renders but whose Today grid never mounts passes every IPC check
+  // above, so the assertions name specific structures rather than "no error".
   const ui = JSON.parse(
     await session.evaluate(`
       (async () => {
         const settle = () => new Promise((r) => setTimeout(r, 400));
+        const railLabel = (node) => node.textContent?.trim() ?? "";
         const click = async (label) => {
           const button = [...document.querySelectorAll(".rail-button")]
-            .find((node) => node.getAttribute("aria-label") === label);
+            .find((node) => railLabel(node) === label);
           if (!button) throw new Error("no rail button for " + label);
           button.click();
           await settle();
           return document.querySelector("h1")?.textContent ?? "";
         };
+        const pick = async (selector, text) => {
+          const node = [...document.querySelectorAll(selector)]
+            .find((item) => item.textContent?.trim() === text);
+          if (!node) throw new Error("no " + selector + " labelled " + text);
+          node.click();
+          await settle();
+          return node;
+        };
         try {
           await settle();
-          const rail = [...document.querySelectorAll(".rail-button")]
-            .map((node) => node.getAttribute("aria-label"));
-          const profile = await click("Profile");
+          const rail = [...document.querySelectorAll(".rail-button")].map(railLabel);
+
+          // Today is the home screen: it is whatever the window opens on.
+          const today = {
+            greeting: (document.querySelector("h1")?.textContent ?? "").startsWith("Good "),
+            grid: Boolean(document.querySelector(".today-grid")),
+            sources: Boolean(
+              [...document.querySelectorAll(".card-title")]
+                .find((node) => node.textContent === "Sources"),
+            ),
+            momentum: Boolean(document.querySelector(".momentum")),
+          };
+
+          const context = await click("Context");
           const fields = document.querySelectorAll(".field").length;
-          const mentors = await click("Mentors");
-          const voiceButton = [...document.querySelectorAll(".segmented button")]
-            .find((node) => node.textContent?.trim() === "Voice");
-          if (!(voiceButton instanceof HTMLButtonElement)) {
-            throw new Error("the Voice editor tab is missing");
-          }
-          voiceButton.click();
-          await settle();
+          await pick(".context-item", "Voice");
           const voiceEditor = document.querySelector(".yaml-editor");
           const voiceLoaded =
             voiceEditor instanceof HTMLTextAreaElement &&
             voiceEditor.value.includes("version: 2");
-          document.querySelector(".new-chat")?.click();
-          await settle();
+
+          await pick(".header-actions button", "Duplicate");
           const mentorName = document.querySelector("#mentor-name");
           if (!(mentorName instanceof HTMLInputElement)) {
             throw new Error("the duplicate form did not open");
@@ -307,29 +325,46 @@ try {
           mentorName.form?.requestSubmit();
           await settle();
           await settle();
-          const duplicate = document.querySelector("h1")?.textContent ?? "";
-          const duplicateListed = [...document.querySelectorAll(".conversation-title")]
+          const duplicateListed = [...document.querySelectorAll(".context-sidebar option")]
             .some((node) => node.textContent?.includes("UI Mentor"));
           await window.trajectory.deleteMentor("ui_mentor");
+          await settle();
+
           const settings = await click("Settings");
-          // The Activity pane loads its state asynchronously, so settle again
-          // before reading it. Checking only the heading would pass even if the
-          // pane never rendered a control.
+          await pick(".segment", "Integrations");
+          // The pane loads its state asynchronously, so settle again before
+          // reading it. Checking only the heading would pass even if it never
+          // rendered a row.
           await settle();
           await settle();
-          const activityPane = {
-            heading: [...document.querySelectorAll(".section-title")]
-              .some((node) => node.textContent === "Activity"),
-            cards: document.querySelectorAll(".integration-card").length,
-            toggles: document.querySelectorAll(".integration-card .toggle").length,
-            text: document.querySelector(".integration-card")?.textContent ?? "",
+          const rows = [...document.querySelectorAll(".nav-row")];
+          const rowCount = rows.length;
+          const fieldsBeforeOpening = document.querySelectorAll(".field").length;
+          // GitHub specifically, not the first row: the offline fixture needs no
+          // credential, so opening it would prove nothing about the connection
+          // block being wired to the integration it belongs to.
+          const githubRow = rows.find((node) =>
+            node.textContent?.includes("GitHub commits"),
+          );
+          if (!githubRow) throw new Error("no GitHub row in the integrations list");
+          githubRow.click();
+          await settle();
+          const detail = {
+            heading: document.querySelector(".detail-header h2")?.textContent ?? "",
+            hosts: document.querySelector(".detail-header p")?.textContent ?? "",
+            sections: [...document.querySelectorAll(".detail .card-title")]
+              .map((node) => node.textContent),
+            fields: document.querySelectorAll(".detail .field").length,
+            credential: Boolean(document.querySelector(".detail input[type=password], .detail textarea")),
           };
+
           const chat = await click("Chat");
           const disclosure =
             document.querySelector(".mentor-disclaimer")?.textContent ?? "";
           return JSON.stringify({
-            ok: true, rail, profile, fields, mentors, duplicate,
-            duplicateListed, settings, voiceLoaded, disclosure, activityPane,
+            ok: true, rail, today, context, fields, duplicateListed,
+            voiceLoaded, settings, rowCount, fieldsBeforeOpening, detail,
+            disclosure,
             chat: chat.length > 0,
             composer: Boolean(document.querySelector(".composer textarea")),
           });
@@ -342,13 +377,15 @@ try {
   check(
     "every view renders and the rail switches between them",
     ui.ok === true &&
-      ui.rail.join() === "Chat,Profile,Mentors,Settings" &&
-      ui.profile === "Goals" &&
+      ui.rail.join() === "Today,Chat,Context,Settings" &&
+      ui.today.greeting === true &&
+      ui.today.grid === true &&
+      ui.today.sources === true &&
+      ui.today.momentum === true &&
+      ui.context === "Goals" &&
       ui.fields > 0 &&
-      ui.mentors.length > 0 &&
-      ui.duplicate === "UI Mentor" &&
-      ui.duplicateListed === true &&
       ui.voiceLoaded === true &&
+      ui.duplicateListed === true &&
       ui.disclosure.includes("fictional") &&
       ui.settings === "Settings" &&
       ui.chat === true &&
@@ -356,13 +393,17 @@ try {
     JSON.stringify(ui),
   );
   check(
-    "the Activity pane renders its controls and says where it connects",
+    "each integration has its own page, and the list itself has no form fields",
     ui.ok === true &&
-      ui.activityPane.heading === true &&
-      ui.activityPane.cards > 0 &&
-      ui.activityPane.toggles >= 3 &&
-      ui.activityPane.text.includes("Makes no network connection"),
-    JSON.stringify(ui.activityPane),
+      ui.rowCount >= 4 &&
+      ui.fieldsBeforeOpening === 0 &&
+      ui.detail.fields > 0 &&
+      ui.detail.heading === "GitHub commits" &&
+      ui.detail.sections.includes("Connection") &&
+      ui.detail.sections.includes("What it reads") &&
+      ui.detail.credential === true &&
+      /Connects only to api.github.com/.test(ui.detail.hosts),
+    JSON.stringify({ rowCount: ui.rowCount, detail: ui.detail }),
   );
 
   const editing = JSON.parse(

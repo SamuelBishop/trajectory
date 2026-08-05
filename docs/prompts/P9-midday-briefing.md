@@ -64,7 +64,7 @@ goal — and it is invisible when each day is a separate conversation.
 | Notification text | `engine/notification-text.ts` | The one place text leaves for the OS |
 | Store | `main/briefing-store.ts` | Encrypted per-day, refuses plaintext |
 | Service | `main/briefing-service.ts` | Sync → compose → store → notify |
-| Pane | `renderer/src/BriefingsView.tsx` | History, stale-source notice, "Run now" |
+| Home screen | `renderer/src/today/` | Assessment, evidence, sources, history, "Run now" |
 
 ### Why a third provider method rather than a flag
 

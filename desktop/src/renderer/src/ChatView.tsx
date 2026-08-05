@@ -81,6 +81,13 @@ export interface ChatViewProps {
   readonly onChangeProvider: (provider: ProviderName) => void;
   readonly mentorName: string;
   readonly mentorDisclaimer: string;
+  /**
+   * A question handed over from Today. Placed in the composer rather than sent,
+   * because the user asked to *ask about* a priority, not to have it asked for
+   * them — and the wording is usually worth editing first.
+   */
+  readonly seed: string | null;
+  readonly onSeedUsed: () => void;
 }
 
 export function ChatView({
@@ -88,6 +95,8 @@ export function ChatView({
   onChangeProvider,
   mentorName,
   mentorDisclaimer,
+  seed,
+  onSeedUsed,
 }: ChatViewProps): React.JSX.Element {
   const [summaries, setSummaries] = useState<ConversationSummary[]>([]);
   const [active, setActive] = useState<Conversation | null>(null);
@@ -181,6 +190,14 @@ export function ChatView({
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [active?.messages, sending]);
+
+  useEffect(() => {
+    // Consumed once. Clearing it here rather than on unmount means returning to
+    // Chat later does not refill the composer with a question already answered.
+    if (seed === null) return;
+    setDraft(seed);
+    onSeedUsed();
+  }, [seed, onSeedUsed]);
 
   const title = useMemo(
     () => active?.title ?? "New conversation",
