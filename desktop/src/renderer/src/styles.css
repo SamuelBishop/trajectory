@@ -15,6 +15,8 @@
   --accent-ink: #d8e5c9;
   --accent-line: #3c4634;
   --accent-soft: #1d2318;
+  --scroll-thumb: #2f2e28;
+  --scroll-thumb-hover: #45433a;
   --warn: #d8b25f;
   --bad: #cf7a6a;
   --radius-sm: 10px;
@@ -22,6 +24,11 @@
   --radius-lg: 18px;
   --gap: 16px;
   --gap-lg: 22px;
+
+  /* Tells the platform this is a dark surface, so anything we cannot reach with
+     CSS — select popups, autofill, the scrollbars inside native widgets —
+     renders dark instead of painting a light band over the charcoal. */
+  color-scheme: dark;
 
   color: var(--ink);
   background: var(--bg);
@@ -52,6 +59,43 @@ textarea {
 
 button {
   color: inherit;
+}
+
+/* Scrollbars are defined once, globally, rather than per scroll region. There
+   are six of them and any new one should match without being told to. */
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+/* Transparent, so the gutter reads as part of the surface it sits on instead of
+   as a channel cut into it. */
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  /* Paints only inside the border, which turns the transparent border into
+     breathing room and leaves a 5px thumb floating in an 11px gutter. */
+  background-clip: padding-box;
+  background-color: var(--scroll-thumb);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scroll-thumb-hover);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--ink-faint);
+}
+
+/* The stepper arrows belong to a different era of macOS than the rest of this
+   interface. */
+::-webkit-scrollbar-button {
+  display: none;
 }
 
 .app-shell {
