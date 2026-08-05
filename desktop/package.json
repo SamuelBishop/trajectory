@@ -1,6 +1,6 @@
 {
   "name": "trajectory-desktop",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Local-first, context-aware AI mentorship desktop app",
   "author": "Trajectory contributors",
   "private": true,
@@ -13,6 +13,7 @@
     "test": "vitest run",
     "icons": "node scripts/build-icons.mjs",
     "package": "npm run build && electron-builder --dir",
+    "dist": "npm run package && node scripts/build-dmg.mjs",
     "smoke": "node scripts/smoke-packaged.mjs"
   },
   "dependencies": {
@@ -45,7 +46,8 @@
     },
     "files": [
       "out/**/*",
-      "package.json"
+      "package.json",
+      "!node_modules/**/*.map"
     ],
     "extraResources": [
       {
@@ -59,7 +61,8 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
-      "icon": "build/icon.icns"
+      "icon": "build/icon.icns",
+      "identity": null
     },
     "win": {
       "target": "nsis",
