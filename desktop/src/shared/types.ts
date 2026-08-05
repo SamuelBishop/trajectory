@@ -2,6 +2,28 @@ export type ProviderName = "deterministic" | "copilot" | "openai";
 export type MessageRole = "user" | "assistant";
 
 /**
+ * One cited activity record, as it was when the answer was written.
+ *
+ * A copy rather than a pointer into the activity store, because activity is
+ * subject to retention and the answer is not. A citation that resolved to
+ * nothing six months later would be worse than no citation at all: the reader
+ * would be shown a control that promises evidence and delivers a blank.
+ *
+ * These are the mentor's own cited ids joined to the records the mentor was
+ * given. Nothing here is inferred, and an id the request cannot account for is
+ * left out rather than guessed at.
+ */
+export interface Citation {
+  id: string;
+  /** Which adapter produced it, so the chip can show the right mark. */
+  integrationId: string;
+  /** The calendar date the activity happened, not when it was fetched. */
+  occurredAt: string;
+  summary: string;
+  url: string | null;
+}
+
+/**
  * What one answer was built from, as the mentor reported it.
  *
  * The last three fields are optional because messages stored before they were
@@ -14,6 +36,8 @@ export interface Grounding {
   principleIds: string[];
   sourceIds: string[];
   activityIds?: string[];
+  /** See `Citation`. Absent on messages stored before citations were kept. */
+  citations?: Citation[];
   observations?: string[];
   inferences?: string[];
   confidence: number;

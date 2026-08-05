@@ -40,6 +40,7 @@ import { createProvider } from "../engine/providers/factory";
 import { loadSettings, saveSettings } from "../engine/settings";
 import type { ProviderName, SendMessageInput } from "../shared/types";
 import { CopilotLogin } from "./copilot-login";
+import { citationsFor } from "./citations";
 import { revealChatAnswer } from "./chat-stream";
 import { BriefingService } from "./briefing-service";
 import { EncryptedBriefingStore } from "./briefing-store";
@@ -367,8 +368,9 @@ export function registerIpcHandlers(options: {
     await store.append(conversationId, "user", content);
 
     let response;
+    let request;
     try {
-      ({ response } = await chatWithMentor(
+      ({ response, request } = await chatWithMentor(
         content,
         conversation.messages.map((item) => ({
           role: item.role,
@@ -409,6 +411,7 @@ export function registerIpcHandlers(options: {
       // from. The provider already reports all three; dropping them here was
       // the only reason the chat pane could not show its own evidence.
       activityIds: response.activity_ids,
+      citations: citationsFor(response.activity_ids, request.activity_context),
       observations: response.observations,
       inferences: response.inferences,
       confidence: response.confidence,

@@ -181,7 +181,18 @@ const BRANDS: Readonly<Record<string, SourceBrand>> = {
 };
 
 export function sourceBrand(integration: IntegrationSummary): SourceBrand {
-  return BRANDS[integration.id] ?? { name: integration.label, brand: null };
+  return brandFor(integration.id, integration.label);
+}
+
+/**
+ * The same lookup, for callers that hold an integration id and no summary.
+ *
+ * A chat citation knows which adapter produced the record it cites, but never
+ * sees the `IntegrationSummary` that Today is built from. Both go through here
+ * so a source cannot be called one thing on Today and another in an answer.
+ */
+export function brandFor(id: string, fallbackLabel: string): SourceBrand {
+  return BRANDS[id] ?? { name: fallbackLabel, brand: null };
 }
 
 export function formatConfidence(confidence: number): string {  return `${String(Math.round(confidence * 100))}%`;

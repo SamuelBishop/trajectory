@@ -2560,3 +2560,154 @@ button.ghost:hover {
     display: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Inline citations.
+
+   The chip sits in the run of text, so everything here is sized to the line it
+   interrupts rather than to a grid. The hover card is absolutely positioned and
+   never affects layout: a citation that reflowed the paragraph on hover would
+   move the sentence the reader is checking.
+   --------------------------------------------------------------------------- */
+
+.citation-group {
+  display: inline-flex;
+  gap: 2px;
+  /* Sits with the words rather than between them: no leading space, and a
+     nudge off the baseline so the mark rides with the text it annotates. */
+  margin: 0 1px 0 2px;
+  vertical-align: -3px;
+}
+
+.citation {
+  position: relative;
+  display: inline-flex;
+  /* The mark must not stretch the line box. Its own height is 16px, and
+     zeroing the inherited 1.72 line-height here is what keeps a paragraph
+     with citations the same height as one without. */
+  line-height: 0;
+}
+
+.citation-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  cursor: default;
+  opacity: 0.86;
+  transition:
+    opacity 120ms ease,
+    box-shadow 120ms ease;
+}
+
+/* A ring rather than a border, because a border would resize the mark and
+   nudge the sentence sideways on hover. */
+.citation-chip:hover,
+.citation-chip:focus-visible {
+  opacity: 1;
+  box-shadow: 0 0 0 2px var(--accent-line);
+}
+
+.citation-card {
+  position: absolute;
+  left: 50%;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  /* Wide enough for a one-line summary, capped so a long one wraps instead of
+     spanning the window. */
+  width: max-content;
+  max-width: 300px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 45%);
+  /* Text inside the card is a card, not part of the sentence it hangs over. */
+  white-space: normal;
+  text-align: left;
+  font-size: 12.5px;
+  line-height: 1.5;
+  opacity: 0;
+  /* Hidden from the pointer as well as the eye, so it cannot swallow a click
+     on the words underneath while it is invisible. */
+  pointer-events: none;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+/* Opens upward by default, and downward when the scroll container would cut
+   the card off. `placementFor` picks; these two only place. */
+.citation-card-above {
+  bottom: calc(100% + 8px);
+  transform: translate(-50%, 3px);
+}
+
+.citation-card-below {
+  top: calc(100% + 8px);
+  transform: translate(-50%, -3px);
+}
+
+.citation:hover .citation-card,
+.citation-chip:focus-visible + .citation-card {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.citation-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.citation-card-head strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.citation-card-date {
+  flex: 0 0 auto;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.citation-card-summary {
+  color: var(--ink);
+}
+
+/* The id still has one job — quoting it back when something is wrong — so it
+   stays reachable, in the place where it costs the reader nothing. */
+.citation-card-id {
+  color: var(--ink-faint);
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  word-break: break-all;
+}
+
+/* The records an answer used but did not name in its own sentence. Sits
+   between the answer and its actions, closer to the text than to the buttons,
+   because it belongs to the claim rather than to what you can do about it. */
+.citation-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.citation-row-label {
+  color: var(--ink-faint);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+}
+
+.citation-row .citation-group {
+  margin: 0;
+  gap: 4px;
+  vertical-align: baseline;
+}

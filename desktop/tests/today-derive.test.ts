@@ -9,6 +9,7 @@ import {
   greetingLine,
   localDateKey,
   relativeTime,
+  brandFor,
   sourceBrand,
   sourceState,
   streakDays,
@@ -251,5 +252,23 @@ describe("sourceBrand", () => {
     expect(
       sourceBrand(integration({ id: "fixture", label: "Sample data (offline)" })),
     ).toEqual({ name: "Sample data", brand: null });
+  });
+});
+
+describe("brandFor", () => {
+  it("names a source the same way chat does and Today does", () => {
+    // Two lookups would let a source be called "Strava" in one place and
+    // "Strava activities" in the other, and the reader would have no way to
+    // know they were the same thing.
+    expect(brandFor("strava", "ignored")).toEqual(
+      sourceBrand(integration({ id: "strava" })),
+    );
+  });
+
+  it("keeps an unregistered id's fallback verbatim and gives it no mark", () => {
+    expect(brandFor("garmin", "garmin")).toEqual({
+      name: "garmin",
+      brand: null,
+    });
   });
 });

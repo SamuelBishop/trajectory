@@ -98,9 +98,16 @@ const MARKS: Readonly<Record<BrandName, Mark>> = {
 export function BrandIcon({
   brand,
   size = 22,
+  pad = 14,
 }: {
   readonly brand: BrandName | null;
   readonly size?: number;
+  /**
+   * Space around the glyph. A list row can afford a generous tile; a mark set
+   * inline in a sentence has to sit inside the line box, and the same padding
+   * there would push the lines apart.
+   */
+  readonly pad?: number;
 }): React.JSX.Element {
   const mark = brand === null ? null : MARKS[brand];
 
@@ -108,8 +115,8 @@ export function BrandIcon({
     <span
       className="brand-tile"
       style={{
-        width: size + 14,
-        height: size + 14,
+        width: size + pad,
+        height: size + pad,
         background: mark?.tint ?? "rgba(255, 255, 255, 0.05)",
         color: mark?.ink ?? "var(--ink-faint)",
       }}
