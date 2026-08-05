@@ -13,7 +13,7 @@ import type {
   MentorSummary,
   ProviderName,
 } from "../../shared/types";
-import { ChatView } from "./ChatView";
+import { ChatView } from "./chat/ChatView";
 import { ContextView } from "./context/ContextView";
 import { toErrorMessage } from "./errors";
 import { HOME, routeTo, type Route } from "./route";
@@ -119,6 +119,8 @@ export function App(): React.JSX.Element {
           provider={settings.provider}
           mentorName={activeMentor?.name ?? "Context-aware mentorship"}
           mentorDisclaimer={activeMentor?.disclaimer ?? ""}
+          displayName={settings.displayName}
+          onNavigate={navigate}
           seed={chatSeed}
           onSeedUsed={() => setChatSeed(null)}
           onChangeProvider={(provider: ProviderName) => {

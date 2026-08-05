@@ -1,21 +1,37 @@
+/**
+ * Chat: the grounded follow-up, secondary to the briefing.
+ *
+ * Three columns, in the order they are used: which conversation, the
+ * conversation itself, and what the last answer was built from. The evidence
+ * column is the reason this is not a generic chat window — an answer about the
+ * user's life is only worth reading if what it read is one glance away.
+ *
+ * Implements: [HC-RENDERER-IS-UNTRUSTED], [SC-UNCERTAINTY-DECLARED]
+ */
+
 import {
   type FormEvent,
   type KeyboardEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 
 import type {
   ChatMessage,
   Conversation,
   ConversationSummary,
+  Grounding,
   ProviderName,
-} from "../../shared/types";
-import { toErrorMessage } from "./errors";
+} from "../../../shared/types";
+import { toErrorMessage } from "../errors";
+import type { Route } from "../route";
+import { Icon } from "../ui/Icon";
+import { ConversationList } from "./ConversationList";
+import { EvidenceSidebar } from "./EvidenceSidebar";
+import { Message } from "./Message";
 
 const SUGGESTIONS = [
   "What should I focus on this week?",
@@ -23,57 +39,13 @@ const SUGGESTIONS = [
   "Where am I drifting from my stated priorities?",
 ];
 
-function Message({ message }: { message: ChatMessage }): React.JSX.Element {
-  return (
-    <article className={`message message-${message.role}`}>
-      <div className="message-avatar">
-        {message.role === "assistant" ? "T" : "You"}
-      </div>
-      <div className="message-body">
-        <div className="message-label">
-          {message.role === "assistant" ? "Trajectory" : "You"}
-        </div>
-        <div className="message-content">
-          {message.role === "assistant" ? (
-            <Markdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                // Main-process navigation policy denies new windows and
-                // renderer navigation. Keep links visibly useful without
-                // pretending they can navigate this privileged window.
-                a: ({ children, href }) => (
-                  <a href={href} target="_blank" rel="noreferrer">
-                    {children}
-                  </a>
-                ),
-              }}
-            >
-              {message.content}
-            </Markdown>
-          ) : (
-            message.content
-          )}
-        </div>
-        {message.grounding && (
-          <details className="grounding">
-            <summary>
-              Grounding · {Math.round(message.grounding.confidence * 100)}%
-            </summary>
-            <div className="grounding-row">
-              {[...message.grounding.goalIds, ...message.grounding.principleIds].map(
-                (id) => (
-                  <span key={id}>{id}</span>
-                ),
-              )}
-            </div>
-            {message.grounding.uncertainties.map((uncertainty) => (
-              <p key={uncertainty}>{uncertainty}</p>
-            ))}
-          </details>
-        )}
-      </div>
-    </article>
-  );
+/** The answer whose evidence is shown when the user has not picked one. */
+function latestGrounded(messages: readonly ChatMessage[]): ChatMessage | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role === "assistant" && message.grounding) return message;
+  }
+  return null;
 }
 
 export interface ChatViewProps {
@@ -81,6 +53,8 @@ export interface ChatViewProps {
   readonly onChangeProvider: (provider: ProviderName) => void;
   readonly mentorName: string;
   readonly mentorDisclaimer: string;
+  readonly displayName: string;
+  readonly onNavigate: (next: Route) => void;
   /**
    * A question handed over from Today. Placed in the composer rather than sent,
    * because the user asked to *ask about* a priority, not to have it asked for
@@ -95,6 +69,8 @@ export function ChatView({
   onChangeProvider,
   mentorName,
   mentorDisclaimer,
+  displayName,
+  onNavigate,
   seed,
   onSeedUsed,
 }: ChatViewProps): React.JSX.Element {
@@ -104,6 +80,10 @@ export function ChatView({
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  /** Which answer's evidence is shown. Null follows the newest one. */
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [now, setNow] = useState(() => new Date());
   const endRef = useRef<HTMLDivElement>(null);
   const activeRequestRef = useRef<string | null>(null);
   const initializationRef = useRef<Promise<{
@@ -122,16 +102,18 @@ export function ChatView({
 
   const openConversation = async (id: string): Promise<void> => {
     setError(null);
+    setSelectedId(null);
     const conversation = await window.trajectory.getConversation(id);
     setActive(conversation);
   };
 
-  const newConversation = async (): Promise<void> => {
+  const newConversation = useCallback(async (): Promise<void> => {
     setError(null);
+    setSelectedId(null);
     const conversation = await window.trajectory.createConversation();
     setActive(conversation);
     await refreshSummaries();
-  };
+  }, []);
 
   useEffect(() => {
     initializationRef.current ??= (async () => {
@@ -166,6 +148,24 @@ export function ChatView({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    // The list shows "4:32 PM" and "Yesterday"; both go stale in a window left
+    // open overnight.
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const onKey = (event: globalThis.KeyboardEvent): void => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        void newConversation();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [newConversation]);
 
   useEffect(
     () =>
@@ -204,6 +204,16 @@ export function ChatView({
     [active?.title],
   );
 
+  const messages = active?.messages ?? [];
+  // The initial reads as a person; "You" beside the label "You" reads as a bug.
+  const youMark = displayName.trim().slice(0, 1).toUpperCase() || "You";
+  const evidenceMessage =
+    (selectedId === null
+      ? null
+      : (messages.find((item) => item.id === selectedId) ?? null)) ??
+    latestGrounded(messages);
+  const grounding: Grounding | null = evidenceMessage?.grounding ?? null;
+
   const send = async (content: string): Promise<void> => {
     const message = content.trim();
     if (!message || !active || sending) {
@@ -212,6 +222,7 @@ export function ChatView({
     setDraft("");
     setError(null);
     setSending(true);
+    setSelectedId(null);
     const requestId = crypto.randomUUID();
     activeRequestRef.current = requestId;
     const optimistic: ChatMessage = {
@@ -274,23 +285,19 @@ export function ChatView({
     }
   };
 
-  const removeConversation = async (
-    event: React.MouseEvent,
-    id: string,
-  ): Promise<void> => {
-    event.stopPropagation();
+  const removeActive = async (): Promise<void> => {
+    if (!activeId) return;
+    setMenuOpen(false);
     if (!window.confirm("Delete this encrypted conversation?")) {
       return;
     }
     try {
-      await window.trajectory.deleteConversation(id);
+      await window.trajectory.deleteConversation(activeId);
       const items = await refreshSummaries();
-      if (id === activeId) {
-        if (items[0]) {
-          await openConversation(items[0].id);
-        } else {
-          await newConversation();
-        }
+      if (items[0]) {
+        await openConversation(items[0].id);
+      } else {
+        await newConversation();
       }
     } catch (deleteError) {
       setError(toErrorMessage(deleteError));
@@ -299,103 +306,135 @@ export function ChatView({
 
   return (
     <>
-      <aside className="sidebar">
-        <button className="new-chat" onClick={() => void newConversation()}>
-          <span>+</span> New conversation
-        </button>
-        <div className="conversation-list">
-          {summaries.map((conversation) => (
-            <div
-              className={`conversation-item ${
-                conversation.id === activeId ? "active" : ""
-              }`}
-              key={conversation.id}
-            >
-              <button
-                className="conversation-open"
-                onClick={() => void openConversation(conversation.id)}
-              >
-                <span className="conversation-title">{conversation.title}</span>
-              </button>
-              <button
-                className="delete-chat"
-                onClick={(event) =>
-                  void removeConversation(event, conversation.id)
-                }
-                aria-label={`Delete ${conversation.title}`}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-        <div className="sidebar-footer">
-          <span className="lock">●</span>
-          History encrypted on this device
-        </div>
-      </aside>
+      <ConversationList
+        summaries={summaries}
+        activeId={activeId}
+        now={now}
+        onOpen={(id) => void openConversation(id)}
+        onCreate={() => void newConversation()}
+      />
 
       <main className="chat-panel">
         <header className="chat-header">
-          <div>
+          <div className="chat-heading">
             <h1>{title}</h1>
             <span>{mentorName}</span>
             {mentorDisclaimer && (
               <p className="mentor-disclaimer">{mentorDisclaimer}</p>
             )}
           </div>
-          <label className="provider-control">
-            <span>Model</span>
-            <select
-              value={provider}
-              onChange={(event) =>
-                onChangeProvider(event.target.value as ProviderName)
-              }
-              disabled={sending}
-            >
-              <option value="copilot">GitHub Copilot</option>
-              <option value="openai">OpenAI-compatible</option>
-              <option value="deterministic">Demo provider</option>
-            </select>
-          </label>
+          <div className="chat-header-controls">
+            <label className="provider-control">
+              <span>Model</span>
+              <select
+                value={provider}
+                onChange={(event) =>
+                  onChangeProvider(event.target.value as ProviderName)
+                }
+                disabled={sending}
+              >
+                <option value="copilot">GitHub Copilot</option>
+                <option value="openai">OpenAI-compatible</option>
+                <option value="deterministic">Demo provider</option>
+              </select>
+            </label>
+            <div className="overflow">
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Conversation actions"
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen((open) => !open)}
+              >
+                ⋯
+              </button>
+              {menuOpen && (
+                <>
+                  <button
+                    type="button"
+                    className="overflow-scrim"
+                    aria-label="Close menu"
+                    onClick={() => setMenuOpen(false)}
+                  />
+                  <div className="overflow-menu" role="menu">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => void newConversation()}
+                    >
+                      New conversation
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="danger"
+                      disabled={!activeId}
+                      onClick={() => void removeActive()}
+                    >
+                      Delete conversation
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </header>
 
-        <section className="messages" aria-live="polite">
-          {loading ? (
-            <div className="center-state">Loading encrypted conversations…</div>
-          ) : active?.messages.length ? (
-            <>
-              {active.messages.map((message) => (
-                <Message key={message.id} message={message} />
-              ))}
-              {sending &&
-                active?.messages.at(-1)?.content.length === 0 && (
-                <div className="thinking">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-                )}
-            </>
-          ) : (
-            <div className="welcome">
-              <div className="welcome-mark">T</div>
-              <h2>What deserves your attention?</h2>
-              <p>
-                Ask about a decision, a tradeoff, or where your current actions
-                point.
-              </p>
-              <div className="suggestions">
-                {SUGGESTIONS.map((suggestion) => (
-                  <button key={suggestion} onClick={() => void send(suggestion)}>
-                    {suggestion}
-                  </button>
-                ))}
+        <div className="chat-body">
+          <section className="messages" aria-live="polite">
+            {loading ? (
+              <div className="center-state">
+                Loading encrypted conversations…
               </div>
-            </div>
-          )}
-          <div ref={endRef} />
-        </section>
+            ) : messages.length ? (
+              <>
+                {messages.map((message) => (
+                  <Message
+                    key={message.id}
+                    message={message}
+                    youMark={youMark}
+                    selected={message.id === evidenceMessage?.id}
+                    onSelect={() => setSelectedId(message.id)}
+                  />
+                ))}
+                {sending && messages.at(-1)?.content.length === 0 && (
+                  <div className="thinking">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="welcome">
+                <div className="welcome-mark">T</div>
+                <h2>What deserves your attention?</h2>
+                <p>
+                  Ask about a decision, a tradeoff, or where your current actions
+                  point.
+                </p>
+                <div className="suggestions">
+                  {SUGGESTIONS.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      onClick={() => void send(suggestion)}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div ref={endRef} />
+          </section>
+
+          <EvidenceSidebar
+            grounding={grounding}
+            mentorName={mentorName}
+            mentorDisclaimer={mentorDisclaimer}
+            onNavigate={onNavigate}
+          />
+        </div>
 
         <footer className="composer-wrap">
           {error && <div className="error-banner">{error}</div>}
@@ -410,7 +449,8 @@ export function ChatView({
               disabled={sending || !active}
             />
             <button type="submit" disabled={!canSend} aria-label="Send message">
-              ↑
+              <Icon name="chevron" size={16} />
+              <kbd>↵</kbd>
             </button>
           </form>
           <p>

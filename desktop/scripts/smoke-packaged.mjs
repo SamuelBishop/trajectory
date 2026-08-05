@@ -367,6 +367,8 @@ try {
             disclosure,
             chat: chat.length > 0,
             composer: Boolean(document.querySelector(".composer textarea")),
+            evidencePane: Boolean(document.querySelector(".evidence-pane")),
+            conversationList: Boolean(document.querySelector(".conversation-list")),
           });
         } catch (error) {
           return JSON.stringify({ ok: false, error: String(error.message ?? error) });
@@ -389,7 +391,9 @@ try {
       ui.disclosure.includes("fictional") &&
       ui.settings === "Settings" &&
       ui.chat === true &&
-      ui.composer === true,
+      ui.composer === true &&
+      ui.evidencePane === true &&
+      ui.conversationList === true,
     JSON.stringify(ui),
   );
   check(

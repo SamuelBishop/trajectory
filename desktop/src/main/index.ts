@@ -21,8 +21,11 @@ function developmentRendererUrl(): string | null {
 
 function createWindow(): void {
   const window = new BrowserWindow({
-    width: 1240,
-    height: 820,
+    // Wide enough for the rail, a conversation list, an answer, and the
+    // evidence beside it — the four columns Chat is designed around. Narrower
+    // windows drop the evidence pane rather than squeezing the answer.
+    width: 1420,
+    height: 860,
     minWidth: 840,
     minHeight: 600,
     backgroundColor: "#11110f",

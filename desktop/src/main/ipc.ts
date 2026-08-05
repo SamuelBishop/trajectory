@@ -405,6 +405,12 @@ export function registerIpcHandlers(options: {
       goalIds: response.goal_ids,
       principleIds: response.principle_ids,
       sourceIds: response.source_ids,
+      // Recorded so the answer can be re-read later against what it was built
+      // from. The provider already reports all three; dropping them here was
+      // the only reason the chat pane could not show its own evidence.
+      activityIds: response.activity_ids,
+      observations: response.observations,
+      inferences: response.inferences,
       confidence: response.confidence,
       uncertainties: response.uncertainties,
     });

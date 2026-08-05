@@ -28,7 +28,13 @@ export type IconName =
   | "chevron"
   | "calendar"
   | "target"
-  | "sliders";
+  | "sliders"
+  | "plus"
+  | "chevron-down"
+  | "copy"
+  | "diamond"
+  | "pulse"
+  | "stack";
 
 const PATHS: Readonly<Record<IconName, React.ReactNode>> = {
   today: (
@@ -96,6 +102,22 @@ const PATHS: Readonly<Record<IconName, React.ReactNode>> = {
       <path d="M3.4 6.4h13.2M3.4 13.6h13.2" {...STROKE} />
       <circle cx="7.6" cy="6.4" r="1.9" {...STROKE} />
       <circle cx="12.6" cy="13.6" r="1.9" {...STROKE} />
+    </>
+  ),
+  plus: <path d="M10 4.4v11.2M4.4 10h11.2" {...STROKE} />,
+  "chevron-down": <path d="M5.5 8 10 12.5 14.5 8" {...STROKE} />,
+  copy: (
+    <>
+      <rect x="7.2" y="7.2" width="9.2" height="9.2" rx="1.5" {...STROKE} />
+      <path d="M12.8 4.6H5.1a1.5 1.5 0 0 0-1.5 1.5v7.7" {...STROKE} />
+    </>
+  ),
+  diamond: <path d="M10 3.2 16.8 10 10 16.8 3.2 10 10 3.2Z" {...STROKE} />,
+  pulse: <path d="M2.8 10.6h3.3l2-5 3 9.4 2.1-4.4h3.9" {...STROKE} />,
+  stack: (
+    <>
+      <path d="M10 3.2 17 6.3 10 9.4 3 6.3l7-3.1Z" {...STROKE} />
+      <path d="M3 10.2 10 13.3l7-3.1M3 13.8 10 16.9l7-3.1" {...STROKE} />
     </>
   ),
 };

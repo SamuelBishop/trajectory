@@ -1,10 +1,21 @@
 export type ProviderName = "deterministic" | "copilot" | "openai";
 export type MessageRole = "user" | "assistant";
 
+/**
+ * What one answer was built from, as the mentor reported it.
+ *
+ * The last three fields are optional because messages stored before they were
+ * recorded do not carry them. A reader must treat "absent" as "not recorded",
+ * never as "none": an empty list is a claim, and this application must not make
+ * one on the mentor's behalf.
+ */
 export interface Grounding {
   goalIds: string[];
   principleIds: string[];
   sourceIds: string[];
+  activityIds?: string[];
+  observations?: string[];
+  inferences?: string[];
   confidence: number;
   uncertainties: string[];
 }
