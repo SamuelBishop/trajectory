@@ -11,6 +11,7 @@
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "icons": "node scripts/build-icons.mjs",
     "package": "npm run build && electron-builder --dir",
     "smoke": "node scripts/smoke-packaged.mjs"
   },
@@ -57,10 +58,15 @@
       }
     ],
     "mac": {
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.icns"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "icon": "build/icon.png"
     }
   }
 }

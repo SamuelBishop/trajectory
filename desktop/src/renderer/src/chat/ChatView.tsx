@@ -28,6 +28,7 @@ import type {
 } from "../../../shared/types";
 import { toErrorMessage } from "../errors";
 import type { Route } from "../route";
+import { Mark } from "../ui/Mark";
 import { Icon } from "../ui/Icon";
 import { ConversationList } from "./ConversationList";
 import { EvidenceSidebar } from "./EvidenceSidebar";
@@ -407,7 +408,9 @@ export function ChatView({
               </>
             ) : (
               <div className="welcome">
-                <div className="welcome-mark">T</div>
+                <div className="welcome-mark">
+                  <Mark />
+                </div>
                 <h2>What deserves your attention?</h2>
                 <p>
                   Ask about a decision, a tradeoff, or where your current actions

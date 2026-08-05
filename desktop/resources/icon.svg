@@ -1,0 +1,54 @@
+<!--
+  The Trajectory mark, and the source of every icon the app ships.
+
+  A path rising left to right. The solid half is the ground already covered —
+  what the integrations actually observed. The faint half is where the stated
+  goal points. The node is today, sitting on the join between them. That split
+  is the whole product, so the mark says it rather than spelling a letter.
+
+  `npm run icons` rasterises this into the .icns and .ico that electron-builder
+  hands to macOS and Windows. The glyph is repeated in ui/Mark.tsx for the
+  in-app tile; tests/icon.test.ts fails if the two ever disagree.
+-->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1024"
+  height="1024"
+  viewBox="0 0 1024 1024"
+  role="img"
+  aria-label="Trajectory"
+>
+  <defs>
+    <!-- The same off-canvas wash the app shell carries, so the icon and the
+         window it opens are lit from the same corner. -->
+    <radialGradient id="wash" cx="0.8" cy="-0.2" r="0.72">
+      <stop offset="0" stop-color="#5b6e4d" stop-opacity="0.3" />
+      <stop offset="1" stop-color="#5b6e4d" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="229" fill="#252d20" />
+  <rect width="1024" height="1024" rx="229" fill="url(#wash)" />
+  <rect
+    x="6"
+    y="6"
+    width="1012"
+    height="1012"
+    rx="223"
+    fill="none"
+    stroke="#3c4634"
+    stroke-width="12"
+  />
+
+  <!-- The two halves are told apart by literal colour rather than by
+       stroke-opacity, which CoreGraphics drops when it rasterises this file. -->
+  <g fill="none" stroke-width="84" stroke-linecap="round">
+    <path d="M216 764C348 754 448 672 512 512" stroke="#8aa36a" />
+    <path d="M512 512C576 352 676 270 808 260" stroke="#687d52" />
+  </g>
+
+  <!-- A hairline of tile colour, so the node reads as a bead on the path
+       rather than a dot floating beside a break in it. -->
+  <circle cx="512" cy="512" r="98" fill="#252d20" />
+  <circle cx="512" cy="512" r="78" fill="#d8e5c9" />
+</svg>

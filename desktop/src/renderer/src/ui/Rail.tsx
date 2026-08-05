@@ -14,6 +14,7 @@
 
 import { HOME, routeTo, type Route, type ViewName } from "../route";
 import { Icon, type IconName } from "./Icon";
+import { Mark } from "./Mark";
 
 const DESTINATIONS: readonly {
   readonly view: ViewName;
@@ -52,8 +53,8 @@ export function Rail({
   return (
     <nav className="rail" aria-label="Primary">
       <div className="rail-brand">
-        <div className="brand-mark" aria-hidden>
-          T
+        <div className="brand-mark">
+          <Mark />
         </div>
         <div className="rail-brand-text">
           <strong>Trajectory</strong>

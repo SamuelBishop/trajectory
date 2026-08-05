@@ -133,16 +133,24 @@ button {
   place-items: center;
   border: 1px solid #5b6650;
   border-radius: 10px;
-  color: #d8e5c9;
   background: #252d20;
-  font-family: Georgia, serif;
-  font-weight: 700;
+}
+
+/* The glyph is cropped tight, so the tile supplies the breathing room. */
+.mark {
+  width: 62%;
+  height: 62%;
+}
+
+/* Matches the tile it is punched out of, so the node reads as a bead sitting
+   on the path rather than a dot beside a gap in it. */
+.mark-node-ring {
+  fill: #252d20;
 }
 
 .brand-mark {
   width: 35px;
   height: 35px;
-  font-size: 19px;
 }
 
 .brand strong,
@@ -667,7 +675,6 @@ kbd {
   height: 54px;
   margin-bottom: 20px;
   border-radius: 15px;
-  font-size: 27px;
 }
 
 .welcome h2 {
@@ -884,7 +891,6 @@ kbd {
 .rail-brand .brand-mark {
   width: 32px;
   height: 32px;
-  font-size: 14px;
 }
 
 .rail-brand-text {
