@@ -9,6 +9,7 @@ import {
   greetingLine,
   localDateKey,
   relativeTime,
+  sourceBrand,
   sourceState,
   streakDays,
 } from "../src/renderer/src/today/derive";
@@ -206,5 +207,49 @@ describe("small formatters", () => {
     expect(countLabel(0)).toBe("0 records");
     expect(countLabel(18, "activity", "activities")).toBe("18 activities");
     expect(countLabel(1, "activity", "activities")).toBe("1 activity");
+  });
+});
+
+describe("sourceBrand", () => {
+  it("shows the service, not the adapter's internal label", () => {
+    expect(sourceBrand(integration({ id: "github" }))).toEqual({
+      name: "GitHub",
+      brand: "github",
+    });
+    expect(
+      sourceBrand(integration({ id: "notion", label: "Notion tasks" })),
+    ).toEqual({ name: "Notion", brand: "notion" });
+    expect(
+      sourceBrand(
+        integration({ id: "google_sheets", label: "Google Sheets training log" }),
+      ),
+    ).toEqual({ name: "Google Sheets", brand: "google-sheets" });
+    expect(sourceBrand(integration({ id: "strava", label: "Strava" }))).toEqual({
+      name: "Strava",
+      brand: "strava",
+    });
+  });
+
+  it("keys on the id, so relabelling an adapter cannot change the mapping", () => {
+    // The tempting shortcut is to strip trailing words off `label`. That breaks
+    // the day someone renames the adapter, and quietly mislabels any future
+    // source whose label happens to start with a known word.
+    expect(
+      sourceBrand(integration({ id: "github", label: "Work commits (GH)" })),
+    ).toEqual({ name: "GitHub", brand: "github" });
+  });
+
+  it("leaves a source it cannot name alone rather than guessing", () => {
+    expect(
+      sourceBrand(integration({ id: "gitlab", label: "GitLab commits" })),
+    ).toEqual({ name: "GitLab commits", brand: null });
+  });
+
+  it("shortens the fixture without dropping the part that is a warning", () => {
+    // "Sample data" still says the records are invented. "(offline)" only says
+    // the adapter skips the network, which the status column already implies.
+    expect(
+      sourceBrand(integration({ id: "fixture", label: "Sample data (offline)" })),
+    ).toEqual({ name: "Sample data", brand: null });
   });
 });

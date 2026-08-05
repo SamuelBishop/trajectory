@@ -1867,6 +1867,50 @@ button.ghost:hover {
   margin: 0 -8px;
 }
 
+/*
+ * Three aligned columns. The status gets a fixed track rather than sitting
+ * wherever the name happens to end, so the dots form one readable line down the
+ * card — a stale source should be findable without reading any of the names.
+ */
+.source-row {
+  display: grid;
+  align-items: center;
+  grid-template-columns: auto 1fr 104px auto 16px;
+  gap: 12px;
+  padding: 8px 14px;
+}
+
+.source-row-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-row-count {
+  font-size: 12.5px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.brand-tile {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+}
+
+/* The freshness line beside the Sources title: text, then a bare control. */
+.source-freshness {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
 .briefing-row-main {
   display: flex;
   min-width: 0;
@@ -2119,6 +2163,18 @@ button.ghost:hover {
 .icon-button:disabled {
   cursor: default;
   opacity: 0.5;
+}
+
+/* No box. For an icon that sits inside another bordered element. */
+.icon-button.bare {
+  border: none;
+  background: none;
+  padding: 3px;
+  color: var(--ink-faint);
+}
+
+.icon-button.bare:hover:not(:disabled) {
+  color: var(--accent-ink);
 }
 
 .inline-warning,

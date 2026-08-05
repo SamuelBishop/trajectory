@@ -15,6 +15,7 @@
  */
 
 import type { BriefingView, IntegrationSummary } from "../../../shared/types";
+import type { BrandName } from "../ui/BrandIcon";
 import type { Health } from "../ui/Card";
 
 export function greetingFor(now: Date): string {
@@ -147,8 +148,43 @@ export function sourceState(
   return { health: "good", label: "Synced" };
 }
 
-export function formatConfidence(confidence: number): string {
-  return `${String(Math.round(confidence * 100))}%`;
+export interface SourceBrand {
+  readonly name: string;
+  readonly brand: BrandName | null;
+}
+
+/**
+ * Which service a row is showing, and what to call it.
+ *
+ * Keyed on the integration id and nothing else. The obvious shortcut — strip
+ * the trailing words off `label` — would rename any future adapter whose label
+ * happened to start with a known word, and would silently break the moment an
+ * adapter is relabelled. An id is the thing the app actually promises is
+ * stable.
+ *
+ * The short names exist because the row is one of five in a narrow column, and
+ * a truncated name is worse than a shorter true one. Each still says the thing
+ * that matters: "Sample data" keeps the warning that the records are invented,
+ * and drops only the detail that the adapter does not use the network — which
+ * the row's own status and its Settings page already cover.
+ *
+ * An unregistered id keeps its label verbatim and gets no mark. Today's job is
+ * to say what Trajectory read from; a source it cannot name should say so by
+ * showing its full label, not by borrowing a nearby brand.
+ */
+const BRANDS: Readonly<Record<string, SourceBrand>> = {
+  github: { name: "GitHub", brand: "github" },
+  notion: { name: "Notion", brand: "notion" },
+  strava: { name: "Strava", brand: "strava" },
+  google_sheets: { name: "Google Sheets", brand: "google-sheets" },
+  fixture: { name: "Sample data", brand: null },
+};
+
+export function sourceBrand(integration: IntegrationSummary): SourceBrand {
+  return BRANDS[integration.id] ?? { name: integration.label, brand: null };
+}
+
+export function formatConfidence(confidence: number): string {  return `${String(Math.round(confidence * 100))}%`;
 }
 
 export const ON_TRACK_LABEL: Readonly<Record<string, string>> = {

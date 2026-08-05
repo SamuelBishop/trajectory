@@ -12,11 +12,51 @@
  * Counts are records held on this device. Nothing here reveals what is in them.
  */
 
-import type { IntegrationsView } from "../../../shared/types";
+import type { IntegrationSummary, IntegrationsView } from "../../../shared/types";
 import { routeTo, type Route } from "../route";
-import { Card, CardHeader, NavRow, StatusDot } from "../ui/Card";
+import { BrandIcon } from "../ui/BrandIcon";
+import { Card, CardHeader, StatusDot } from "../ui/Card";
 import { Icon } from "../ui/Icon";
-import { countLabel, relativeTime, sourceState } from "./derive";
+import { countLabel, relativeTime, sourceBrand, sourceState } from "./derive";
+
+/**
+ * One source, as three aligned columns.
+ *
+ * Not the shared `NavRow`: that stacks a subtitle under its title, which buries
+ * the sync status underneath the name and leaves the reader scanning a ragged
+ * edge down the card. Here the status and the count each get their own column,
+ * so "which of my sources is stale" is answerable in one vertical glance —
+ * which is the entire reason this card is on the home screen.
+ *
+ * It reuses `.nav-row` for its hover, focus and disabled behaviour, and only
+ * overrides the layout.
+ */
+function SourceRow({
+  integration,
+  paused,
+  onOpen,
+}: {
+  readonly integration: IntegrationSummary;
+  readonly paused: boolean;
+  readonly onOpen: () => void;
+}): React.JSX.Element {
+  const state = sourceState(integration, paused);
+  const { name, brand } = sourceBrand(integration);
+
+  return (
+    <button type="button" className="nav-row source-row" onClick={onOpen}>
+      <BrandIcon brand={brand} />
+      <span className="source-row-name" title={name}>
+        {name}
+      </span>
+      <StatusDot health={state.health} label={state.label} />
+      <span className="source-row-count muted">
+        {countLabel(integration.signalCount)}
+      </span>
+      <Icon name="chevron" size={16} />
+    </button>
+  );
+}
 
 export function SourcesCard({
   view,
@@ -49,13 +89,14 @@ export function SourcesCard({
       <CardHeader
         title="Sources"
         action={
-          <div className="card-action">
-            <span className="muted">
-              {updated === null ? "Never synced" : `Updated ${updated}`}
-            </span>
+          // Plain text, not a control. The freshness is a statement; only the
+          // refresh beside it does anything, and wrapping both in a bordered
+          // pill made the button look like it was nested inside another one.
+          <div className="source-freshness">
+            <span>{updated === null ? "Never synced" : `Updated ${updated}`}</span>
             <button
               type="button"
-              className="icon-button"
+              className="icon-button bare"
               aria-label="Refresh every enabled source"
               title="Refresh every enabled source"
               disabled={busy || view === null}
@@ -80,22 +121,14 @@ export function SourcesCard({
         <p className="muted">No integrations are registered in this build.</p>
       ) : (
         <div className="source-rows">
-          {view.integrations.map((integration) => {
-            const state = sourceState(integration, view.paused);
-            return (
-              <NavRow
-                key={integration.id}
-                title={integration.label}
-                detail={<StatusDot health={state.health} label={state.label} />}
-                trailing={
-                  <span className="muted">
-                    {countLabel(integration.signalCount)}
-                  </span>
-                }
-                onOpen={() => onNavigate(routeTo("settings", integration.id))}
-              />
-            );
-          })}
+          {view.integrations.map((integration) => (
+            <SourceRow
+              key={integration.id}
+              integration={integration}
+              paused={view.paused}
+              onOpen={() => onNavigate(routeTo("settings", integration.id))}
+            />
+          ))}
         </div>
       )}
 
