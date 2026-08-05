@@ -121,10 +121,20 @@ function tokenStore(initial: string | null = "refresh-original", log: string[] =
 describe("activitySummary", () => {
   it("describes the activity without using the user's title", () => {
     const summary = activitySummary(activity());
-    expect(summary).toBe("Trail run — 21.1 km in 2h 14m");
+    expect(summary).toBe("Trail run — 13.1 mi in 2h 14m");
     // The title is a joke, a place name, or an emoji. It is not training
     // signal, and it is a free-text field where a pasted secret would land.
     expect(summary).not.toContain("Morning Run");
+  });
+
+  it("reports miles, so the model never has to convert in prose", () => {
+    // Strava sends metres. A mentor handed metres and told to answer in miles
+    // divides by 1609 inside a sentence, with no way for the reader to check
+    // it. The conversion belongs here, where it can be tested.
+    expect(activitySummary(activity())).not.toContain("km");
+    expect(activitySummary(activity({ distance: 1_609.344 }))).toBe(
+      "Trail run — 1.0 mi in 2h 14m",
+    );
   });
 
   it("falls back to duration when the activity covers no distance", () => {
@@ -152,13 +162,30 @@ describe("humanizeSport", () => {
 describe("activityMetrics", () => {
   it("keeps the numbers a mentor can reason about", () => {
     expect(activityMetrics(activity())).toEqual({
-      distance_m: 21_097.5,
+      distance_mi: 13.11,
       moving_time_s: 8_040,
       elapsed_time_s: 8_400,
-      elevation_gain_m: 612.4,
+      elevation_gain_ft: 2_009.19,
       average_heartrate: 148.2,
       max_heartrate: 172,
     });
+  });
+
+  it("names the unit in the key, so a rollup cannot mix metres with miles", () => {
+    // Rollups sum by key across everything stored. Had the key stayed
+    // `distance_m`, a window spanning this change would have added metres to
+    // miles and produced a total that is wrong with no way to see it.
+    const metrics = activityMetrics(activity());
+    expect(metrics).not.toHaveProperty("distance_m");
+    expect(metrics).not.toHaveProperty("elevation_gain_m");
+  });
+
+  it("keeps two decimals, because a tenth of a mile is not a rounding error", () => {
+    // The old key was metres, where one decimal was 10cm. On miles the same
+    // rounding would be 160m per activity, compounding across a window.
+    expect(activityMetrics(activity({ distance: 5_000 }))["distance_mi"]).toBe(
+      3.11,
+    );
   });
 
   it("omits a metric the activity does not carry", () => {
@@ -167,7 +194,15 @@ describe("activityMetrics", () => {
     );
     expect(metrics).not.toHaveProperty("average_heartrate");
     expect(metrics).not.toHaveProperty("max_heartrate");
-    expect(metrics["distance_m"]).toBe(21_097.5);
+    expect(metrics["distance_mi"]).toBe(13.11);
+  });
+
+  it("drops a distance that is not a number rather than storing NaN", () => {
+    const metrics = activityMetrics(
+      activity({ distance: undefined, total_elevation_gain: undefined }),
+    );
+    expect(metrics).not.toHaveProperty("distance_mi");
+    expect(metrics).not.toHaveProperty("elevation_gain_ft");
   });
 });
 

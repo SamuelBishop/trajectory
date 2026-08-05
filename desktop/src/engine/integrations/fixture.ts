@@ -55,16 +55,16 @@ const SEEDS: readonly Seed[] = [
   {
     offsetDays: 3,
     kind: "workout",
-    summary: "Easy run, 10 km",
+    summary: "Easy run, 6.2 mi",
     domain: "training",
-    metrics: { distance_m: 10_000, moving_time_s: 3_180 },
+    metrics: { distance_mi: 6.21, moving_time_s: 3_180 },
   },
   {
     offsetDays: 4,
     kind: "workout",
-    summary: "Interval session, 8 km",
+    summary: "Interval session, 5 mi",
     domain: "training",
-    metrics: { distance_m: 8_000, moving_time_s: 2_460 },
+    metrics: { distance_mi: 4.97, moving_time_s: 2_460 },
   },
 ];
 

@@ -9,10 +9,15 @@ import {
   selectActivitySignals,
 } from "../../src/engine/selection";
 import {
+  BRIEFING_SYSTEM_PROMPT,
   CHAT_SYSTEM_PROMPT,
   SYSTEM_PROMPT,
   buildUserMessage,
 } from "../../src/engine/prompting";
+import {
+  activityMetrics,
+  activitySummary,
+} from "../../src/engine/integrations/strava";
 import { DeterministicProvider } from "../../src/engine/providers/deterministic";
 import {
   validateChatResponse,
@@ -57,6 +62,70 @@ async function demoResult(signals: readonly ActivitySignal[] = []) {
     { signals, today },
   );
 }
+
+describe("units that reach the model", () => {
+  /**
+   * The path the user actually complained about: a Strava activity, through
+   * selection, into the object a provider is handed. Pinned end to end because
+   * the adapter converting correctly is worthless if any layer between it and
+   * the prompt reintroduces metres.
+   */
+  const rawStravaActivity = {
+    id: 9_876_543_210,
+    sport_type: "Run",
+    distance: 16_093.44,
+    moving_time: 5_400,
+    total_elevation_gain: 304.8,
+    start_date_local: "2026-03-10T06:12:00Z",
+  };
+
+  function workout(): ActivitySignal {
+    return signal({
+      id: "strava_9876543210",
+      integration_id: "strava",
+      kind: "workout",
+      domain: "health",
+      summary: activitySummary(rawStravaActivity),
+      metrics: activityMetrics(rawStravaActivity),
+    });
+  }
+
+  it("hands the model miles, never metres or kilometres", () => {
+    const context = buildActivityContext(
+      "How much running have I done?",
+      goals,
+      [workout()],
+      today,
+    );
+    expect(context).not.toBeNull();
+
+    const serialized = JSON.stringify(context);
+    expect(serialized).toContain("10.0 mi");
+    expect(serialized).not.toContain("km");
+    expect(serialized).not.toContain("distance_m\"");
+
+    expect(context?.signals[0]?.metrics).toMatchObject({
+      distance_mi: 10,
+      elevation_gain_ft: 1_000,
+    });
+  });
+
+  it("totals the window in miles too, which is what a volume question reads", () => {
+    // Rollups are what the prompt tells the model to use for "how much".
+    // A summary in miles over a total in metres would be worse than either.
+    const context = buildActivityContext(
+      "How much running have I done?",
+      goals,
+      [workout()],
+      today,
+    );
+    const rollup = context?.rollups.find(
+      (item) => item.integration_id === "strava",
+    );
+    expect(rollup?.totals["distance_mi"]).toBe(10);
+    expect(rollup?.totals).not.toHaveProperty("distance_m");
+  });
+});
 
 describe("activity selection", () => {
   it("selects no signals when an unmatched one is also old, and sends null", () => {
@@ -344,6 +413,21 @@ describe("activity on the request", () => {
     for (const prompt of [SYSTEM_PROMPT, CHAT_SYSTEM_PROMPT]) {
       expect(prompt).toContain("Never add two");
       expect(prompt).toContain("rollups overlap");
+    }
+  });
+
+  it("tells every prompt to report a measurement in the unit it arrived in", () => {
+    // The adapter converts metres to miles so the model never has to. This is
+    // the other half: a model that helpfully converts back to kilometres is
+    // doing arithmetic inside a sentence, where a wrong answer looks exactly
+    // like a right one.
+    for (const prompt of [
+      SYSTEM_PROMPT,
+      CHAT_SYSTEM_PROMPT,
+      BRIEFING_SYSTEM_PROMPT,
+    ]) {
+      expect(prompt).toContain("distance_mi is miles");
+      expect(prompt).toContain("never convert it to another one");
     }
   });
 

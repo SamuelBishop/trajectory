@@ -261,4 +261,33 @@ describe("EncryptedActivityStore", () => {
     expect(await store.list()).toEqual([]);
     expect(await store.status()).toEqual({});
   });
+
+  it("serves a record written in metres back in miles", async () => {
+    // Activity is kept for as long as retention allows, so the build that
+    // started converting at ingest left months of metre-keyed records behind
+    // it. Without this the user asks how far they ran and gets kilometres from
+    // an app that no longer produces them.
+    const filePath = await temporaryFile();
+    const store = new EncryptedActivityStore(filePath, testEncryption);
+    await store.merge(
+      "strava",
+      [
+        signal({
+          id: "strava_1",
+          integration_id: "strava",
+          summary: "Long run — 21.1 km",
+          metrics: { distance_m: 21_097.5 },
+        }),
+      ],
+      merge,
+    );
+
+    const [reloaded] = await new EncryptedActivityStore(
+      filePath,
+      testEncryption,
+    ).list();
+
+    expect(reloaded?.summary).toBe("Long run — 13.1 mi");
+    expect(reloaded?.metrics).toEqual({ distance_mi: 13.11 });
+  });
 });

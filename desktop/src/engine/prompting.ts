@@ -59,7 +59,12 @@ rollup covers. An integration appears once per window, so rollups overlap:
 window_start and window_end say which period each one covers. Never add two
 rollups together — choose the one whose window matches the question, and if a
 question asks about a period the rollups do not cover, say so rather than
-counting the sample.`;
+counting the sample.
+A metric key names its own unit: distance_mi is miles, elevation_gain_ft is
+feet, moving_time_s is seconds. Report a measurement in the unit it arrived in
+and never convert it to another one. Converting means doing arithmetic inside a
+sentence where the user cannot check it, and a distance that is quietly wrong is
+worse than one in an unfamiliar unit.`;
 
 export const SYSTEM_PROMPT = `You are Trajectory, a candid and calm decision mentor.
 

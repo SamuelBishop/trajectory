@@ -19,6 +19,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 
 import { activitySignalSchema, type ActivitySignal } from "../engine/domain";
+import { migrateStoredSignal } from "../engine/integrations/units";
 
 export const ACTIVITY_FILE = "trajectory-activity.enc.json";
 
@@ -99,7 +100,7 @@ export class EncryptedActivityStore {
     for (const candidate of Array.isArray(raw.signals) ? raw.signals : []) {
       const result = activitySignalSchema.safeParse(candidate);
       if (result.success) {
-        signals.push(result.data);
+        signals.push(migrateStoredSignal(result.data));
       }
     }
     return {

@@ -31,6 +31,12 @@
 import type { ActivitySignal } from "../domain";
 import type { StravaConfig } from "./policy";
 import { localDate } from "./rollup";
+import {
+  METRES_PER_FOOT,
+  METRES_PER_MILE,
+  inUnitsOf,
+  round2,
+} from "./units";
 
 export const STRAVA_INTEGRATION_ID = "strava";
 const STRAVA_HOST = "www.strava.com";
@@ -260,6 +266,22 @@ export interface StravaTokenStore {
   save(refreshToken: string): Promise<void>;
 }
 
+/**
+ * Strava reports distance in metres and elevation in metres. The mentor reports
+ * back in the units the athlete actually thinks in.
+ *
+ * Converted here, at ingest, rather than left to the model. The alternative —
+ * hand the model metres and tell it to answer in miles — makes every distance
+ * in every answer depend on the model dividing by 1609 correctly, in prose,
+ * without showing its work. Arithmetic done silently inside a sentence is
+ * exactly the confidently-wrong output this product exists to avoid.
+ *
+ * The unit lives in the metric key, so nothing has to be inferred from context:
+ * `distance_mi` is miles and `elevation_gain_ft` is feet. Records written before
+ * this change are brought forward on read by `migrateStoredSignal`, so a rollup
+ * never has to show both keys at once.
+ */
+
 interface SummaryActivity {
   id?: number | string;
   name?: string;
@@ -454,8 +476,11 @@ export function activitySummary(activity: SummaryActivity): string {
   const metres = Number(activity.distance);
   const seconds = Number(activity.moving_time ?? activity.elapsed_time);
   const parts: string[] = [];
+  // The threshold stays in metres because it answers "did this activity cover a
+  // real distance", which is a question about the record and not about how the
+  // number is displayed.
   if (Number.isFinite(metres) && metres >= 100) {
-    parts.push(`${(metres / 1000).toFixed(1)} km`);
+    parts.push(`${(metres / METRES_PER_MILE).toFixed(1)} mi`);
   }
   if (Number.isFinite(seconds) && seconds > 0) {
     parts.push(formatDuration(seconds));
@@ -481,16 +506,16 @@ export function signalId(activityId: string): string {
 export function activityMetrics(activity: SummaryActivity): Record<string, number> {
   const metrics: Record<string, number> = {};
   const numeric: [string, unknown][] = [
-    ["distance_m", activity.distance],
+    ["distance_mi", inUnitsOf(activity.distance, METRES_PER_MILE)],
     ["moving_time_s", activity.moving_time],
     ["elapsed_time_s", activity.elapsed_time],
-    ["elevation_gain_m", activity.total_elevation_gain],
+    ["elevation_gain_ft", inUnitsOf(activity.total_elevation_gain, METRES_PER_FOOT)],
     ["average_heartrate", activity.average_heartrate],
     ["max_heartrate", activity.max_heartrate],
   ];
   for (const [key, value] of numeric) {
     if (typeof value === "number" && Number.isFinite(value)) {
-      metrics[key] = Math.round(value * 10) / 10;
+      metrics[key] = round2(value);
     }
   }
   return metrics;

@@ -97,11 +97,37 @@ One signal per activity:
 - `occurred_at` — the activity start date, local.
 - `domain` — user-configured, defaulting to a single training domain so workouts
   score against a running or fitness goal.
-- `metrics` — distance in metres, moving time in seconds, elapsed time,
-  elevation gain, and average and max heart rate when present. **Not perceived
-  exertion**: it is not on the `SummaryActivity` the list endpoint returns, and
-  fetching it would cost one extra request per activity against the rate limit
-  above. Dropped rather than paid for.
+- `metrics` — `distance_mi`, `moving_time_s`, `elapsed_time_s`,
+  `elevation_gain_ft`, and average and max heart rate when present. **Not
+  perceived exertion**: it is not on the `SummaryActivity` the list endpoint
+  returns, and fetching it would cost one extra request per activity against the
+  rate limit above. Dropped rather than paid for.
+
+## Units
+
+Strava sends metres. The adapter converts to miles and feet, and names the unit
+in the metric key.
+
+Converted at ingest rather than in the prompt, because the alternative is to
+hand the model metres and ask it to answer in miles — which makes every distance
+in every answer depend on the model dividing by 1609 correctly, in prose,
+without showing its work. A conversion that is tested is worth more than an
+instruction that is hoped for.
+
+The unit is in the key so a rollup cannot mix scales. Rollups sum by key across
+everything stored, so a signal written before this change (`distance_m`) and one
+written after (`distance_mi`) could never be summed into a single wrong total —
+at worst they would appear as two headings, which is unreadable but visible.
+
+Records stored before the change do not stay that way. `migrateStoredSignal`
+in `src/engine/integrations/units.ts` converts them on read, inside
+`EncryptedActivityStore.read()`, so a metre-era record and one fetched today
+come back in the same units. It is idempotent and dispatches on
+`integration_id`, because Google Sheets derives its metric keys from the user's
+own column headers — a sheet with a "Distance (m)" column produces `distance_m`
+legitimately, and converting a number the user typed would be corruption. The
+alternative, deleting the integration's data and re-syncing, needs no code but
+discards everything older than the lookback horizon.
 
 Do **not** store GPS streams, polylines, or start coordinates. They are the most
 sensitive data Strava holds, they are large, and the mentor has no use for them.
