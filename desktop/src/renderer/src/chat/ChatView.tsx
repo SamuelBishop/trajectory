@@ -25,6 +25,7 @@ import type {
   ConversationSummary,
   Grounding,
   ProviderName,
+  StarterPromptCacheView,
 } from "../../../shared/types";
 import { toErrorMessage } from "../errors";
 import type { Route } from "../route";
@@ -33,12 +34,6 @@ import { Icon } from "../ui/Icon";
 import { ConversationList } from "./ConversationList";
 import { EvidenceSidebar } from "./EvidenceSidebar";
 import { Message } from "./Message";
-
-const SUGGESTIONS = [
-  "What should I focus on this week?",
-  "Should I spend another two hours polishing this low-risk pull request?",
-  "Where am I drifting from my stated priorities?",
-];
 
 /** The answer whose evidence is shown when the user has not picked one. */
 function latestGrounded(messages: readonly ChatMessage[]): ChatMessage | null {
@@ -91,6 +86,19 @@ export function ChatView({
     conversation: Conversation;
     summaries: ConversationSummary[];
   }> | null>(null);
+
+  const [starterPrompts, setStarterPrompts] = useState<string[] | null>(null);
+  const [starterLoading, setStarterLoading] = useState(false);
+  const [starterError, setStarterError] = useState<string | null>(null);
+  const starterPromptsRef = useRef<string[] | null>(null);
+  const starterCacheRequestRef = useRef<{
+    provider: ProviderName;
+    promise: Promise<StarterPromptCacheView>;
+  } | null>(null);
+  const starterRefreshRequestRef = useRef<{
+    provider: ProviderName;
+    promise: Promise<string[]>;
+  } | null>(null);
 
   const activeId = active?.id;
   const canSend = draft.trim().length > 0 && !sending && Boolean(activeId);
@@ -208,6 +216,118 @@ export function ChatView({
   const messages = active?.messages ?? [];
   // The initial reads as a person; "You" beside the label "You" reads as a bug.
   const youMark = displayName.trim().slice(0, 1).toUpperCase() || "You";
+
+  const showStarterPrompts = useCallback((prompts: string[]): void => {
+    starterPromptsRef.current = prompts;
+    setStarterPrompts(prompts);
+  }, []);
+
+  const getStarterCache = useCallback((): Promise<StarterPromptCacheView> => {
+    const current = starterCacheRequestRef.current;
+    if (current?.provider === provider) {
+      return current.promise;
+    }
+    const promise = window.trajectory.getStarterPrompts();
+    starterCacheRequestRef.current = { provider, promise };
+    void promise.then(undefined, () => {
+      if (starterCacheRequestRef.current?.promise === promise) {
+        starterCacheRequestRef.current = null;
+      }
+    });
+    return promise;
+  }, [provider]);
+
+  const refreshStarters = useCallback((): Promise<string[]> => {
+    const current = starterRefreshRequestRef.current;
+    if (current?.provider === provider) {
+      return current.promise;
+    }
+    const promise = window.trajectory.refreshStarterPrompts();
+    starterRefreshRequestRef.current = { provider, promise };
+    const clear = (): void => {
+      if (starterRefreshRequestRef.current?.promise === promise) {
+        starterRefreshRequestRef.current = null;
+      }
+    };
+    void promise.then(clear, clear);
+    return promise;
+  }, [provider]);
+
+  const showFreshStarterPrompts = useCallback(
+    (prompts: string[]): void => {
+      showStarterPrompts(prompts);
+      starterCacheRequestRef.current = {
+        provider,
+        promise: Promise.resolve({ prompts, fresh: true }),
+      };
+    },
+    [provider, showStarterPrompts],
+  );
+
+  // A shared cache promise and refresh promise let both StrictMode effect passes
+  // observe the same work. A one-shot boolean would let the cancelled first pass
+  // consume the refresh and leave the live pass with no result.
+  const isEmpty = messages.length === 0 && !loading;
+  useEffect(() => {
+    if (!isEmpty) return;
+    let cancelled = false;
+    if (starterPromptsRef.current === null) {
+      setStarterLoading(true);
+    }
+    void (async () => {
+      try {
+        const cached = await getStarterCache();
+        if (cancelled) return;
+        if (cached.prompts) {
+          showStarterPrompts(cached.prompts);
+        }
+        if (!cached.fresh) {
+          setStarterLoading(true);
+          try {
+            const refreshed = await refreshStarters();
+            if (!cancelled) {
+              showFreshStarterPrompts(refreshed);
+              setStarterError(null);
+            }
+          } catch (refreshError) {
+            if (!cancelled) {
+              setStarterError(toErrorMessage(refreshError));
+            }
+          } finally {
+            if (!cancelled) setStarterLoading(false);
+          }
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setStarterError(toErrorMessage(loadError));
+          setStarterLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    getStarterCache,
+    isEmpty,
+    refreshStarters,
+    showFreshStarterPrompts,
+    showStarterPrompts,
+  ]);
+
+  const handleRefreshStarters = useCallback(async () => {
+    setStarterLoading(true);
+    setStarterError(null);
+    try {
+      const refreshed = await refreshStarters();
+      showFreshStarterPrompts(refreshed);
+    } catch (refreshError) {
+      setStarterError(toErrorMessage(refreshError));
+    } finally {
+      setStarterLoading(false);
+    }
+  }, [refreshStarters, showFreshStarterPrompts]);
+
   const evidenceMessage =
     (selectedId === null
       ? null
@@ -416,16 +536,51 @@ export function ChatView({
                   Ask about a decision, a tradeoff, or where your current actions
                   point.
                 </p>
-                <div className="suggestions">
-                  {SUGGESTIONS.map((suggestion) => (
+                {starterError && !starterPrompts && (
+                  <div className="error-banner">
+                    {starterError}{" "}
                     <button
-                      key={suggestion}
-                      onClick={() => void send(suggestion)}
+                      type="button"
+                      className="suggestions-refresh"
+                      onClick={() => void handleRefreshStarters()}
                     >
-                      {suggestion}
+                      Retry
                     </button>
-                  ))}
-                </div>
+                  </div>
+                )}
+                {starterPrompts ? (
+                  <>
+                    <div className="suggestions">
+                      {starterPrompts.map((question) => (
+                        <button
+                          key={question}
+                          onClick={() => void send(question)}
+                        >
+                          {question}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="suggestion-actions">
+                      {starterError && (
+                        <span className="save-problem">{starterError}</span>
+                      )}
+                      <button
+                        type="button"
+                        className="suggestions-refresh"
+                        disabled={starterLoading}
+                        onClick={() => void handleRefreshStarters()}
+                      >
+                        {starterLoading
+                          ? "Refreshing…"
+                          : "Refresh suggestions"}
+                      </button>
+                    </div>
+                  </>
+                ) : starterLoading ? (
+                  <div className="suggestions">
+                    <span>Generating personalized suggestions…</span>
+                  </div>
+                ) : null}
               </div>
             )}
             <div ref={endRef} />

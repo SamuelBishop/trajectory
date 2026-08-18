@@ -11,18 +11,22 @@ import {
   briefingSchema,
   chatResponseSchema,
   recommendationSchema,
+  starterPromptsResponseSchema,
   type Briefing,
   type BriefingRequest,
   type ChatRequest,
   type ChatResponse,
   type DecisionRequest,
   type Recommendation,
+  type StarterPromptsRequest,
+  type StarterPromptsResponse,
 } from "./domain";
 import { ProviderResponseError } from "./errors";
 
 export const PROMPT_VERSION = "decision_v6";
 export const CHAT_PROMPT_VERSION = "chat_v6";
 export const BRIEFING_PROMPT_VERSION = "briefing_v1";
+export const STARTER_PROMPT_VERSION = "starter_v1";
 
 /**
  * The rules that keep measured activity from turning into an accusation.
@@ -254,6 +258,41 @@ export function parseRecommendation(content: string): Recommendation {
 
 export function parseChatResponse(content: string): ChatResponse {
   return parseStructuredResponse(content, chatResponseSchema);
+}
+
+export const STARTER_SYSTEM_PROMPT = `You are Trajectory, generating three personalized first-person questions for a chat starter screen.
+
+Read only the supplied current state, constraints, active goals, and observed
+activity. Propose exactly three questions the user is likely to want to ask their
+mentor now. Each question must contain I, me, or my; end with a question mark; be
+concrete enough that it could not apply unchanged to everyone; and be grounded in
+at least one supplied goal. Vary the decisions or tensions they explore rather than
+rephrasing one question three times.
+
+Cite every grounding goal in goal_ids. Cite activity IDs in activity_ids whenever a
+question refers to an observed action or measurement. A signal with completed=false
+is an intention, not something the user did. An empty or absent activity context is
+not evidence of inactivity; return empty activity_ids arrays and ask from the goals,
+current state, and constraints instead.
+
+Do not answer the questions, provide advice, diagnose, shame, invent facts, or imply
+that missing activity happened. Do not reference conversation history; none is
+provided. Return only one JSON object matching the supplied
+StarterPromptsResponse schema.
+`;
+
+export function buildStarterPromptsUserMessage(request: StarterPromptsRequest): string {
+  const schema = z.toJSONSchema(starterPromptsResponseSchema);
+  return (
+    "StarterPromptsResponse JSON schema:\n" +
+    `${canonicalJson(schema)}\n\n` +
+    "Starter prompts context:\n" +
+    `${canonicalJson(request)}`
+  );
+}
+
+export function parseStarterPromptsResponse(content: string): StarterPromptsResponse {
+  return parseStructuredResponse(content, starterPromptsResponseSchema);
 }
 
 export function parseBriefing(content: string): Briefing {

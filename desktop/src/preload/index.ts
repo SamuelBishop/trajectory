@@ -56,6 +56,10 @@ const api: DesktopApi = {
 
   listBriefings: () => ipcRenderer.invoke("briefing:list"),
   runBriefingNow: () => ipcRenderer.invoke("briefing:runNow"),
+
+  getStarterPrompts: () => ipcRenderer.invoke("starterPrompts:get"),
+  refreshStarterPrompts: () => ipcRenderer.invoke("starterPrompts:refresh"),
+
   onShowBriefing: (handler: () => void) => {
     const channel = "briefing:show";
     const wrapped = (): void => handler();

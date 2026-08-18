@@ -260,6 +260,7 @@ describe("briefing attribution", () => {
       generate: () => Promise.reject(new Error("not used")),
       chat: () => Promise.reject(new Error("not used")),
       briefing: () => Promise.resolve(briefing as never),
+      starterPrompts: () => Promise.reject(new Error("not used")),
     };
   }
 

@@ -14,6 +14,8 @@ import type {
   ChatResponse,
   DecisionRequest,
   Recommendation,
+  StarterPromptsRequest,
+  StarterPromptsResponse,
 } from "../domain";
 import { ProviderError } from "../errors";
 import type { MentorProvider } from "./types";
@@ -182,6 +184,35 @@ export class DeterministicProvider implements MentorProvider {
       confidence: 0.72,
       uncertainties: [
         "The system cannot see work done away from the connected sources.",
+      ],
+    };
+  }
+
+  async starterPrompts(request: StarterPromptsRequest): Promise<StarterPromptsResponse> {
+    const goal = request.goals[0];
+    if (goal?.id !== "career_001") {
+      throw new ProviderError(
+        "The deterministic provider supports only the committed pull-request " +
+          "demo. Choose copilot or openai for starter prompts.",
+      );
+    }
+    return {
+      prompts: [
+        {
+          question: "Should I keep polishing this pull request or move on to the design proposal?",
+          goal_ids: [goal.id],
+          activity_ids: [],
+        },
+        {
+          question: "Am I spending too much time on low-risk work at the expense of higher-priority goals?",
+          goal_ids: [goal.id],
+          activity_ids: [],
+        },
+        {
+          question: "What would I make progress on if I treated the design proposal as the priority?",
+          goal_ids: [goal.id],
+          activity_ids: [],
+        },
       ],
     };
   }

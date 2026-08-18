@@ -11,12 +11,15 @@ import {
   briefingSchema,
   chatResponseSchema,
   recommendationSchema,
+  starterPromptsResponseSchema,
   type Briefing,
   type BriefingRequest,
   type ChatRequest,
   type ChatResponse,
   type DecisionRequest,
   type Recommendation,
+  type StarterPromptsRequest,
+  type StarterPromptsResponse,
 } from "../domain";
 import {
   AttributionError,
@@ -26,9 +29,11 @@ import {
 import {
   BRIEFING_SYSTEM_PROMPT,
   CHAT_SYSTEM_PROMPT,
+  STARTER_SYSTEM_PROMPT,
   SYSTEM_PROMPT,
   buildBriefingUserMessage,
   buildChatUserMessage,
+  buildStarterPromptsUserMessage,
   buildUserMessage,
   parseStructuredResponse,
 } from "../prompting";
@@ -36,6 +41,7 @@ import {
   validateBriefing,
   validateChatResponse,
   validateRecommendation,
+  validateStarterPrompts,
 } from "../validation";
 import type { MentorProvider } from "./types";
 
@@ -243,6 +249,16 @@ export class OpenAICompatibleProvider implements MentorProvider {
       briefingSchema,
       "trajectory_briefing",
       (briefing) => validateBriefing(briefing, request),
+    );
+  }
+
+  async starterPrompts(request: StarterPromptsRequest): Promise<StarterPromptsResponse> {
+    return await this.generateStructured(
+      STARTER_SYSTEM_PROMPT,
+      buildStarterPromptsUserMessage(request),
+      starterPromptsResponseSchema,
+      "trajectory_starter_prompts",
+      (response) => validateStarterPrompts(response, request),
     );
   }
 }

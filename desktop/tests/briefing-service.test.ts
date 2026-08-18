@@ -157,6 +157,7 @@ describe("briefing service", () => {
       generate: () => Promise.reject(new Error("unused")),
       chat: () => Promise.reject(new Error("unused")),
       briefing: () => Promise.reject(new Error("The provider was unreachable.")),
+      starterPrompts: () => Promise.reject(new Error("unused")),
     };
     const { service, store, notifier } = await build({ provider: failing });
 
@@ -176,6 +177,7 @@ describe("briefing service", () => {
       chat: () => Promise.reject(new Error("unused")),
       briefing: () =>
         Promise.reject(new InsufficientContextError("No active goals.")),
+      starterPrompts: () => Promise.reject(new Error("unused")),
     };
     const { service, notifier } = await build({ provider: empty });
 
@@ -190,6 +192,7 @@ describe("briefing service", () => {
       generate: () => Promise.reject(new Error("unused")),
       chat: () => Promise.reject(new Error("unused")),
       briefing: () => Promise.reject(new Error("Still down.")),
+      starterPrompts: () => Promise.reject(new Error("unused")),
     };
     const { service, syncCalls } = await build({ provider: failing });
 
@@ -280,6 +283,7 @@ describe("briefing service", () => {
       generate: () => Promise.reject(new Error("unused")),
       chat: () => Promise.reject(new Error("unused")),
       briefing: () => Promise.reject(new Error("Credential expired.")),
+      starterPrompts: () => Promise.reject(new Error("unused")),
     };
     await (await build({ store, provider: failing })).service.runIfDue();
 
@@ -307,6 +311,7 @@ describe("briefing service", () => {
         await gate;
         return await inner.briefing(request);
       },
+      starterPrompts: (request) => inner.starterPrompts(request),
     };
     const { service, syncCalls, notifier } = await build({ provider: slow });
 

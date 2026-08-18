@@ -6,11 +6,13 @@ import type {
   BriefingRequest,
   ChatRequest,
   DecisionRequest,
+  StarterPromptsRequest,
 } from "../../src/engine/domain";
 import { ProviderError, ProviderResponseError } from "../../src/engine/errors";
 import {
   chatWithMentor,
   dailyBriefing,
+  generateStarterPrompts,
   reviewDecision,
 } from "../../src/engine/mentorship";
 import {
@@ -22,7 +24,10 @@ import {
   type CopilotSessionLike,
 } from "../../src/engine/providers/copilot";
 import { DeterministicProvider } from "../../src/engine/providers/deterministic";
-import { BRIEFING_SYSTEM_PROMPT } from "../../src/engine/prompting";
+import {
+  BRIEFING_SYSTEM_PROMPT,
+  STARTER_SYSTEM_PROMPT,
+} from "../../src/engine/prompting";
 import {
   OpenAICompatibleProvider,
   type CompletionClient,
@@ -107,6 +112,41 @@ function briefingJson(request: BriefingRequest): string {
     inferences: ["Additional polish may have lower opportunity value."],
     confidence: 0.7,
     uncertainties: ["Work away from connected sources is invisible."],
+  });
+}
+
+async function demoStarterPromptsRequest(): Promise<StarterPromptsRequest> {
+  const result = await generateStarterPrompts(
+    new DeterministicProvider(),
+    directories,
+    { signals: [], today: "2026-03-10" },
+  );
+  return result.request;
+}
+
+function starterPromptsJson(request: StarterPromptsRequest): string {
+  const goalId = request.goals[0]!.id;
+  return JSON.stringify({
+    prompts: [
+      {
+        question:
+          "Should I move from polishing the pull request to the design proposal?",
+        goal_ids: [goalId],
+        activity_ids: [],
+      },
+      {
+        question:
+          "Am I giving my architectural-ownership goal enough focused time?",
+        goal_ids: [goalId],
+        activity_ids: [],
+      },
+      {
+        question:
+          "What constraint should I address before I start the design proposal?",
+        goal_ids: [goalId],
+        activity_ids: [],
+      },
+    ],
   });
 }
 
@@ -354,6 +394,34 @@ describe("OpenAI-compatible provider", () => {
     const system = messages.find((message) => message.role === "system")!.content;
     expect(system).toBe(BRIEFING_SYSTEM_PROMPT);
     expect(system).toMatch(/notification/i);
+  });
+
+  it("generates strict starter prompts without conversation history", async () => {
+    const request = await demoStarterPromptsRequest();
+    const client = new FakeOpenAIClient([starterPromptsJson(request)]);
+
+    const response = await new OpenAICompatibleProvider({
+      model: "test-model",
+      client,
+    }).starterPrompts(request);
+
+    expect(response.prompts).toHaveLength(3);
+    const call = client.calls[0]!;
+    const format = call.response_format as {
+      json_schema: {
+        name: string;
+        strict: boolean;
+        schema: Record<string, unknown>;
+      };
+    };
+    expect(format.json_schema.name).toBe("trajectory_starter_prompts");
+    expect(format.json_schema.strict).toBe(true);
+    const messages = call.messages as { role: string; content: string }[];
+    expect(messages.find((message) => message.role === "system")?.content).toBe(
+      STARTER_SYSTEM_PROMPT,
+    );
+    expect(request).not.toHaveProperty("history");
+    expect(request).not.toHaveProperty("message");
   });
 
   it("retries a briefing whose citations do not resolve", async () => {
@@ -646,6 +714,20 @@ describe("Copilot provider", () => {
     expect(briefing.on_track).toBe("partly");
   });
 
+  it("supports personalized starter prompts", async () => {
+    const request = await demoStarterPromptsRequest();
+
+    const response = await new CopilotProvider({
+      model: "test-model",
+      baseDirectory: RUNTIME_DIRECTORY,
+      clientFactory: (options) =>
+        new FakeCopilotClient([starterPromptsJson(request)], options),
+    }).starterPrompts(request);
+
+    expect(response.prompts).toHaveLength(3);
+    expect(response.prompts[0]?.goal_ids).toEqual(["career_001"]);
+  });
+
   it("retries a briefing whose citations do not resolve", async () => {
     const request = await demoBriefingRequest();
     const invalid = JSON.parse(briefingJson(request)) as Record<string, unknown>;
@@ -821,6 +903,19 @@ describe("deterministic provider", () => {
         question: "Should I polish the design proposal?",
       }),
     ).rejects.toThrow(/supports only the committed/);
+  });
+
+  it("generates demo-grounded starter prompts rather than the old generic set", async () => {
+    const request = await demoStarterPromptsRequest();
+    const response = await new DeterministicProvider().starterPrompts(request);
+
+    expect(response.prompts).toHaveLength(3);
+    expect(response.prompts.map((item) => item.question)).not.toContain(
+      "What should I focus on this week?",
+    );
+    expect(response.prompts.map((item) => item.question)).not.toContain(
+      "Where am I drifting from my stated priorities?",
+    );
   });
 
   it("refuses a briefing outside the committed demo", async () => {

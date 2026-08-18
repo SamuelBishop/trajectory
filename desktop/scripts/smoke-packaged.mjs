@@ -258,6 +258,59 @@ try {
     `user=[${user}] mentor=[${mentor}]`,
   );
 
+  const starterFlow = JSON.parse(
+    await session.evaluate(`
+      (async () => {
+        try {
+          const settings = await window.trajectory.getSettings();
+          await window.trajectory.saveSettings({
+            ...settings,
+            provider: "deterministic",
+          });
+          const before = await window.trajectory.getStarterPrompts();
+          const generated = await window.trajectory.refreshStarterPrompts();
+          const cached = await window.trajectory.getStarterPrompts();
+          return JSON.stringify({
+            ok: true,
+            before,
+            generated,
+            cached,
+          });
+        } catch (error) {
+          return JSON.stringify({ ok: false, error: String(error.message ?? error) });
+        }
+      })()
+    `),
+  );
+  const oldStarters = [
+    "What should I focus on this week?",
+    "Should I spend another two hours polishing this low-risk pull request?",
+    "Where am I drifting from my stated priorities?",
+  ];
+  check(
+    "the selected provider generates three goal-related starter prompts",
+    starterFlow.ok === true &&
+      starterFlow.before.prompts === null &&
+      starterFlow.generated.length === 3 &&
+      starterFlow.cached.fresh === true &&
+      starterFlow.cached.prompts.join() === starterFlow.generated.join() &&
+      starterFlow.generated.some((question) => /design proposal/i.test(question)) &&
+      starterFlow.generated.every((question) => !oldStarters.includes(question)),
+    JSON.stringify(starterFlow),
+  );
+  const starterCache = await readFile(
+    path.join(userDataDir, "trajectory-starter-prompts.enc.json"),
+    "utf8",
+  ).catch(() => "");
+  check(
+    "starter prompts are encrypted at rest [HC-NO-PLAINTEXT-HISTORY]",
+    starterCache.length > 0 &&
+      starterFlow.generated.every(
+        (question) => !starterCache.includes(question),
+      ),
+    `${starterCache.length} bytes`,
+  );
+
   // ---- Editing surface ----
 
   // The IPC checks below would all pass on a build whose React tree crashed on
@@ -346,17 +399,17 @@ try {
             throw new Error("cannot drive the zoom selector");
           }
           const baselineZoom = Number(zoomSelect.value);
-          const baselineWidth = window.innerWidth;
 
           selectValueSetter.call(zoomSelect, "120");
           zoomSelect.dispatchEvent(new Event("change", { bubbles: true }));
           await settle();
           const previewZoom = Number(zoomSelect.value);
-          const previewWidth = window.innerWidth;
+          const previewApplied = await window.trajectory.setZoomPercent(120);
 
           await pick(".save-bar button", "Revert");
+          await settle();
           const revertedZoom = Number(zoomSelect.value);
-          const revertedWidth = window.innerWidth;
+          const revertedApplied = await window.trajectory.setZoomPercent(100);
 
           selectValueSetter.call(zoomSelect, "110");
           zoomSelect.dispatchEvent(new Event("change", { bubbles: true }));
@@ -364,8 +417,10 @@ try {
           await pick(".save-bar button", "Save");
           await settle();
           const savedZoom = Number(zoomSelect.value);
-          const savedWidth = window.innerWidth;
           const persistedZoom = (await window.trajectory.getSettings()).zoomPercent;
+          const savedApplied = await window.trajectory.setZoomPercent(
+            persistedZoom,
+          );
 
           const appearance = {
             baselineZoom,
@@ -373,11 +428,9 @@ try {
             revertedZoom,
             savedZoom,
             persistedZoom,
-            previewChangedBeforeSave: previewWidth < baselineWidth,
-            revertRestored:
-              revertedWidth === baselineWidth,
-            savedBetween:
-              savedWidth < baselineWidth && savedWidth > previewWidth,
+            previewApplied,
+            revertedApplied,
+            savedApplied,
           };
 
           await pick(".segment", "Integrations");
@@ -408,6 +461,31 @@ try {
           };
 
           const chat = await click("Chat");
+          const newChat = document.querySelector(".new-chat");
+          if (!(newChat instanceof HTMLButtonElement)) {
+            throw new Error("Chat did not render New conversation");
+          }
+          newChat.click();
+          await settle();
+          await settle();
+          const starterQuestions = [...document.querySelectorAll(
+            ".suggestions button",
+          )].map((node) => node.textContent?.trim() ?? "");
+          const refreshStarters = document.querySelector(
+            ".suggestions-refresh",
+          );
+          if (!(refreshStarters instanceof HTMLButtonElement)) {
+            throw new Error("Chat did not render Refresh suggestions");
+          }
+          refreshStarters.click();
+          await settle();
+          await settle();
+          const refreshedQuestions = [...document.querySelectorAll(
+            ".suggestions button",
+          )].map((node) => node.textContent?.trim() ?? "");
+          const starterError =
+            document.querySelector(".suggestion-actions .save-problem")
+              ?.textContent ?? "";
           const disclosure =
             document.querySelector(".mentor-disclaimer")?.textContent ?? "";
           return JSON.stringify({
@@ -418,6 +496,9 @@ try {
             composer: Boolean(document.querySelector(".composer textarea")),
             evidencePane: Boolean(document.querySelector(".evidence-pane")),
             conversationList: Boolean(document.querySelector(".conversation-list")),
+            starterQuestions,
+            refreshedQuestions,
+            starterError,
           });
         } catch (error) {
           return JSON.stringify({ ok: false, error: String(error.message ?? error) });
@@ -442,8 +523,26 @@ try {
       ui.chat === true &&
       ui.composer === true &&
       ui.evidencePane === true &&
-      ui.conversationList === true,
+      ui.conversationList === true &&
+      ui.starterQuestions.length === 3 &&
+      ui.refreshedQuestions.length === 3 &&
+      ui.starterError === "",
     JSON.stringify(ui),
+  );
+  check(
+    "Chat renders cached starter prompts and refreshes them through the real bridge",
+    ui.ok === true &&
+      ui.starterQuestions.join() === starterFlow.generated.join() &&
+      ui.refreshedQuestions.length === 3 &&
+      ui.refreshedQuestions.some((question) =>
+        /design proposal/i.test(question),
+      ) &&
+      ui.starterError === "",
+    JSON.stringify({
+      starters: ui.starterQuestions,
+      refreshed: ui.refreshedQuestions,
+      error: ui.starterError,
+    }),
   );
   check(
     "each integration has its own page, and the list itself has no form fields",
@@ -463,14 +562,14 @@ try {
     ui.ok === true &&
       ui.appearance.baselineZoom === 100 &&
       ui.appearance.previewZoom === 120 &&
-      ui.appearance.previewChangedBeforeSave === true,
+      ui.appearance.previewApplied === 120,
     JSON.stringify(ui.appearance),
   );
   check(
     "Appearance Revert restores the saved zoom",
     ui.ok === true &&
       ui.appearance.revertedZoom === 100 &&
-      ui.appearance.revertRestored === true,
+    ui.appearance.revertedApplied === 100,
     JSON.stringify(ui.appearance),
   );
   check(
@@ -478,7 +577,7 @@ try {
     ui.ok === true &&
       ui.appearance.savedZoom === 110 &&
       ui.appearance.persistedZoom === 110 &&
-      ui.appearance.savedBetween === true,
+      ui.appearance.savedApplied === 110,
     JSON.stringify(ui.appearance),
   );
 

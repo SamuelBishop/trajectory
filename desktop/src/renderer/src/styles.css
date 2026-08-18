@@ -715,6 +715,32 @@ kbd {
   background: #20201c;
 }
 
+.suggestion-actions {
+  display: flex;
+  width: min(620px, 100%);
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.suggestions-refresh {
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.suggestions-refresh:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.suggestions-refresh:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .thinking {
   display: flex;
   width: 680px;

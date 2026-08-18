@@ -15,6 +15,8 @@ import type {
   ChatResponse,
   DecisionRequest,
   Recommendation,
+  StarterPromptsRequest,
+  StarterPromptsResponse,
 } from "./domain";
 import { AttributionError } from "./errors";
 
@@ -156,6 +158,39 @@ export function validateBriefing(
     request,
   );
   validateActivityCitations(briefing.activity_ids, request);
+}
+
+/**
+ * Starter prompts cite goals and optionally activity, but never principles or
+ * sources — they are questions, not answers. Uniqueness is also enforced: three
+ * identical suggestions would waste the screen.
+ */
+export function validateStarterPrompts(
+  response: StarterPromptsResponse,
+  request: StarterPromptsRequest,
+): void {
+  const goalSet = new Set(request.goals.map((goal) => goal.id));
+  const activitySet = new Set(
+    (request.activity_context?.signals ?? []).map((signal) => signal.id),
+  );
+  for (const item of response.prompts) {
+    const unknownGoals = unknown(item.goal_ids, goalSet);
+    if (unknownGoals.length > 0) {
+      throw new AttributionError(
+        `Starter prompt cites unknown goals: ${unknownGoals.join(", ")}`,
+      );
+    }
+    const unknownActivity = unknown(item.activity_ids, activitySet);
+    if (unknownActivity.length > 0) {
+      throw new AttributionError(
+        `Starter prompt cites unknown activity signals: ${unknownActivity.join(", ")}`,
+      );
+    }
+  }
+  const questions = response.prompts.map((item) => item.question.toLowerCase());
+  if (new Set(questions).size !== questions.length) {
+    throw new AttributionError("Starter prompts contain duplicate questions.");
+  }
 }
 
 export function validateDemoGrounding(

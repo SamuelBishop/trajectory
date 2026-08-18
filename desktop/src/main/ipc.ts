@@ -50,6 +50,8 @@ import { BriefingService } from "./briefing-service";
 import { EncryptedBriefingStore } from "./briefing-store";
 import { IntegrationService } from "./integrations";
 import { SecretStore } from "./secrets";
+import { StarterPromptService } from "./starter-prompt-service";
+import { EncryptedStarterPromptStore } from "./starter-prompt-store";
 import { EncryptedChatStore } from "./store";
 
 /**
@@ -352,6 +354,36 @@ export function registerIpcHandlers(options: {
   ipcMain.handle("briefing:list", () => briefings.list());
   ipcMain.handle("briefing:runNow", () => briefingService.runNow());
 
+  const starterPromptStore = new EncryptedStarterPromptStore(
+    EncryptedStarterPromptStore.defaultPath(userData),
+    encryption,
+  );
+  const starterPromptService = new StarterPromptService({
+    store: starterPromptStore,
+    loadSettings: () => loadSettings(userData),
+    createProvider: async (settings) =>
+      createProvider(settings.provider, {
+        runtimeDirectory: await ensureRuntimeDirectory(),
+        model: settings.model,
+        openaiApiKey: await secrets.read("openaiApiKey"),
+        githubToken: await secrets.read("githubToken"),
+      }),
+    directories: () => localConfig(),
+    signalsForPrompt: () => integrations.signalsForPrompt(),
+  });
+
+  ipcMain.handle("starterPrompts:get", async () => {
+    const { record, fresh } = await starterPromptService.getCached();
+    return {
+      prompts: record?.prompts.map((item) => item.question) ?? null,
+      fresh,
+    };
+  });
+  ipcMain.handle("starterPrompts:refresh", async () => {
+    const record = await starterPromptService.refresh();
+    return record.prompts.map((item) => item.question);
+  });
+
   ipcMain.handle("chat:list", () => store.list());  ipcMain.handle("chat:get", (_event, id: unknown) => store.get(requireId(id)));
   ipcMain.handle("chat:create", () => store.create());
   ipcMain.handle("chat:delete", (_event, id: unknown) =>
@@ -538,6 +570,9 @@ export function registerIpcHandlers(options: {
   ipcMain.handle("zoom:set", (event, raw: unknown) => {
     const percent = zoomPercentSchema.parse(raw);
     event.sender.setZoomFactor(percent / 100);
+    return zoomPercentSchema.parse(
+      Math.round(event.sender.getZoomFactor() * 100),
+    );
   });
 
   // Activity integrations. Every verb returns the whole view so the renderer

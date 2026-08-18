@@ -17,12 +17,15 @@ import type {
   DecisionResult,
   Goal,
   MentorPrinciple,
+  StarterPromptsRequest,
+  StarterPromptsResult,
 } from "./domain";
 import { InsufficientContextError } from "./errors";
 import {
   BRIEFING_PROMPT_VERSION,
   CHAT_PROMPT_VERSION,
   PROMPT_VERSION,
+  STARTER_PROMPT_VERSION,
 } from "./prompting";
 import type { MentorProvider } from "./providers/types";
 import {
@@ -37,6 +40,7 @@ import {
   validateChatResponse,
   validateDemoGrounding,
   validateRecommendation,
+  validateStarterPrompts,
 } from "./validation";
 
 export interface EngineDirectories {
@@ -265,4 +269,53 @@ export async function chatWithMentor(
   const response = await provider.chat(request);
   validateChatResponse(response, request);
   return { response, request };
+}
+
+/** How many top-priority active goals to include in starter prompts. */
+const STARTER_GOAL_LIMIT = 5;
+
+/**
+ * Generate three personalized first-person questions for the Chat starter
+ * screen, grounded in the user's goals and recent activity.
+ *
+ * Deliberately excludes conversation history, mentor prose, and principles —
+ * these are questions, not answers, and the model must not shape them from
+ * previous assistant output.
+ */
+export async function generateStarterPrompts(
+  provider: MentorProvider,
+  directories: EngineDirectories,
+  activity?: ActivityInput,
+): Promise<StarterPromptsResult> {
+  const user = await loadUserConfig(directories.userDirectory);
+
+  const goals = user.goals
+    .filter((goal) => goal.status === "active")
+    .sort(
+      (left, right) =>
+        left.priority - right.priority || left.id.localeCompare(right.id),
+    )
+    .slice(0, STARTER_GOAL_LIMIT);
+  if (goals.length === 0) {
+    throw new InsufficientContextError(
+      "Starter prompts require at least one active goal.",
+    );
+  }
+
+  const query = goals.map((goal) => goal.description).join(" ");
+  const activityContext = activity
+    ? buildActivityContext(query, goals, activity.signals, activity.today)
+    : null;
+
+  const request: StarterPromptsRequest = {
+    current_state: user.current_state,
+    constraints: user.constraints,
+    goals,
+    activity_context: activityContext,
+    provider: provider.name,
+    prompt_version: STARTER_PROMPT_VERSION,
+  };
+  const prompts = await provider.starterPrompts(request);
+  validateStarterPrompts(prompts, request);
+  return { prompts, request };
 }

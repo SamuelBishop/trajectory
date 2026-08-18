@@ -11,6 +11,8 @@ import type {
   ChatResponse,
   DecisionRequest,
   Recommendation,
+  StarterPromptsRequest,
+  StarterPromptsResponse,
 } from "../domain";
 
 export interface MentorProvider {
@@ -18,4 +20,5 @@ export interface MentorProvider {
   generate(request: DecisionRequest): Promise<Recommendation>;
   chat(request: ChatRequest): Promise<ChatResponse>;
   briefing(request: BriefingRequest): Promise<Briefing>;
+  starterPrompts(request: StarterPromptsRequest): Promise<StarterPromptsResponse>;
 }

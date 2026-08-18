@@ -127,10 +127,14 @@ export interface DesktopApi {
 
   getSettings(): Promise<AppSettings>;
   saveSettings(settings: AppSettings): Promise<AppSettings>;
-  setZoomPercent(percent: ZoomPercent): Promise<void>;
+  setZoomPercent(percent: ZoomPercent): Promise<ZoomPercent>;
 
   listBriefings(): Promise<BriefingView[]>;
   runBriefingNow(): Promise<BriefingRunResult>;
+
+  getStarterPrompts(): Promise<StarterPromptCacheView>;
+  refreshStarterPrompts(): Promise<string[]>;
+
   /** Fires when a notification is clicked, so the pane can be opened. */
   onShowBriefing(handler: () => void): () => void;
 
@@ -280,6 +284,17 @@ export interface BriefingRunResult {
   status: "completed" | "failed" | "skipped";
   reason: string;
   record: BriefingView | null;
+}
+
+/**
+ * A personalized starter question as the renderer sees it.
+ *
+ * Restated here rather than imported: the renderer must not reach into the
+ * engine.
+ */
+export interface StarterPromptCacheView {
+  prompts: string[] | null;
+  fresh: boolean;
 }
 
 /**

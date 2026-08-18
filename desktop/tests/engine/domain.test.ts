@@ -7,6 +7,7 @@ import {
   goalSchema,
   mentorPrincipleSchema,
   recommendationSchema,
+  starterPromptsResponseSchema,
   valuesConfigSchema,
 } from "../../src/engine/domain";
 
@@ -125,6 +126,7 @@ describe("strict response schemas", () => {
     ["recommendation", recommendationSchema],
     ["chat response", chatResponseSchema],
     ["briefing", briefingSchema],
+    ["starter prompts", starterPromptsResponseSchema],
   ] as const;
 
   for (const [name, schema] of cases) {

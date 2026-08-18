@@ -531,6 +531,42 @@ export const briefingResultSchema = z.strictObject({
   request: briefingRequestSchema,
 });
 
+/**
+ * Starter prompt: a first-person question the user might ask, grounded in
+ * their goals and optionally in recent activity. Three are generated each time.
+ *
+ * Sent to the model as a strict response schema. Every field is required.
+ */
+export const starterPromptItemSchema = z.strictObject({
+  question: z
+    .string()
+    .trim()
+    .min(10)
+    .max(200)
+    .regex(/\b(?:I|me|my)\b/i, "Starter prompt must be first-person.")
+    .endsWith("?"),
+  goal_ids: z.array(identifier).min(1),
+  activity_ids: z.array(identifier),
+});
+
+export const starterPromptsResponseSchema = z.strictObject({
+  prompts: z.array(starterPromptItemSchema).length(3),
+});
+
+export const starterPromptsRequestSchema = z.strictObject({
+  current_state: currentStateConfigSchema,
+  constraints: constraintsConfigSchema,
+  goals: z.array(goalSchema).min(1),
+  activity_context: activityContextSchema.nullable(),
+  provider: identifier,
+  prompt_version: identifier,
+});
+
+export const starterPromptsResultSchema = z.strictObject({
+  prompts: starterPromptsResponseSchema,
+  request: starterPromptsRequestSchema,
+});
+
 export const providerNameSchema = z.enum([
   "deterministic",
   "copilot",
@@ -571,3 +607,7 @@ export type Briefing = z.infer<typeof briefingSchema>;
 export type DecisionResult = z.infer<typeof decisionResultSchema>;
 export type ChatResult = z.infer<typeof chatResultSchema>;
 export type BriefingResult = z.infer<typeof briefingResultSchema>;
+export type StarterPromptItem = z.infer<typeof starterPromptItemSchema>;
+export type StarterPromptsResponse = z.infer<typeof starterPromptsResponseSchema>;
+export type StarterPromptsRequest = z.infer<typeof starterPromptsRequestSchema>;
+export type StarterPromptsResult = z.infer<typeof starterPromptsResultSchema>;
