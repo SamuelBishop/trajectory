@@ -331,6 +331,55 @@ try {
           await settle();
 
           const settings = await click("Settings");
+          await pick(".segment", "Appearance");
+          const zoomSelect = document.querySelector(
+            ".settings-card .select-input",
+          );
+          if (!(zoomSelect instanceof HTMLSelectElement)) {
+            throw new Error("Appearance did not render its zoom selector");
+          }
+          const selectValueSetter = Object.getOwnPropertyDescriptor(
+            HTMLSelectElement.prototype,
+            "value",
+          )?.set;
+          if (!selectValueSetter) {
+            throw new Error("cannot drive the zoom selector");
+          }
+          const baselineZoom = Number(zoomSelect.value);
+          const baselineWidth = window.innerWidth;
+
+          selectValueSetter.call(zoomSelect, "120");
+          zoomSelect.dispatchEvent(new Event("change", { bubbles: true }));
+          await settle();
+          const previewZoom = Number(zoomSelect.value);
+          const previewWidth = window.innerWidth;
+
+          await pick(".save-bar button", "Revert");
+          const revertedZoom = Number(zoomSelect.value);
+          const revertedWidth = window.innerWidth;
+
+          selectValueSetter.call(zoomSelect, "110");
+          zoomSelect.dispatchEvent(new Event("change", { bubbles: true }));
+          await settle();
+          await pick(".save-bar button", "Save");
+          await settle();
+          const savedZoom = Number(zoomSelect.value);
+          const savedWidth = window.innerWidth;
+          const persistedZoom = (await window.trajectory.getSettings()).zoomPercent;
+
+          const appearance = {
+            baselineZoom,
+            previewZoom,
+            revertedZoom,
+            savedZoom,
+            persistedZoom,
+            previewChangedBeforeSave: previewWidth < baselineWidth,
+            revertRestored:
+              revertedWidth === baselineWidth,
+            savedBetween:
+              savedWidth < baselineWidth && savedWidth > previewWidth,
+          };
+
           await pick(".segment", "Integrations");
           // The pane loads its state asynchronously, so settle again before
           // reading it. Checking only the heading would pass even if it never
@@ -363,7 +412,7 @@ try {
             document.querySelector(".mentor-disclaimer")?.textContent ?? "";
           return JSON.stringify({
             ok: true, rail, today, context, fields, duplicateListed,
-            voiceLoaded, settings, rowCount, fieldsBeforeOpening, detail,
+            voiceLoaded, settings, appearance, rowCount, fieldsBeforeOpening, detail,
             disclosure,
             chat: chat.length > 0,
             composer: Boolean(document.querySelector(".composer textarea")),
@@ -408,6 +457,29 @@ try {
       ui.detail.credential === true &&
       /Connects only to api.github.com/.test(ui.detail.hosts),
     JSON.stringify({ rowCount: ui.rowCount, detail: ui.detail }),
+  );
+  check(
+    "Appearance previews a zoom preset immediately before Save",
+    ui.ok === true &&
+      ui.appearance.baselineZoom === 100 &&
+      ui.appearance.previewZoom === 120 &&
+      ui.appearance.previewChangedBeforeSave === true,
+    JSON.stringify(ui.appearance),
+  );
+  check(
+    "Appearance Revert restores the saved zoom",
+    ui.ok === true &&
+      ui.appearance.revertedZoom === 100 &&
+      ui.appearance.revertRestored === true,
+    JSON.stringify(ui.appearance),
+  );
+  check(
+    "Appearance Save persists the selected zoom",
+    ui.ok === true &&
+      ui.appearance.savedZoom === 110 &&
+      ui.appearance.persistedZoom === 110 &&
+      ui.appearance.savedBetween === true,
+    JSON.stringify(ui.appearance),
   );
 
   const editing = JSON.parse(
@@ -509,6 +581,27 @@ try {
       mentorFlow.activeMentorId === "smoke_mentor" &&
       !mentorFlow.afterDelete.includes("smoke_mentor"),
     JSON.stringify(mentorFlow),
+  );
+
+  const invalidZoom = JSON.parse(
+    await session.evaluate(`
+      (async () => {
+        try {
+          await window.trajectory.setZoomPercent(150);
+          return JSON.stringify({ rejected: false });
+        } catch (error) {
+          return JSON.stringify({
+            rejected: true,
+            error: String(error.message ?? error),
+          });
+        }
+      })()
+    `),
+  );
+  check(
+    "an invalid zoom value is rejected [HC-VALIDATE-IPC-INPUT]",
+    invalidZoom.rejected === true,
+    JSON.stringify(invalidZoom),
   );
 
   const secretFlow = JSON.parse(

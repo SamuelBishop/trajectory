@@ -15,8 +15,16 @@ import { z } from "zod";
 import { providerNameSchema } from "./domain";
 import { DEMO_MENTOR_ID } from "./paths";
 import { writeFileAtomic } from "./writer";
+import {
+  isZoomPercent,
+  type ZoomPercent,
+} from "../shared/types";
 
 export const SETTINGS_FILE = "settings.json";
+
+export const zoomPercentSchema = z.custom<ZoomPercent>(isZoomPercent, {
+  message: "Zoom must be one of 80, 90, 100, 110, or 120 percent.",
+});
 
 /**
  * A blank model override means "let the provider choose its own default".
@@ -55,6 +63,11 @@ export const settingsSchema = z.strictObject({
    * screen and mirror it to a paired iPhone.
    */
   briefingHeadlineInNotification: z.boolean().default(true),
+  /**
+   * Page zoom percentage. Backward-compatible: files from older releases
+   * omit the key and get 100%.
+   */
+  zoomPercent: zoomPercentSchema.default(100),
 });
 
 export type Settings = z.infer<typeof settingsSchema>;

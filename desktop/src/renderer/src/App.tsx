@@ -29,6 +29,7 @@ const FALLBACK_SETTINGS: AppSettings = {
   briefingEnabled: false,
   briefingMinute: 12 * 60,
   briefingHeadlineInNotification: true,
+  zoomPercent: 100,
 };
 
 export function App(): React.JSX.Element {

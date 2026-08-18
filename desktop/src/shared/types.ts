@@ -1,4 +1,13 @@
 export type ProviderName = "deterministic" | "copilot" | "openai";
+export const ZOOM_PRESETS = [80, 90, 100, 110, 120] as const;
+export type ZoomPercent = (typeof ZOOM_PRESETS)[number];
+
+export function isZoomPercent(value: unknown): value is ZoomPercent {
+  return (
+    typeof value === "number" &&
+    ZOOM_PRESETS.some((preset) => preset === value)
+  );
+}
 export type MessageRole = "user" | "assistant";
 
 /**
@@ -118,6 +127,7 @@ export interface DesktopApi {
 
   getSettings(): Promise<AppSettings>;
   saveSettings(settings: AppSettings): Promise<AppSettings>;
+  setZoomPercent(percent: ZoomPercent): Promise<void>;
 
   listBriefings(): Promise<BriefingView[]>;
   runBriefingNow(): Promise<BriefingRunResult>;
@@ -228,6 +238,8 @@ export interface AppSettings {
   /** Minutes since local midnight; 720 is noon. */
   briefingMinute: number;
   briefingHeadlineInNotification: boolean;
+  /** Page zoom percentage. 100 is the default for older settings files. */
+  zoomPercent: ZoomPercent;
 }
 
 /**

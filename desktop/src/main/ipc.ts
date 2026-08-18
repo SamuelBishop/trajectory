@@ -37,7 +37,11 @@ import { chatWithMentor } from "../engine/mentorship";import {
 } from "../engine/paths";
 import { CopilotProvider } from "../engine/providers/copilot";
 import { createProvider } from "../engine/providers/factory";
-import { loadSettings, saveSettings } from "../engine/settings";
+import {
+  loadSettings,
+  saveSettings,
+  zoomPercentSchema,
+} from "../engine/settings";
 import type { ProviderName, SendMessageInput } from "../shared/types";
 import { CopilotLogin } from "./copilot-login";
 import { citationsFor } from "./citations";
@@ -517,13 +521,23 @@ export function registerIpcHandlers(options: {
     return await listMentors(configDirectory);
   });
 
-  ipcMain.handle("settings:get", () => loadSettings(userData));
-  ipcMain.handle("settings:save", async (_event, raw: unknown) => {
+  ipcMain.handle("settings:get", async (event) => {
+    const settings = await loadSettings(userData);
+    event.sender.setZoomFactor(settings.zoomPercent / 100);
+    return settings;
+  });
+  ipcMain.handle("settings:save", async (event, raw: unknown) => {
     const saved = await saveSettings(userData, raw);
+    event.sender.setZoomFactor(saved.zoomPercent / 100);
     // Force the next message to resolve directories against the new mentor.
     seeded = undefined;
     await localConfig();
     return saved;
+  });
+
+  ipcMain.handle("zoom:set", (event, raw: unknown) => {
+    const percent = zoomPercentSchema.parse(raw);
+    event.sender.setZoomFactor(percent / 100);
   });
 
   // Activity integrations. Every verb returns the whole view so the renderer

@@ -8,6 +8,7 @@ import type {
   MentorConfigFile,
   SendMessageInput,
   UserConfigFile,
+  ZoomPercent,
 } from "../shared/types";
 
 const api: DesktopApi = {
@@ -50,6 +51,8 @@ const api: DesktopApi = {
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings: AppSettings) =>
     ipcRenderer.invoke("settings:save", settings),
+  setZoomPercent: (percent: ZoomPercent) =>
+    ipcRenderer.invoke("zoom:set", percent),
 
   listBriefings: () => ipcRenderer.invoke("briefing:list"),
   runBriefingNow: () => ipcRenderer.invoke("briefing:runNow"),

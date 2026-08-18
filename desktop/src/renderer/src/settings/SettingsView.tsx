@@ -14,13 +14,15 @@
 import type { AppSettings, MentorSummary } from "../../../shared/types";
 import { routeTo, type Route } from "../route";
 import { AdvancedSection } from "./AdvancedSection";
+import { AppearanceSection } from "./AppearanceSection";
 import { BasicsSection } from "./BasicsSection";
 import { IntegrationsPane } from "./IntegrationsPane";
 
-type Section = "basics" | "integrations" | "advanced";
+type Section = "basics" | "appearance" | "integrations" | "advanced";
 
 const SECTIONS: readonly { id: Section; label: string }[] = [
   { id: "basics", label: "Basics" },
+  { id: "appearance", label: "Appearance" },
   { id: "integrations", label: "Integrations" },
   { id: "advanced", label: "Advanced" },
 ];
@@ -31,12 +33,17 @@ const SECTIONS: readonly { id: Section; label: string }[] = [
  */
 function sectionFor(sub: string | null): Section {
   if (sub === null || sub === "basics") return "basics";
+  if (sub === "appearance") return "appearance";
   if (sub === "advanced") return "advanced";
   return "integrations";
 }
 
 function selectedIntegration(sub: string | null): string | null {
-  return sub === null || sub === "basics" || sub === "advanced" || sub === "integrations"
+  return sub === null ||
+    sub === "basics" ||
+    sub === "appearance" ||
+    sub === "advanced" ||
+    sub === "integrations"
     ? null
     : sub;
 }
@@ -85,6 +92,9 @@ export function SettingsView({
             mentors={mentors}
             onSaved={onSaved}
           />
+        )}
+        {section === "appearance" && (
+          <AppearanceSection settings={settings} onSaved={onSaved} />
         )}
         {section === "integrations" && (
           <IntegrationsPane
